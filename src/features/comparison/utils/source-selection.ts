@@ -19,7 +19,8 @@ export function dataSourceToComparisonSource(
   if (
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
-    dataSource.type === 'iceberg-catalog'
+    dataSource.type === 'iceberg-catalog' ||
+    dataSource.type === 'motherduck'
   ) {
     if (!schemaName || !tableName) {
       console.error(

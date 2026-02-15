@@ -43,6 +43,12 @@ export default defineConfig(({ mode }) => {
   return {
     mode: mode === 'int-test-build' ? 'production' : mode,
     base: basePath,
+    server: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+      },
+    },
     define: {
       __INTEGRATION_TEST__: mode === 'int-test-build',
       __VERSION__: JSON.stringify(getVersionInfo()),

@@ -1,8 +1,14 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { IcebergCatalog, LocalDB, RemoteDB, PersistentDataSourceId } from '@models/data-source';
+import {
+  IcebergCatalog,
+  LocalDB,
+  MotherDuckConnection,
+  RemoteDB,
+  PersistentDataSourceId,
+} from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { SchemaBrowserTab } from '@models/tab';
-import { getDatabaseIdentifier } from '@utils/data-source';
+import { formatMotherDuckDbKey, getDatabaseIdentifier } from '@utils/data-source';
 
 import { dbColumnToSchemaColumn, SchemaGraph, SchemaNodeData, SchemaColumnData } from '../../model';
 import { getBatchTableConstraints } from '../batch-constraints';
@@ -16,7 +22,10 @@ import { createSchemaNode } from '../schema-extraction';
 export async function processDbSource(
   tab: Omit<SchemaBrowserTab, 'dataViewStateCache'>,
   pool: AsyncDuckDBConnectionPool,
-  dbSources: Map<PersistentDataSourceId, LocalDB | RemoteDB | IcebergCatalog>,
+  dbSources: Map<
+    PersistentDataSourceId,
+    LocalDB | RemoteDB | IcebergCatalog | MotherDuckConnection
+  >,
   dbMetadata: Map<string, DataBaseModel>,
   abortSignal: AbortSignal,
 ): Promise<SchemaGraph> {
@@ -27,7 +36,11 @@ export async function processDbSource(
 
   if (tab.sourceId && dbSources.has(tab.sourceId as PersistentDataSourceId)) {
     const dbSource = dbSources.get(tab.sourceId as PersistentDataSourceId)!;
-    const dbName = getDatabaseIdentifier(dbSource);
+    // For MotherDuck, use databaseName from the tab to resolve the correct per-database metadata.
+    const dbName =
+      dbSource.type === 'motherduck' && tab.databaseName
+        ? formatMotherDuckDbKey(tab.databaseName)
+        : getDatabaseIdentifier(dbSource);
     const metadata = dbMetadata.get(dbName);
 
     if (metadata) {

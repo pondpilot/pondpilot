@@ -949,7 +949,7 @@ export const restoreAppDataFromIDB = async (
   // 2. We want to handle connection errors properly
   // Just mark them as valid so they don't get deleted
   for (const ds of dataSources.values()) {
-    if (ds.type === 'remote-db' || ds.type === 'iceberg-catalog') {
+    if (ds.type === 'remote-db' || ds.type === 'iceberg-catalog' || ds.type === 'motherduck') {
       validDataSources.add(ds.id);
     }
   }

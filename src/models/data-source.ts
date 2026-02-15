@@ -257,7 +257,47 @@ export interface RemoteDB {
   s3Endpoint?: string;
 }
 
-export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB | IcebergCatalog;
+/**
+ * MotherDuck cloud database connection.
+ * Account-level: a single token grants access to all user databases.
+ * Databases are auto-discovered via DuckDB's catalog after connecting.
+ */
+export interface MotherDuckConnection {
+  readonly type: 'motherduck';
+  id: PersistentDataSourceId;
+
+  /**
+   * Connection state for handling network issues
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting' | 'credentials-required';
+
+  /**
+   * Error message if connection failed
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this connection was established
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description
+   */
+  comment?: string;
+
+  /**
+   * Reference to the encrypted secret store entry holding the token.
+   */
+  secretRef?: SecretId;
+}
+
+export type AnyDataSource =
+  | AnyFlatFileDataSource
+  | LocalDB
+  | RemoteDB
+  | IcebergCatalog
+  | MotherDuckConnection;
 
 // Special constant for the system database
 export const SYSTEM_DATABASE_ID = 'pondpilot-system-db' as PersistentDataSourceId;

@@ -13,7 +13,7 @@ import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { getDatabaseIdentifier, isDatabaseDataSource } from '@utils/data-source';
+import { getDatabaseIdentifier, isDatabaseDataSource, isMotherDuckDbKey } from '@utils/data-source';
 import { parseTableAccessKey } from '@utils/table-access';
 
 import { persistDeleteDataSource } from './persist';
@@ -57,6 +57,7 @@ export const deleteDataSources = async (
     dataSources,
     dataSourceAccessTimes,
     tableAccessTimes,
+    databaseMetadata,
     tabs,
     tabOrder,
     activeTabId,
@@ -91,11 +92,21 @@ export const deleteDataSources = async (
     Array.from(dataSourceAccessTimes).filter(([id]) => !dataSourceIdsToDelete.has(id)),
   );
 
-  const deletedDbNames = new Set(
+  const deletedDataBases = new Set(
     deletedDataSources
       .filter(isDatabaseDataSource)
       .map((dataSource) => getDatabaseIdentifier(dataSource)),
   );
+  const shouldClearMotherDuckMetadata = deletedDataSources.some(
+    (dataSource) => dataSource.type === 'motherduck',
+  );
+  if (shouldClearMotherDuckMetadata) {
+    for (const dbName of databaseMetadata.keys()) {
+      if (isMotherDuckDbKey(dbName)) {
+        deletedDataBases.add(dbName);
+      }
+    }
+  }
   const newTableAccessTimes = new Map(
     Array.from(tableAccessTimes).filter(([key]) => {
       const parsed = parseTableAccessKey(key);
@@ -103,7 +114,7 @@ export const deleteDataSources = async (
         return true;
       }
       const [dbName] = parsed;
-      return !deletedDbNames.has(dbName);
+      return !deletedDataBases.has(dbName);
     }),
   );
 
@@ -205,6 +216,31 @@ export const deleteDataSources = async (
       continue;
     }
 
+    if (dataSource.type === 'motherduck') {
+      // For MotherDuck connections: disconnect and remove encrypted secret
+      try {
+        const { detachMotherDuckDatabases } = await import('@utils/motherduck');
+        await detachMotherDuckDatabases(conn);
+      } catch (disconnectError) {
+        console.warn('Failed to disconnect MotherDuck during deletion:', disconnectError);
+      }
+      if (dataSource.secretRef) {
+        try {
+          const { _iDbConn } = useAppStore.getState();
+          if (_iDbConn) {
+            const { deleteSecret } = await import('@services/secret-store');
+            await deleteSecret(_iDbConn, dataSource.secretRef);
+          }
+        } catch (storeError) {
+          console.warn(
+            'Failed to delete MotherDuck secret from store during deletion:',
+            storeError,
+          );
+        }
+      }
+      continue;
+    }
+
     if (dataSource.type === 'remote-db') {
       // For remote databases, just detach
       detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
@@ -228,10 +264,6 @@ export const deleteDataSources = async (
   }
 
   // After database is updated (views are dropped), create the updated state for database metadata
-  const { databaseMetadata } = useAppStore.getState();
-  const deletedDataBases = new Set(
-    deletedDataSources.filter(isDatabaseDataSource).map((ds) => getDatabaseIdentifier(ds)),
-  );
   // Filter out deleted databases from the metadata
   // eslint-disable-next-line prefer-const
   let newDatabaseMetadata = new Map(

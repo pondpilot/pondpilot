@@ -15,6 +15,8 @@ type DataExplorerContentProps = {
   remoteDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   showIcebergCatalogs: boolean;
   icebergCatalogNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
+  showMotherDuck: boolean;
+  motherduckNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   initialExpandedState: Record<string, boolean>;
   searchExpandedState: Record<string, boolean>;
   extraData: DataExplorerContext;
@@ -32,6 +34,8 @@ export const DataExplorerContent = ({
   remoteDbNodes,
   showIcebergCatalogs,
   icebergCatalogNodes,
+  showMotherDuck,
+  motherduckNodes,
   initialExpandedState,
   searchExpandedState,
   extraData,
@@ -39,9 +43,9 @@ export const DataExplorerContent = ({
 }: DataExplorerContentProps) => {
   const expandedState = { ...initialExpandedState, ...searchExpandedState };
 
-  // Combine remote databases and iceberg catalogs into one section
-  const showRemoteSection = showRemoteDbs || showIcebergCatalogs;
-  const remoteDataSourceNodes = [...remoteDbNodes, ...icebergCatalogNodes];
+  // Combine remote databases, iceberg catalogs, and MotherDuck into one section
+  const showRemoteSection = showRemoteDbs || showIcebergCatalogs || showMotherDuck;
+  const remoteDataSourceNodes = [...remoteDbNodes, ...icebergCatalogNodes, ...motherduckNodes];
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden">

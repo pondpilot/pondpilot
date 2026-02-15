@@ -1,7 +1,9 @@
 import { showError } from '@components/app-notifications';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Group, Stack, Title, ActionIcon, Text, Button, Alert } from '@mantine/core';
+import { useAppStore } from '@store/app-store';
 import {
+  IconCloud,
   IconDatabasePlus,
   IconFilePlus,
   IconFolderPlus,
@@ -11,11 +13,12 @@ import {
 } from '@tabler/icons-react';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { setDataTestId } from '@utils/test-id';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
 import { ClipboardImportConfig } from './components/clipboard-import-config';
 import { IcebergCatalogConfig } from './components/iceberg-catalog-config';
+import { MotherDuckConfig } from './components/motherduck-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
 import { validateJSON, validateCSV } from './utils/clipboard-import';
 
@@ -31,6 +34,7 @@ export type WizardStep =
   | 'selection'
   | 'remote-config'
   | 'iceberg-config'
+  | 'motherduck-config'
   | 'clipboard-csv'
   | 'clipboard-json';
 
@@ -40,6 +44,8 @@ const getStepTitle = (step: WizardStep): string => {
       return 'REMOTE DATABASE';
     case 'iceberg-config':
       return 'ICEBERG CATALOG';
+    case 'motherduck-config':
+      return 'MOTHERDUCK';
     case 'clipboard-csv':
       return 'IMPORT CSV FROM CLIPBOARD';
     case 'clipboard-json':
@@ -57,6 +63,11 @@ export function DatasourceWizardModal({
   handleAddFile,
 }: DatasourceWizardModalProps) {
   const [step, setStep] = useState<WizardStep>(initialStep);
+  const dataSources = useAppStore((state) => state.dataSources);
+  const hasMotherDuckConnection = useMemo(
+    () => Array.from(dataSources.values()).some((ds) => ds.type === 'motherduck'),
+    [dataSources],
+  );
   const [hasClipboardContent, setHasClipboardContent] = useState(false);
   const [clipboardContent, setClipboardContent] = useState('');
   const [clipboardFormat, setClipboardFormat] = useState<'csv' | 'json'>('csv');
@@ -154,6 +165,10 @@ export function DatasourceWizardModal({
 
   const handleIcebergCatalogClick = () => {
     setStep('iceberg-config');
+  };
+
+  const handleMotherDuckClick = () => {
+    setStep('motherduck-config');
   };
 
   const handleBack = () => {
@@ -308,7 +323,7 @@ export function DatasourceWizardModal({
     );
   };
 
-  const datasourceCards = [
+  const localCards = [
     {
       type: 'file' as const,
       onClick: handleCardClick('file'),
@@ -337,6 +352,9 @@ export function DatasourceWizardModal({
       description: 'Browse entire directories',
       testId: 'add-folder-card',
     },
+  ];
+
+  const remoteCards = [
     {
       type: 'remote' as const,
       onClick: handleRemoteDatabaseClick,
@@ -364,6 +382,21 @@ export function DatasourceWizardModal({
       title: 'Iceberg Catalog',
       description: 'REST, S3 Tables, Glue',
       testId: 'add-iceberg-catalog-card',
+    },
+    {
+      type: 'motherduck' as const,
+      onClick: handleMotherDuckClick,
+      icon: (
+        <IconCloud
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'MotherDuck',
+      description: hasMotherDuckConnection ? 'Already connected' : 'Cloud DuckDB',
+      testId: 'add-motherduck-card',
+      disabled: hasMotherDuckConnection,
     },
   ];
 
@@ -399,9 +432,12 @@ export function DatasourceWizardModal({
           {renderPasteDataBanner()}
           {renderClipboardBlockedAlert()}
 
-          <Group>
+          <Stack gap={4}>
+            <Text size="xs" fw={500} c="text-secondary" className="uppercase">
+              Local
+            </Text>
             <Group gap="md" className="justify-center md:justify-start">
-              {datasourceCards.map((card) => (
+              {localCards.map((card) => (
                 <BaseActionCard
                   key={card.type}
                   onClick={card.onClick}
@@ -412,7 +448,26 @@ export function DatasourceWizardModal({
                 />
               ))}
             </Group>
-          </Group>
+          </Stack>
+
+          <Stack gap={4}>
+            <Text size="xs" fw={500} c="text-secondary" className="uppercase">
+              Remote
+            </Text>
+            <Group gap="md" className="justify-center md:justify-start">
+              {remoteCards.map((card) => (
+                <BaseActionCard
+                  key={card.type}
+                  onClick={card.onClick}
+                  icon={card.icon}
+                  title={card.title}
+                  description={card.description}
+                  testId={card.testId}
+                  disabled={'disabled' in card ? card.disabled : undefined}
+                />
+              ))}
+            </Group>
+          </Stack>
         </Stack>
       )}
 
@@ -422,6 +477,10 @@ export function DatasourceWizardModal({
 
       {step === 'iceberg-config' && (
         <IcebergCatalogConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+
+      {step === 'motherduck-config' && (
+        <MotherDuckConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (

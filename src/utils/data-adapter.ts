@@ -11,6 +11,7 @@ import {
   AnyFlatFileDataSource,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   RemoteDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
@@ -252,10 +253,10 @@ function getFlatFileDataAdapterQueries(
 // for database operations (both have dbName and dbType fields)
 function getDatabaseDataAdapterApi(
   pool: AsyncDuckDBConnectionPool,
-  dataSource: LocalDB | RemoteDB | IcebergCatalog,
+  dataSource: LocalDB | RemoteDB | IcebergCatalog | MotherDuckConnection,
   tab: TabReactiveState<LocalDBDataTab>,
 ): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
-  const rawDbName = getDatabaseIdentifier(dataSource);
+  const rawDbName = tab.databaseName ?? getDatabaseIdentifier(dataSource);
   const dbName = toDuckDBIdentifier(rawDbName);
   const schemaName = toDuckDBIdentifier(tab.schemaName);
   const tableName = toDuckDBIdentifier(tab.objectName);
@@ -425,6 +426,28 @@ export function getFileDataAdapterQueries({
     }
 
     // Iceberg catalogs use the same logic as other databases
+    return getDatabaseDataAdapterApi(pool, dataSource, tab);
+  }
+
+  if (dataSource.type === 'motherduck') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating a MotherDuck data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: ['MotherDuck is not connected'],
+        internalErrors: [],
+      };
+    }
+
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 

@@ -53,24 +53,26 @@ export interface ExtendedBuilderContext extends BuilderContext {
  * @returns TreeNodeData configured for a database column with copy functionality
  */
 export function buildColumnTreeNode({
-  dbId,
+  nodeDbId,
+  sourceDbId,
   schemaName,
   objectName,
   column,
   context,
 }: {
-  dbId: PersistentDataSourceId;
+  nodeDbId: string;
+  sourceDbId: PersistentDataSourceId;
   schemaName: string;
   objectName: string;
   column: DBColumn;
   context: BuilderContext;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
   const { name: columnName, sqlType } = column;
-  const columnNodeId = `${dbId}.${schemaName}.${objectName}::${columnName}`;
+  const columnNodeId = `${nodeDbId}.${schemaName}.${objectName}::${columnName}`;
   const iconType: IconType = getIconTypeForSQLType(sqlType);
 
   context.nodeMap.set(columnNodeId, {
-    db: dbId,
+    db: sourceDbId,
     schemaName,
     objectName,
     columnName,
@@ -121,7 +123,8 @@ export function buildColumnTreeNode({
  * @returns TreeNodeData configured for a database table/view with full functionality
  */
 export function buildObjectTreeNode({
-  dbId,
+  nodeDbId,
+  sourceDbId,
   dbName,
   schemaName,
   object,
@@ -129,8 +132,10 @@ export function buildObjectTreeNode({
   comparisonTableNames,
   conn,
   context,
+  databaseName,
 }: {
-  dbId: PersistentDataSourceId;
+  nodeDbId: string;
+  sourceDbId: PersistentDataSourceId;
   dbName: string;
   schemaName: string;
   object: DBTableOrView;
@@ -138,12 +143,15 @@ export function buildObjectTreeNode({
   comparisonTableNames?: Set<string>;
   conn?: AsyncDuckDBConnectionPool;
   context: ExtendedBuilderContext;
+  databaseName?: string;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
   const { name: objectName, columns } = object;
-  const objectNodeId = `${dbId}.${schemaName}.${objectName}`;
+  const objectNodeId = `${nodeDbId}.${schemaName}.${objectName}`;
+  const resolvedDatabaseName = databaseName ?? dbName;
 
   context.nodeMap.set(objectNodeId, {
-    db: dbId,
+    db: sourceDbId,
+    databaseName: resolvedDatabaseName,
     schemaName,
     objectName,
     columnName: null,
@@ -259,7 +267,12 @@ export function buildObjectTreeNode({
       }
 
       // Regular table/view handling
-      const existingTab = findTabFromLocalDBObject(dbId, schemaName, objectName);
+      const existingTab = findTabFromLocalDBObject(
+        sourceDbId,
+        schemaName,
+        objectName,
+        databaseName,
+      );
       if (existingTab) {
         // If the tab is already open, just set as active and do not change preview
         setActiveTabId(existingTab.id);
@@ -267,7 +280,14 @@ export function buildObjectTreeNode({
       }
 
       // Net new. Create an active tab
-      const tab = getOrCreateTabFromLocalDBObject(dbId, schemaName, objectName, object.type, true);
+      const tab = getOrCreateTabFromLocalDBObject(
+        sourceDbId,
+        schemaName,
+        objectName,
+        object.type,
+        true,
+        databaseName,
+      );
       // Then set as & preview
       setPreviewTabId(tab.id);
     },
@@ -303,9 +323,10 @@ export function buildObjectTreeNode({
             label: 'Show Schema',
             onClick: () => {
               getOrCreateSchemaBrowserTab({
-                sourceId: dbId,
+                sourceId: sourceDbId,
                 sourceType: 'db',
                 schemaName,
+                databaseName: resolvedDatabaseName,
                 objectNames: [objectName],
                 setActive: true,
               });
@@ -336,17 +357,23 @@ export function buildObjectTreeNode({
             }
 
             // Regular table/view handling
-            const existingTab = findTabFromLocalDBObject(dbId, schemaName, objectName);
+            const existingTab = findTabFromLocalDBObject(
+              sourceDbId,
+              schemaName,
+              objectName,
+              databaseName,
+            );
             if (existingTab) {
               setActiveTabId(existingTab.id);
               return existingTab.id;
             }
             const tab = getOrCreateTabFromLocalDBObject(
-              dbId,
+              sourceDbId,
               schemaName,
               objectName,
               object.type,
               true,
+              databaseName,
             );
             setActiveTabId(tab.id);
             return tab.id;
@@ -357,7 +384,8 @@ export function buildObjectTreeNode({
     ],
     children: sortedColumns.map((column) =>
       buildColumnTreeNode({
-        dbId,
+        nodeDbId,
+        sourceDbId,
         schemaName,
         objectName,
         column,
@@ -385,7 +413,8 @@ export function buildObjectTreeNode({
  * @returns TreeNodeData configured for a database schema with organized children
  */
 export function buildSchemaTreeNode({
-  dbId,
+  nodeDbId,
+  sourceDbId,
   dbName,
   schema,
   fileViewNames,
@@ -393,8 +422,10 @@ export function buildSchemaTreeNode({
   conn,
   context,
   initialExpandedState,
+  databaseName,
 }: {
-  dbId: PersistentDataSourceId;
+  nodeDbId: string;
+  sourceDbId: PersistentDataSourceId;
   dbName: string;
   schema: DBSchema;
   fileViewNames?: Set<string>;
@@ -402,12 +433,15 @@ export function buildSchemaTreeNode({
   conn?: AsyncDuckDBConnectionPool;
   context: ExtendedBuilderContext;
   initialExpandedState: Record<string, boolean>;
+  databaseName?: string;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
   const { name: schemaName, objects } = schema;
-  const schemaNodeId = `${dbId}.${schemaName}`;
+  const schemaNodeId = `${nodeDbId}.${schemaName}`;
+  const resolvedDatabaseName = databaseName ?? dbName;
 
   context.nodeMap.set(schemaNodeId, {
-    db: dbId,
+    db: sourceDbId,
+    databaseName: resolvedDatabaseName,
     schemaName,
     objectName: null,
     columnName: null,
@@ -445,7 +479,8 @@ export function buildSchemaTreeNode({
     // Build regular objects first
     children = regularObjects.map((object) =>
       buildObjectTreeNode({
-        dbId,
+        nodeDbId,
+        sourceDbId,
         dbName,
         schemaName,
         object,
@@ -453,14 +488,16 @@ export function buildSchemaTreeNode({
         comparisonTableNames,
         conn,
         context,
+        databaseName,
       }),
     );
 
     // Add file views section if there are any
     if (fileViews.length > 0) {
-      const fileViewsSectionId = `${dbId}.${schemaName}.file-views`;
+      const fileViewsSectionId = `${nodeDbId}.${schemaName}.file-views`;
       context.nodeMap.set(fileViewsSectionId, {
-        db: dbId,
+        db: sourceDbId,
+        databaseName: resolvedDatabaseName,
         schemaName,
         objectName: null,
         columnName: null,
@@ -477,7 +514,8 @@ export function buildSchemaTreeNode({
         contextMenu: [],
         children: fileViews.map((object) =>
           buildObjectTreeNode({
-            dbId,
+            nodeDbId,
+            sourceDbId,
             dbName,
             schemaName,
             object,
@@ -485,6 +523,7 @@ export function buildSchemaTreeNode({
             comparisonTableNames,
             conn,
             context,
+            databaseName,
           }),
         ),
       });
@@ -497,9 +536,10 @@ export function buildSchemaTreeNode({
         return nameA.localeCompare(nameB);
       });
 
-      const comparisonSectionId = `${dbId}.${schemaName}.comparisons`;
+      const comparisonSectionId = `${nodeDbId}.${schemaName}.comparisons`;
       context.nodeMap.set(comparisonSectionId, {
-        db: dbId,
+        db: sourceDbId,
+        databaseName: resolvedDatabaseName,
         schemaName,
         objectName: null,
         columnName: null,
@@ -508,7 +548,8 @@ export function buildSchemaTreeNode({
 
       const comparisonChildren = comparisonTables.map((object) =>
         buildObjectTreeNode({
-          dbId,
+          nodeDbId,
+          sourceDbId,
           dbName,
           schemaName,
           object,
@@ -516,6 +557,7 @@ export function buildSchemaTreeNode({
           comparisonTableNames,
           conn,
           context,
+          databaseName,
         }),
       );
 
@@ -534,7 +576,8 @@ export function buildSchemaTreeNode({
     // For non-system databases, keep the original behavior
     children = sortedObjects.map((object) =>
       buildObjectTreeNode({
-        dbId,
+        nodeDbId,
+        sourceDbId,
         dbName,
         schemaName,
         object,
@@ -542,6 +585,7 @@ export function buildSchemaTreeNode({
         comparisonTableNames,
         conn,
         context,
+        databaseName,
       }),
     );
   }
@@ -577,9 +621,10 @@ export function buildSchemaTreeNode({
             label: 'Show Schema',
             onClick: () => {
               getOrCreateSchemaBrowserTab({
-                sourceId: dbId,
+                sourceId: sourceDbId,
                 sourceType: 'db',
                 schemaName,
+                databaseName: resolvedDatabaseName,
                 setActive: true,
               });
             },
