@@ -1,19 +1,20 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { MotherDuckConnection } from '@models/data-source';
+import { AnyFlatFileDataSource, MotherDuckConnection } from '@models/data-source';
+import { DataBaseModel } from '@models/db';
 import { useMemo } from 'react';
 
 import { buildMotherDuckConnectionNode } from '../builders/database-tree-builder';
-import { DataExplorerNodeMap } from '../model';
+import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 
 type UseMotherDuckNodesProps = {
   motherduckConnections: MotherDuckConnection[];
   nodeMap: DataExplorerNodeMap;
-  anyNodeIdToNodeTypeMap: Map<string, any>;
+  anyNodeIdToNodeTypeMap: Map<string, keyof DataExplorerNodeTypeMap>;
   conn: AsyncDuckDBConnectionPool;
-  databaseMetadata: Map<string, any>;
+  databaseMetadata: Map<string, DataBaseModel>;
   initialExpandedState: Record<string, boolean>;
-  flatFileSources: Map<string, any>;
+  flatFileSources: Map<string, AnyFlatFileDataSource>;
   comparisonTableNames: Set<string>;
   comparisonByTableName: Map<string, Comparison>;
 };

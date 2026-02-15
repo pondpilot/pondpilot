@@ -11,6 +11,7 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { deleteTab } from '@controllers/tab';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { MotherDuckConnection, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, DBColumn, DBSchema, DBTableOrView } from '@models/db';
 import { AppIdbSchema } from '@models/persisted-store';
@@ -44,18 +45,11 @@ export async function resolveMotherDuckToken(
 }
 
 /**
- * Queries the DuckDB version from the running instance.
- */
-export async function getDuckDBVersion(pool: any): Promise<string> {
-  const result = await pool.query('SELECT version() AS v');
-  const rows = result.toArray();
-  return rows[0]?.v ?? 'unknown';
-}
-
-/**
  * Checks whether the motherduck extension is already loaded.
  */
-export async function isMotherDuckExtensionLoaded(pool: any): Promise<boolean> {
+export async function isMotherDuckExtensionLoaded(
+  pool: AsyncDuckDBConnectionPool,
+): Promise<boolean> {
   try {
     const result = await pool.query(
       "SELECT extension_name FROM duckdb_extensions() WHERE extension_name = 'motherduck' AND loaded = true",
@@ -74,7 +68,7 @@ export async function isMotherDuckExtensionLoaded(pool: any): Promise<boolean> {
  *
  * Throws on failure.
  */
-export async function loadMotherDuckExtension(pool: any): Promise<void> {
+export async function loadMotherDuckExtension(pool: AsyncDuckDBConnectionPool): Promise<void> {
   if (await isMotherDuckExtensionLoaded(pool)) {
     return;
   }
@@ -91,8 +85,9 @@ export async function loadMotherDuckExtension(pool: any): Promise<void> {
 
   const { extensionVersion } = await versionResponse.json();
   const repo = `https://ext.motherduck.com/${extensionVersion}`;
+  const safeRepo = repo.replace(/'/g, "''");
 
-  await pool.query(`SET custom_extension_repository='${repo}';`);
+  await pool.query(`SET custom_extension_repository='${safeRepo}';`);
   try {
     await pool.query('LOAD motherduck;');
   } finally {
@@ -109,7 +104,10 @@ export async function loadMotherDuckExtension(pool: any): Promise<void> {
  *
  * Throws on failure.
  */
-export async function connectMotherDuck(pool: any, token: string): Promise<void> {
+export async function connectMotherDuck(
+  pool: AsyncDuckDBConnectionPool,
+  token: string,
+): Promise<void> {
   // Set the token — configures the credential for the MotherDuck extension
   await pool.query(`SET motherduck_token='${token.replace(/'/g, "''")}';`);
 
@@ -118,11 +116,10 @@ export async function connectMotherDuck(pool: any, token: string): Promise<void>
   //
   // The WASM network layer initializes asynchronously after the extension loads.
   // The first ATTACH attempt often fails with "Network is not ready yet" because
-  // the WebSocket transport hasn't finished setup. Retry with backoff to handle this.
-  const maxRetries = 3;
-  const retryDelayMs = 1500;
+  // the WebSocket transport hasn't finished setup. Retry with exponential backoff.
+  const retryDelaysMs = [1500, 3000, 6000];
 
-  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+  for (let attempt = 1; attempt <= retryDelaysMs.length; attempt += 1) {
     try {
       await pool.query("ATTACH IF NOT EXISTS 'md:'");
       return;
@@ -130,14 +127,15 @@ export async function connectMotherDuck(pool: any, token: string): Promise<void>
       const message = error instanceof Error ? error.message : String(error);
       const isNetworkNotReady = message.includes('Network is not ready');
 
-      if (!isNetworkNotReady || attempt === maxRetries) {
+      if (!isNetworkNotReady || attempt === retryDelaysMs.length) {
         throw error;
       }
 
+      const delayMs = retryDelaysMs[attempt - 1];
       console.warn(
-        `MotherDuck ATTACH attempt ${attempt}/${maxRetries} failed (network not ready), retrying in ${retryDelayMs}ms...`,
+        `MotherDuck ATTACH attempt ${attempt}/${retryDelaysMs.length} failed (network not ready), retrying in ${delayMs}ms...`,
       );
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }
@@ -148,7 +146,7 @@ export async function connectMotherDuck(pool: any, token: string): Promise<void>
  * Their names are plain (e.g. 'my_db'), not prefixed with 'md:'.
  */
 export async function listMotherDuckDatabases(
-  pool: any,
+  pool: AsyncDuckDBConnectionPool,
 ): Promise<{ name: string; type: string }[]> {
   const result = await pool.query(
     "SELECT database_name, type FROM duckdb_databases() WHERE type = 'motherduck'",
@@ -171,7 +169,7 @@ export async function listMotherDuckDatabases(
  * collisions with local databases and to let the tree builder identify them.
  */
 export async function getMotherDuckDatabaseModel(
-  pool: any,
+  pool: AsyncDuckDBConnectionPool,
   dbNames: string[],
 ): Promise<Map<string, DataBaseModel>> {
   const result = new Map<string, DataBaseModel>();
@@ -264,9 +262,7 @@ export async function getMotherDuckDatabaseModel(
         });
       }
 
-      if (dbSchemas.length > 0) {
-        result.set(metadataKey, { name: metadataKey, schemas: dbSchemas });
-      }
+      result.set(metadataKey, { name: metadataKey, schemas: dbSchemas });
     } catch (error) {
       console.error(`Failed to load MotherDuck metadata for '${dbName}':`, error);
     }
@@ -286,7 +282,7 @@ export async function getMotherDuckDatabaseModel(
  * Disconnects MotherDuck by detaching all MotherDuck databases
  * and clearing the token.
  */
-export async function disconnectMotherDuck(pool: any): Promise<void> {
+export async function disconnectMotherDuck(pool: AsyncDuckDBConnectionPool): Promise<void> {
   // Find all MotherDuck databases (type='motherduck', plain names)
   const databases = await listMotherDuckDatabases(pool);
 
@@ -337,7 +333,7 @@ export function updateMotherDuckConnectionState(
  * Reconnects a persisted MotherDuck connection using a token.
  */
 export async function reconnectMotherDuck(
-  pool: any,
+  pool: AsyncDuckDBConnectionPool,
   connection: MotherDuckConnection,
   token: string,
 ): Promise<boolean> {
@@ -395,7 +391,7 @@ export async function reconnectMotherDuck(
  * Disconnects a MotherDuck connection: detaches databases, updates state, cleans metadata.
  */
 export async function disconnectMotherDuckConnection(
-  pool: any,
+  pool: AsyncDuckDBConnectionPool,
   connection: MotherDuckConnection,
 ): Promise<void> {
   try {

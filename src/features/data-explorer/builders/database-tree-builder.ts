@@ -12,7 +12,11 @@ import { useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { reconnectDuckLakeCatalog, disconnectDuckLakeCatalog } from '@utils/ducklake-catalog';
 import { disconnectIcebergCatalog } from '@utils/iceberg-catalog';
-import { disconnectMotherDuckConnection, getMotherDuckDatabaseModel } from '@utils/motherduck';
+import {
+  disconnectMotherDuckConnection,
+  getMotherDuckDatabaseModel,
+  listMotherDuckDatabases,
+} from '@utils/motherduck';
 import { getLocalDBDataSourceName } from '@utils/navigation';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
 
@@ -232,7 +236,8 @@ export function buildDatabaseNode(
     ],
     children: sortedSchemas?.map((schema) =>
       buildSchemaTreeNode({
-        dbId,
+        nodeDbId: dbId,
+        sourceDbId: dbId,
         dbName,
         schema,
         fileViewNames: isSystemDb ? fileViewNames : undefined,
@@ -378,7 +383,8 @@ export function buildIcebergCatalogNode(
     ],
     children: sortedSchemas?.map((schema) =>
       buildSchemaTreeNode({
-        dbId: catalogId,
+        nodeDbId: catalogId,
+        sourceDbId: catalogId,
         dbName: catalogAlias,
         schema,
         context: {
@@ -567,7 +573,6 @@ export function buildMotherDuckConnectionNode(
 
   // MotherDuck database metadata is stored with "md:" prefixed keys (e.g. "md:my_db")
   // to avoid collisions with local databases. The plain name is used for SQL queries.
-  const mdPlainNames: string[] = [];
   const childNodes: TreeNodeData<DataExplorerNodeTypeMap>[] = [];
 
   if (connection.connectionState === 'connected') {
@@ -575,20 +580,18 @@ export function buildMotherDuckConnectionNode(
       // MotherDuck databases are stored with "md:" prefix (skip bare "md:")
       if (!dbName.startsWith('md:') || dbName === 'md:') continue;
 
-      const plainName = dbName.slice(3);
-      mdPlainNames.push(plainName);
-
       // Display name without the "md:" prefix
       const displayName = dbName.slice(3);
+      // Use a connection-and-database scoped ID to avoid collisions across MD databases
+      const dbNodeId = `${connectionId}::${displayName}` as any;
 
       const sortedSchemas = dbModel.schemas
         ? [...dbModel.schemas].sort((a, b) => a.name.localeCompare(b.name))
         : [];
 
-      // Use the full database name (with md: prefix) as the node ID
-      const dbNodeId = dbName as any;
       nodeMap.set(dbNodeId, {
         db: connectionId,
+        databaseName: displayName,
         schemaName: null,
         objectName: null,
         columnName: null,
@@ -619,6 +622,7 @@ export function buildMotherDuckConnectionNode(
                     sourceId: connectionId,
                     sourceType: 'db',
                     schemaName: firstSchema?.name,
+                    databaseName: displayName,
                     setActive: true,
                   });
                 },
@@ -628,7 +632,8 @@ export function buildMotherDuckConnectionNode(
         ],
         children: sortedSchemas.map((schema) =>
           buildSchemaTreeNode({
-            dbId: connectionId,
+            nodeDbId: dbNodeId,
+            sourceDbId: connectionId,
             // Use plain name for SQL queries (DuckDB knows it as 'my_db', not 'md:my_db')
             dbName: displayName,
             schema,
@@ -640,7 +645,6 @@ export function buildMotherDuckConnectionNode(
               comparisonTableNames,
             },
             initialExpandedState,
-            databaseName: displayName,
           }),
         ),
       });
@@ -661,10 +665,22 @@ export function buildMotherDuckConnectionNode(
     contextMenuItems.push({
       label: 'Refresh',
       onClick: async () => {
-        if (mdPlainNames.length > 0) {
-          const metadata = await getMotherDuckDatabaseModel(conn, mdPlainNames);
+        // Re-discover databases from MotherDuck to pick up newly created ones
+        const databases = await listMotherDuckDatabases(conn);
+        const dbNames = databases.map((db) => db.name);
+        if (dbNames.length > 0) {
+          const metadata = await getMotherDuckDatabaseModel(conn, dbNames);
           const currentMetadata = useAppStore.getState().databaseMetadata;
           const newMetadata = new Map(currentMetadata);
+          // Remove stale MotherDuck entries that no longer exist
+          for (const key of currentMetadata.keys()) {
+            if (key.startsWith('md:') && key !== 'md:') {
+              const plainName = key.slice(3);
+              if (!dbNames.includes(plainName)) {
+                newMetadata.delete(key);
+              }
+            }
+          }
           for (const [key, model] of metadata) {
             newMetadata.set(key, model);
           }

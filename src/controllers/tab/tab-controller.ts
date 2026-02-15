@@ -173,14 +173,17 @@ export const getOrCreateSchemaBrowserTab = (options: {
   sourceType: 'file' | 'db' | 'folder' | 'all';
   schemaName?: string;
   objectNames?: string[];
+  databaseName?: string;
   setActive?: boolean;
 }): SchemaBrowserTab => {
-  const { sourceId, sourceType, schemaName, setActive = false } = options;
+  const { sourceId, sourceType, schemaName, databaseName, setActive = false } = options;
   // Sort objectNames for consistent comparison and storage
   const objectNames = options.objectNames ? [...options.objectNames].sort() : undefined;
   const state = useAppStore.getState();
 
-  const existingTab = findSchemaBrowserTab(sourceId, sourceType, schemaName, objectNames);
+  const existingTab = findSchemaBrowserTab(
+    sourceId, sourceType, schemaName, objectNames, databaseName,
+  );
 
   if (existingTab) {
     if (setActive) {
@@ -197,6 +200,7 @@ export const getOrCreateSchemaBrowserTab = (options: {
     sourceType,
     schemaName,
     objectNames,
+    ...(databaseName ? { databaseName } : {}),
     dataViewStateCache: null,
   };
 
@@ -482,6 +486,7 @@ export const findSchemaBrowserTab = (
   sourceType: 'file' | 'db' | 'folder' | 'all',
   schemaName?: string,
   objectNames?: string[],
+  databaseName?: string,
 ): SchemaBrowserTab | undefined => {
   const { tabs } = useAppStore.getState();
 
@@ -494,6 +499,7 @@ export const findSchemaBrowserTab = (
         ((sourceId === null && schemaBrowserTab.sourceId === null) ||
           (sourceId !== null && schemaBrowserTab.sourceId === sourceId)) &&
         schemaBrowserTab.schemaName === schemaName &&
+        schemaBrowserTab.databaseName === databaseName &&
         JSON.stringify(
           schemaBrowserTab.objectNames ? [...schemaBrowserTab.objectNames].sort() : undefined,
         ) === JSON.stringify(objectNames ? [...objectNames].sort() : undefined)
@@ -998,7 +1004,12 @@ function updateTabLRUTracking(tabId: TabId): void {
           dataSource.type === 'motherduck')
 >>>>>>> fe3e1d0 (feat: Add MotherDuck cloud database integration)
       ) {
-        const dbIdentifier = getDatabaseIdentifier(dataSource);
+        // For MotherDuck, use per-database identifier instead of the bare 'md:' prefix,
+        // so access tracking is scoped to the individual database.
+        const dbIdentifier =
+          dataSource.type === 'motherduck' && tab.databaseName
+            ? `md:${tab.databaseName}`
+            : getDatabaseIdentifier(dataSource);
         updateTableAccessTime(dbIdentifier, tab.schemaName, tab.objectName);
       }
     }
