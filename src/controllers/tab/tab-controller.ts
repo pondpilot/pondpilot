@@ -245,16 +245,13 @@ export const getOrCreateSchemaBrowserTab = (options: {
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const getOrCreateTabFromLocalDBObject = (
-<<<<<<< HEAD
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | PersistentDataSourceId,
-=======
   dataSourceOrId:
     | LocalDB
     | RemoteDB
     | IcebergCatalog
+    | DuckLakeCatalog
     | MotherDuckConnection
     | PersistentDataSourceId,
->>>>>>> fe3e1d0 (feat: Add MotherDuck cloud database integration)
   schemaName: string,
   objectName: string,
   objectType: 'table' | 'view',
@@ -525,16 +522,13 @@ export const findSchemaBrowserTab = (
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const findTabFromLocalDBObject = (
-<<<<<<< HEAD
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | PersistentDataSourceId,
-=======
   dataSourceOrId:
     | LocalDB
     | RemoteDB
     | IcebergCatalog
+    | DuckLakeCatalog
     | MotherDuckConnection
     | PersistentDataSourceId,
->>>>>>> fe3e1d0 (feat: Add MotherDuck cloud database integration)
   schemaName: string,
   objectName: string,
   databaseName?: string,
@@ -1003,11 +997,8 @@ function updateTabLRUTracking(tabId: TabId): void {
         (dataSource.type === 'attached-db' ||
           dataSource.type === 'remote-db' ||
           dataSource.type === 'iceberg-catalog' ||
-<<<<<<< HEAD
-          dataSource.type === 'ducklake-catalog')
-=======
+          dataSource.type === 'ducklake-catalog' ||
           dataSource.type === 'motherduck')
->>>>>>> fe3e1d0 (feat: Add MotherDuck cloud database integration)
       ) {
         // For MotherDuck, use per-database identifier instead of the bare prefix,
         // so access tracking is scoped to the individual database.

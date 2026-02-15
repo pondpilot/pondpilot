@@ -515,7 +515,8 @@ export function buildDuckLakeCatalogNode(
     ],
     children: sortedSchemas?.map((schema) =>
       buildSchemaTreeNode({
-        dbId: catalogId,
+        nodeDbId: catalogId,
+        sourceDbId: catalogId,
         dbName: catalogAlias,
         schema,
         context: {

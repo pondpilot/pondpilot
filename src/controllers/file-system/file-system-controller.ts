@@ -680,11 +680,8 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
         dataSource.type !== 'attached-db' &&
         dataSource.type !== 'remote-db' &&
         dataSource.type !== 'iceberg-catalog' &&
-<<<<<<< HEAD
         dataSource.type !== 'ducklake-catalog' &&
-=======
         dataSource.type !== 'motherduck' &&
->>>>>>> fe3e1d0 (feat: Add MotherDuck cloud database integration)
         localFileIdsToDelete.has(dataSource.fileSourceId)
       ) {
         dataSourceIdsToDelete.add(dataSourceId);

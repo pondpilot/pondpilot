@@ -66,11 +66,8 @@ export function getTabName(
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
     dataSource.type === 'iceberg-catalog' ||
-<<<<<<< HEAD
-    dataSource.type === 'ducklake-catalog'
-=======
+    dataSource.type === 'ducklake-catalog' ||
     dataSource.type === 'motherduck'
->>>>>>> fe3e1d0 (feat: Add MotherDuck cloud database integration)
   ) {
     return 'Unknown data source';
   }
@@ -104,11 +101,8 @@ export function getTabIcon(
       dataSource.type === 'attached-db' ||
       dataSource.type === 'remote-db' ||
       dataSource.type === 'iceberg-catalog' ||
-<<<<<<< HEAD
-      dataSource.type === 'ducklake-catalog'
-=======
+      dataSource.type === 'ducklake-catalog' ||
       dataSource.type === 'motherduck'
->>>>>>> fe3e1d0 (feat: Add MotherDuck cloud database integration)
     ) {
       return 'error';
     }
