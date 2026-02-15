@@ -8,7 +8,7 @@ import { makePersistentDataSourceId } from '@utils/data-source';
 import {
   loadMotherDuckExtension,
   connectMotherDuck,
-  disconnectMotherDuck,
+  detachMotherDuckDatabases,
   listMotherDuckDatabases,
   getMotherDuckDatabaseModel,
 } from '@utils/motherduck';
@@ -43,7 +43,7 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
         await connectMotherDuck(pool, token);
 
         // Clean up test connection
-        await disconnectMotherDuck(pool);
+        await detachMotherDuckDatabases(pool);
 
         showSuccess({
           title: 'Connection successful',
@@ -63,7 +63,7 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
 
         // Best-effort cleanup
         try {
-          await disconnectMotherDuck(pool);
+          await detachMotherDuckDatabases(pool);
         } catch {
           // Ignore cleanup errors
         }
@@ -86,7 +86,10 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
       let secretPersisted = false;
 
       try {
-        // Store token in the encrypted secret store
+        // Store token in the encrypted secret store.
+        // If iDbConn is unavailable (e.g. IndexedDB not initialized), the token
+        // won't be persisted. On next app load the connection will transition to
+        // 'credentials-required' and the user will need to re-enter the token.
         if (iDbConn) {
           await putSecret(iDbConn, secretRefId, {
             label: 'MotherDuck',
@@ -168,7 +171,7 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
 
         // Best-effort cleanup
         try {
-          await disconnectMotherDuck(pool);
+          await detachMotherDuckDatabases(pool);
         } catch {
           // Ignore cleanup errors
         }
