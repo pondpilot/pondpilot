@@ -10,6 +10,7 @@ import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry } from '@models/file-system';
 import { useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
+import { isMotherDuckDbKey, parseMotherDuckDbKey } from '@utils/data-source';
 import { disconnectIcebergCatalog } from '@utils/iceberg-catalog';
 import {
   disconnectMotherDuckConnection,
@@ -440,17 +441,13 @@ export function buildMotherDuckConnectionNode(
   });
   anyNodeIdToNodeTypeMap.set(connectionId, 'db');
 
-  // MotherDuck database metadata is stored with "md:" prefixed keys (e.g. "md:my_db")
-  // to avoid collisions with local databases. The plain name is used for SQL queries.
   const childNodes: TreeNodeData<DataExplorerNodeTypeMap>[] = [];
 
   if (connection.connectionState === 'connected') {
     for (const [dbName, dbModel] of databaseMetadata) {
-      // MotherDuck databases are stored with "md:" prefix (skip bare "md:")
-      if (!dbName.startsWith('md:') || dbName === 'md:') continue;
+      if (!isMotherDuckDbKey(dbName)) continue;
 
-      // Display name without the "md:" prefix
-      const displayName = dbName.slice(3);
+      const displayName = parseMotherDuckDbKey(dbName)!;
       // Use a connection-and-database scoped ID to avoid collisions across MD databases
       const dbNodeId = `${connectionId}::${displayName}` as any;
 
@@ -505,6 +502,7 @@ export function buildMotherDuckConnectionNode(
             sourceDbId: connectionId,
             // Use plain name for SQL queries (DuckDB knows it as 'my_db', not 'md:my_db')
             dbName: displayName,
+            databaseName: displayName,
             schema,
             context: {
               nodeMap,
@@ -537,24 +535,22 @@ export function buildMotherDuckConnectionNode(
         // Re-discover databases from MotherDuck to pick up newly created ones
         const databases = await listMotherDuckDatabases(conn);
         const dbNames = databases.map((db) => db.name);
+        const currentMetadata = useAppStore.getState().databaseMetadata;
+        const newMetadata = new Map(currentMetadata);
+        // Remove stale MotherDuck entries that no longer exist
+        for (const key of currentMetadata.keys()) {
+          const plainName = parseMotherDuckDbKey(key);
+          if (plainName && !dbNames.includes(plainName)) {
+            newMetadata.delete(key);
+          }
+        }
         if (dbNames.length > 0) {
           const metadata = await getMotherDuckDatabaseModel(conn, dbNames);
-          const currentMetadata = useAppStore.getState().databaseMetadata;
-          const newMetadata = new Map(currentMetadata);
-          // Remove stale MotherDuck entries that no longer exist
-          for (const key of currentMetadata.keys()) {
-            if (key.startsWith('md:') && key !== 'md:') {
-              const plainName = key.slice(3);
-              if (!dbNames.includes(plainName)) {
-                newMetadata.delete(key);
-              }
-            }
-          }
           for (const [key, model] of metadata) {
             newMetadata.set(key, model);
           }
-          useAppStore.setState({ databaseMetadata: newMetadata }, false, 'MotherDuck/refresh');
         }
+        useAppStore.setState({ databaseMetadata: newMetadata }, false, 'MotherDuck/refresh');
       },
     });
     contextMenuItems.push({

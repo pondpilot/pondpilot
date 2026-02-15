@@ -8,7 +8,7 @@ import {
 } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { SchemaBrowserTab } from '@models/tab';
-import { getDatabaseIdentifier } from '@utils/data-source';
+import { formatMotherDuckDbKey, getDatabaseIdentifier } from '@utils/data-source';
 
 import { dbColumnToSchemaColumn, SchemaGraph, SchemaNodeData, SchemaColumnData } from '../../model';
 import { getBatchTableConstraints } from '../batch-constraints';
@@ -37,10 +37,9 @@ export async function processDbSource(
   if (tab.sourceId && dbSources.has(tab.sourceId as PersistentDataSourceId)) {
     const dbSource = dbSources.get(tab.sourceId as PersistentDataSourceId)!;
     // For MotherDuck, use databaseName from the tab to resolve the correct per-database metadata.
-    // getDatabaseIdentifier returns the bare 'md:' prefix, but metadata keys are 'md:<dbname>'.
     const dbName =
       dbSource.type === 'motherduck' && tab.databaseName
-        ? `md:${tab.databaseName}`
+        ? formatMotherDuckDbKey(tab.databaseName)
         : getDatabaseIdentifier(dbSource);
     const metadata = dbMetadata.get(dbName);
 

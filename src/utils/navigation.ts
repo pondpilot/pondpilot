@@ -53,7 +53,10 @@ export function getTabName(
       return 'Unknown data source';
     }
 
-    const dbIdentifier = getDatabaseIdentifier(dataSource);
+    const dbIdentifier =
+      dataSource.type === 'motherduck' && tab.databaseName
+        ? tab.databaseName
+        : getDatabaseIdentifier(dataSource);
     return `${dbIdentifier}.${tab.schemaName}.${tab.objectName}`;
   }
 

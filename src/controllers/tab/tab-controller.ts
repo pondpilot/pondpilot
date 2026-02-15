@@ -28,6 +28,7 @@ import { useAppStore } from '@store/app-store';
 import {
   ensureDatabaseDataSource,
   ensureFlatFileDataSource,
+  formatMotherDuckDbKey,
   getDatabaseIdentifier,
 } from '@utils/data-source';
 import {
@@ -181,7 +182,11 @@ export const getOrCreateSchemaBrowserTab = (options: {
   const state = useAppStore.getState();
 
   const existingTab = findSchemaBrowserTab(
-    sourceId, sourceType, schemaName, objectNames, databaseName,
+    sourceId,
+    sourceType,
+    schemaName,
+    objectNames,
+    databaseName,
   );
 
   if (existingTab) {
@@ -991,11 +996,11 @@ function updateTabLRUTracking(tabId: TabId): void {
           dataSource.type === 'iceberg-catalog' ||
           dataSource.type === 'motherduck')
       ) {
-        // For MotherDuck, use per-database identifier instead of the bare 'md:' prefix,
+        // For MotherDuck, use per-database identifier instead of the bare prefix,
         // so access tracking is scoped to the individual database.
         const dbIdentifier =
           dataSource.type === 'motherduck' && tab.databaseName
-            ? `md:${tab.databaseName}`
+            ? formatMotherDuckDbKey(tab.databaseName)
             : getDatabaseIdentifier(dataSource);
         updateTableAccessTime(dbIdentifier, tab.schemaName, tab.objectName);
       }

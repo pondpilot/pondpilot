@@ -13,7 +13,7 @@ import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { getDatabaseIdentifier, isDatabaseDataSource } from '@utils/data-source';
+import { getDatabaseIdentifier, isDatabaseDataSource, isMotherDuckDbKey } from '@utils/data-source';
 import { parseTableAccessKey } from '@utils/table-access';
 
 import { persistDeleteDataSource } from './persist';
@@ -97,10 +97,12 @@ export const deleteDataSources = async (
       .filter(isDatabaseDataSource)
       .map((dataSource) => getDatabaseIdentifier(dataSource)),
   );
-  const shouldClearMotherDuckMetadata = deletedDataSources.some((dataSource) => dataSource.type === 'motherduck');
+  const shouldClearMotherDuckMetadata = deletedDataSources.some(
+    (dataSource) => dataSource.type === 'motherduck',
+  );
   if (shouldClearMotherDuckMetadata) {
     for (const dbName of databaseMetadata.keys()) {
-      if (dbName.startsWith('md:') && dbName !== 'md:') {
+      if (isMotherDuckDbKey(dbName)) {
         deletedDataBases.add(dbName);
       }
     }
@@ -217,8 +219,8 @@ export const deleteDataSources = async (
     if (dataSource.type === 'motherduck') {
       // For MotherDuck connections: disconnect and remove encrypted secret
       try {
-        const { disconnectMotherDuck } = await import('@utils/motherduck');
-        await disconnectMotherDuck(conn);
+        const { detachMotherDuckDatabases } = await import('@utils/motherduck');
+        await detachMotherDuckDatabases(conn);
       } catch (disconnectError) {
         console.warn('Failed to disconnect MotherDuck during deletion:', disconnectError);
       }

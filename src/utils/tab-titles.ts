@@ -11,7 +11,10 @@ import { SchemaBrowserTab } from '@models/tab';
  * @returns The formatted title for the tab
  */
 export function getSchemaBrowserTabTitle(
-  tab: Pick<SchemaBrowserTab, 'sourceType' | 'sourceId' | 'schemaName' | 'objectNames'>,
+  tab: Pick<
+    SchemaBrowserTab,
+    'sourceType' | 'sourceId' | 'schemaName' | 'objectNames' | 'databaseName'
+  >,
   dataSources: Map<PersistentDataSourceId, AnyDataSource>,
   localEntries: Map<LocalEntryId, LocalEntry>,
 ): string {
@@ -43,7 +46,7 @@ export function getSchemaBrowserTabTitle(
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
     if (dataSource && dataSource.type === 'motherduck') {
-      return 'MotherDuck';
+      return tab.databaseName ? `Cloud: ${tab.databaseName}` : 'MotherDuck';
     }
     if (dataSource && dataSource.type === 'iceberg-catalog') {
       let tabName = `Catalog: ${dataSource.catalogAlias}`;
@@ -98,7 +101,10 @@ export function getSchemaBrowserTabTitle(
  * @returns Object with prefix and main title parts
  */
 export function getSchemaBrowserDisplayTitle(
-  tab: Pick<SchemaBrowserTab, 'sourceType' | 'sourceId' | 'schemaName' | 'objectNames'>,
+  tab: Pick<
+    SchemaBrowserTab,
+    'sourceType' | 'sourceId' | 'schemaName' | 'objectNames' | 'databaseName'
+  >,
   dataSources: Map<PersistentDataSourceId, AnyDataSource>,
   localEntries: Map<LocalEntryId, LocalEntry>,
 ): { prefix?: string; title: string } {
@@ -136,7 +142,8 @@ export function getSchemaBrowserDisplayTitle(
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
     if (dataSource && dataSource.type === 'motherduck') {
-      return { prefix: 'Cloud:', title: 'MotherDuck' };
+      const title = tab.databaseName ?? 'MotherDuck';
+      return { prefix: 'Cloud:', title };
     }
     if (dataSource && dataSource.type === 'iceberg-catalog') {
       const alias = dataSource.catalogAlias;

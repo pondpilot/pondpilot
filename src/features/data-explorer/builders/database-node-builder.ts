@@ -326,6 +326,7 @@ export function buildObjectTreeNode({
                 sourceId: sourceDbId,
                 sourceType: 'db',
                 schemaName,
+                databaseName: resolvedDatabaseName,
                 objectNames: [objectName],
                 setActive: true,
               });
@@ -623,6 +624,7 @@ export function buildSchemaTreeNode({
                 sourceId: sourceDbId,
                 sourceType: 'db',
                 schemaName,
+                databaseName: resolvedDatabaseName,
                 setActive: true,
               });
             },

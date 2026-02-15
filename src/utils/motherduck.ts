@@ -18,6 +18,7 @@ import { AppIdbSchema } from '@models/persisted-store';
 import { TabId } from '@models/tab';
 import { getSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
+import { formatMotherDuckDbKey, isMotherDuckDbKey } from '@utils/data-source';
 import { getTableColumnId } from '@utils/db';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
@@ -60,22 +61,48 @@ export async function isMotherDuckExtensionLoaded(
   }
 }
 
+/** Timeout for the extension version API request (ms). */
+const MD_FETCH_TIMEOUT_MS = 15_000;
+
 /**
  * Loads the motherduck extension. Idempotent — no-op if already loaded.
  *
  * Fetches the extension version from the MotherDuck API, sets the custom
  * extension repository, loads the extension, and resets the repository.
  *
+ * Requires SharedArrayBuffer (COOP/COEP headers must be set).
  * Throws on failure.
  */
 export async function loadMotherDuckExtension(pool: AsyncDuckDBConnectionPool): Promise<void> {
+  if (typeof SharedArrayBuffer === 'undefined') {
+    throw new Error(
+      'MotherDuck requires SharedArrayBuffer. Ensure Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers are configured.',
+    );
+  }
+
   if (await isMotherDuckExtensionLoaded(pool)) {
     return;
   }
 
-  const versionResponse = await fetch(MD_EXTENSION_VERSION_URL, {
-    headers: { 'x-md-duckdb-version': DUCKDB_VERSION_HEADER },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), MD_FETCH_TIMEOUT_MS);
+
+  let versionResponse: Response;
+  try {
+    versionResponse = await fetch(MD_EXTENSION_VERSION_URL, {
+      headers: { 'x-md-duckdb-version': DUCKDB_VERSION_HEADER },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(
+        'MotherDuck extension version request timed out. Please check your network connection.',
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!versionResponse.ok) {
     throw new Error(
@@ -84,6 +111,12 @@ export async function loadMotherDuckExtension(pool: AsyncDuckDBConnectionPool): 
   }
 
   const { extensionVersion } = await versionResponse.json();
+
+  // Validate the version format to prevent malformed URLs
+  if (typeof extensionVersion !== 'string' || !/^v?\d+\.\d+\.\d+/.test(extensionVersion)) {
+    throw new Error(`Unexpected MotherDuck extension version format: ${String(extensionVersion)}`);
+  }
+
   const repo = `https://ext.motherduck.com/${extensionVersion}`;
   const safeRepo = repo.replace(/'/g, "''");
 
@@ -108,7 +141,11 @@ export async function connectMotherDuck(
   pool: AsyncDuckDBConnectionPool,
   token: string,
 ): Promise<void> {
-  // Set the token — configures the credential for the MotherDuck extension
+  // Set the token — configures the credential for the MotherDuck extension.
+  // DuckDB-WASM does not support parameterized SET statements, so we inline
+  // the token as a string literal with single-quote escaping. The pool.query
+  // API executes a single statement, so semicolons in the value cannot cause
+  // statement multiplexing.
   await pool.query(`SET motherduck_token='${token.replace(/'/g, "''")}';`);
 
   // Attach MotherDuck — this triggers the connection handshake
@@ -252,8 +289,7 @@ export async function getMotherDuckDatabaseModel(
         tables.get(tableName)!.columns.push(column);
       }
 
-      // Convert to DataBaseModel with 'md:' prefix
-      const metadataKey = `md:${dbName}`;
+      const metadataKey = formatMotherDuckDbKey(dbName);
       const dbSchemas: DBSchema[] = [];
       for (const [schemaName, tables] of schemaMap) {
         dbSchemas.push({
@@ -279,10 +315,11 @@ export async function getMotherDuckDatabaseModel(
 }
 
 /**
- * Disconnects MotherDuck by detaching all MotherDuck databases
- * and clearing the token.
+ * Detaches all MotherDuck databases from DuckDB and clears the token.
+ * This is the low-level DB cleanup; for the full lifecycle (state, tabs,
+ * metadata, persistence), use disconnectMotherDuckConnection instead.
  */
-export async function disconnectMotherDuck(pool: AsyncDuckDBConnectionPool): Promise<void> {
+export async function detachMotherDuckDatabases(pool: AsyncDuckDBConnectionPool): Promise<void> {
   // Find all MotherDuck databases (type='motherduck', plain names)
   const databases = await listMotherDuckDatabases(pool);
 
@@ -351,6 +388,15 @@ export async function reconnectMotherDuck(
     try {
       const metadata = await getMotherDuckDatabaseModel(pool, dbNames);
       const newMetadata = new Map(databaseMetadata);
+      const discoveredMetadataKeys = new Set(dbNames.map((name) => formatMotherDuckDbKey(name)));
+
+      // Remove stale MotherDuck databases that are no longer present after reconnect.
+      for (const key of databaseMetadata.keys()) {
+        if (isMotherDuckDbKey(key) && !discoveredMetadataKeys.has(key)) {
+          newMetadata.delete(key);
+        }
+      }
+
       for (const [dbName, dbModel] of metadata) {
         newMetadata.set(dbName, dbModel);
       }
@@ -398,16 +444,16 @@ export async function disconnectMotherDuckConnection(
     // Find all MotherDuck databases to clean up their metadata
     const databases = await listMotherDuckDatabases(pool);
 
-    await disconnectMotherDuck(pool);
+    await detachMotherDuckDatabases(pool);
 
     // Update connection state
     updateMotherDuckConnectionState(connection.id, 'disconnected');
 
-    // Remove metadata for MotherDuck databases (stored with 'md:' prefix)
+    // Remove metadata for MotherDuck databases
     const currentMetadata = useAppStore.getState().databaseMetadata;
     const newMetadata = new Map(currentMetadata);
     for (const db of databases) {
-      newMetadata.delete(`md:${db.name}`);
+      newMetadata.delete(formatMotherDuckDbKey(db.name));
     }
     useAppStore.setState({ databaseMetadata: newMetadata }, false, 'MotherDuck/disconnect');
 
