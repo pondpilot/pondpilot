@@ -513,15 +513,19 @@ describe('buildDatabaseNode', () => {
       buildDatabaseNode(localDb, false, mockContext);
 
       expect(buildSchemaTreeNode).toHaveBeenCalledWith({
-        dbId: 'local-db',
+        nodeDbId: 'local-db',
+        sourceDbId: 'local-db',
         dbName: 'my_database',
         schema: { name: 'public', objects: [] },
         fileViewNames: undefined,
+        comparisonTableNames: undefined,
         conn: undefined,
         context: {
           nodeMap: mockContext.nodeMap,
           anyNodeIdToNodeTypeMap: mockContext.anyNodeIdToNodeTypeMap,
           flatFileSources: mockContext.flatFileSources,
+          comparisonByTableName: undefined,
+          comparisonTableNames: undefined,
         },
         initialExpandedState: mockContext.initialExpandedState,
       });
