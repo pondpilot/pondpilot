@@ -51,7 +51,7 @@ import {
 } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ComparisonTab, TabId } from '@models/tab';
-import { makeSecretId, putSecret } from '@services/secret-store';
+import { getSecret, makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';
 import {
@@ -70,6 +70,11 @@ import {
 import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import {
+  buildCreateGSheetHttpSecretQuery,
+  buildGSheetHttpSecretName,
+  resolveGSheetAccessToken,
+} from '@utils/gsheet-auth';
 import { buildGSheetSpreadsheetUrl } from '@utils/gsheet';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
@@ -950,9 +955,43 @@ export const restoreAppDataFromIDB = async (
   const gsheetDataSources = Array.from(dataSources.values()).filter(
     (ds): ds is GSheetSheetView => ds.type === 'gsheet-sheet',
   );
+  const cachedGSheetTokens = new Map<string, string | null>();
+  const configuredGSheetHttpSecrets = new Set<string>();
+  const warnedMissingGSheetTokens = new Set<string>();
   for (const dataSource of gsheetDataSources) {
     _reservedViews.add(dataSource.viewName);
     try {
+      if (dataSource.accessMode === 'authorized' && dataSource.secretRef) {
+        const cacheKey = String(dataSource.secretRef);
+        let accessToken = cachedGSheetTokens.get(cacheKey) ?? null;
+        if (!cachedGSheetTokens.has(cacheKey)) {
+          const payload = await getSecret(iDbConn, dataSource.secretRef);
+          accessToken = resolveGSheetAccessToken(payload?.data) ?? null;
+          cachedGSheetTokens.set(cacheKey, accessToken);
+        }
+
+        if (accessToken) {
+          const gsheetHttpSecretName = buildGSheetHttpSecretName(dataSource.fileSourceId);
+          if (!configuredGSheetHttpSecrets.has(gsheetHttpSecretName)) {
+            await conn.query(
+              buildCreateGSheetHttpSecretQuery(
+                gsheetHttpSecretName,
+                accessToken,
+                dataSource.spreadsheetId,
+              ),
+            );
+            configuredGSheetHttpSecrets.add(gsheetHttpSecretName);
+          }
+        } else {
+          if (!warnedMissingGSheetTokens.has(cacheKey)) {
+            warnings.push(
+              `Google Sheet ${dataSource.spreadsheetName} is missing its saved token. Reconnect it in the wizard.`,
+            );
+            warnedMissingGSheetTokens.add(cacheKey);
+          }
+        }
+      }
+
       const spreadsheetRef =
         dataSource.spreadsheetUrl || buildGSheetSpreadsheetUrl(dataSource.spreadsheetId);
       await createGSheetSheetView(
