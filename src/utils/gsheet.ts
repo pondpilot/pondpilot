@@ -50,5 +50,5 @@ export function createGSheetSheetViewQuery(
   return `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${readFunctionSql}(${quote(
     spreadsheetRef,
     { single: true },
-  )}, sheet=${quote(sheetName, { single: true })});`;
+  )}, sheet:=${quote(sheetName, { single: true })});`;
 }

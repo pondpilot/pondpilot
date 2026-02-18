@@ -41,7 +41,7 @@ describe('gsheet utils', () => {
     );
 
     expect(sql).toBe(
-      "CREATE OR REPLACE VIEW student_roster AS SELECT * FROM read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet='Roster O''Reilly');",
+      "CREATE OR REPLACE VIEW student_roster AS SELECT * FROM read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Roster O''Reilly');",
     );
   });
 
@@ -54,7 +54,7 @@ describe('gsheet utils', () => {
     );
 
     expect(sql).toBe(
-      "CREATE OR REPLACE VIEW student_roster AS SELECT * FROM read_gsheet_public('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet='Sheet1');",
+      "CREATE OR REPLACE VIEW student_roster AS SELECT * FROM read_gsheet_public('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Sheet1');",
     );
   });
 
@@ -67,7 +67,7 @@ describe('gsheet utils', () => {
     );
 
     expect(sql).toBe(
-      `CREATE OR REPLACE VIEW student_roster AS SELECT * FROM "system".main.read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet='Sheet1');`,
+      `CREATE OR REPLACE VIEW student_roster AS SELECT * FROM "system".main.read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Sheet1');`,
     );
   });
 });
