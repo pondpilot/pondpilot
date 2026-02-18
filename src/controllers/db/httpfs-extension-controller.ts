@@ -64,13 +64,13 @@ const GSHEETS_HTTP_SECRET_SCOPES = [
   'https://docs.google.com/spreadsheets/',
   'https://sheets.googleapis.com/',
 ];
-let attemptedGsheetsBootstrapByInstance: WeakSet<object> = new WeakSet();
+let attemptedGsheetsInstallByInstance: WeakSet<object> = new WeakSet();
 
 /**
  * Test-only hook to clear module-level gsheets bootstrap state.
  */
 export function __resetGsheetsBootstrapForTests(): void {
-  attemptedGsheetsBootstrapByInstance = new WeakSet();
+  attemptedGsheetsInstallByInstance = new WeakSet();
 }
 
 function escapeSqlLiteral(value: string): string {
@@ -185,14 +185,7 @@ export async function configureConnectionForHttpfs(
   const dbInstance =
     bindings && (typeof bindings === 'object' || typeof bindings === 'function') ? bindings : conn;
 
-  // The connection pool may initialize multiple DB connections for one DuckDB
-  // instance; avoid repeating gsheets bootstrap for that same instance.
-  if (attemptedGsheetsBootstrapByInstance.has(dbInstance)) {
-    return;
-  }
-
   if (gsheetsExtensionUrl) {
-    attemptedGsheetsBootstrapByInstance.add(dbInstance);
     const escapedUrl = escapeSqlLiteral(gsheetsExtensionUrl);
     let gsheetsLoaded = false;
     try {
@@ -221,14 +214,20 @@ export async function configureConnectionForHttpfs(
     return;
   }
 
-  attemptedGsheetsBootstrapByInstance.add(dbInstance);
-  try {
-    await conn.query('INSTALL gsheets FROM community');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!/already installed/i.test(message)) {
-      console.warn('Failed to install gsheets extension from community repository:', message);
-      return;
+  // INSTALL is database-level and can be skipped once successful for this DB
+  // instance, but LOAD must still happen on each connection.
+  if (!attemptedGsheetsInstallByInstance.has(dbInstance)) {
+    try {
+      await conn.query('INSTALL gsheets FROM community');
+      attemptedGsheetsInstallByInstance.add(dbInstance);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/already installed/i.test(message)) {
+        attemptedGsheetsInstallByInstance.add(dbInstance);
+      } else {
+        console.warn('Failed to install gsheets extension from community repository:', message);
+        return;
+      }
     }
   }
 
