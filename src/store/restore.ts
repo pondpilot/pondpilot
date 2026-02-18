@@ -4,6 +4,7 @@ import {
   registerFileHandle,
   registerFileSourceAndCreateView,
   createXlsxSheetView,
+  createGSheetSheetView,
   dropViewAndUnregisterFile,
 } from '@controllers/db/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
@@ -69,6 +70,7 @@ import {
 import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import { buildGSheetSpreadsheetUrl } from '@utils/gsheet';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
 
@@ -951,11 +953,14 @@ export const restoreAppDataFromIDB = async (
   for (const dataSource of gsheetDataSources) {
     _reservedViews.add(dataSource.viewName);
     try {
-      await createXlsxSheetView(
+      const spreadsheetRef =
+        dataSource.spreadsheetUrl || buildGSheetSpreadsheetUrl(dataSource.spreadsheetId);
+      await createGSheetSheetView(
         conn,
-        dataSource.exportUrl,
+        spreadsheetRef,
         dataSource.sheetName,
         dataSource.viewName,
+        dataSource.accessMode,
       );
       validDataSources.add(dataSource.id);
     } catch (error) {

@@ -1,6 +1,6 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
-import { createXlsxSheetView } from '@controllers/db/data-source';
+import { createGSheetSheetView } from '@controllers/db/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -169,7 +169,13 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
           reservedViews,
         );
 
-        await createXlsxSheetView(pool, workbook.exportUrl, sheetName, dataSource.viewName);
+        await createGSheetSheetView(
+          pool,
+          workbook.spreadsheetUrl,
+          sheetName,
+          dataSource.viewName,
+          accessMode,
+        );
         reservedViews.add(dataSource.viewName);
         createdViewNames.push(dataSource.viewName);
         newSources.push(dataSource);
