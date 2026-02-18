@@ -6,10 +6,9 @@ const SHEET_GID_REGEX = '[?&#]gid=([0-9]+)';
  * Returns SQL macros for reading Google Sheets via CSV export URLs.
  *
  * These macros do not require the gsheets extension:
- * - gsheet_public_csv_url(url): normalize a Google Sheets URL to CSV export URL
- * - read_gsheet_public(url): table macro wrapper over read_csv_auto(...)
- * - read_gsheet_authorized(url): same as public read, expects HTTP bearer secret
- * - read_gsheet(url): fallback alias for compatibility with gsheets extension syntax
+ * - gsheet_public_csv_url(url, sheet, range): normalize URL/ID into CSV export URL
+ * - read_gsheet_public(url, sheet, range): table macro wrapper over read_csv_auto(...)
+ * - read_gsheet_authorized(url, sheet, range): same as public read, expects HTTP bearer secret
  */
 export function getGSheetPublicReadMacros(): string[] {
   return [
@@ -25,7 +24,7 @@ export function getGSheetPublicReadMacros(): string[] {
       )
     `,
     `
-      CREATE OR REPLACE MACRO gsheet_public_csv_url(sheet_ref) AS (
+      CREATE OR REPLACE MACRO gsheet_public_csv_url(sheet_ref, sheet := NULL, range := NULL) AS (
         CASE
           WHEN gsheet_spreadsheet_id(sheet_ref) = '' THEN sheet_ref
           ELSE
@@ -33,23 +32,24 @@ export function getGSheetPublicReadMacros(): string[] {
             gsheet_spreadsheet_id(sheet_ref) ||
             '/export?format=csv' ||
             CASE
+              WHEN sheet IS NOT NULL AND sheet <> '' THEN '&sheet=' || replace(CAST(sheet AS VARCHAR), ' ', '%20')
               WHEN regexp_extract(sheet_ref, '${SHEET_GID_REGEX}', 1) = '' THEN ''
               ELSE '&gid=' || regexp_extract(sheet_ref, '${SHEET_GID_REGEX}', 1)
+            END ||
+            CASE
+              WHEN range IS NULL OR range = '' THEN ''
+              ELSE '&range=' || replace(CAST(range AS VARCHAR), ' ', '%20')
             END
         END
       )
     `,
     `
-      CREATE OR REPLACE MACRO read_gsheet_public(sheet_ref) AS TABLE
-        SELECT * FROM read_csv_auto(gsheet_public_csv_url(sheet_ref))
+      CREATE OR REPLACE MACRO read_gsheet_public(sheet_ref, sheet := NULL, range := NULL) AS TABLE
+        SELECT * FROM read_csv_auto(gsheet_public_csv_url(sheet_ref, sheet, range))
     `,
     `
-      CREATE OR REPLACE MACRO read_gsheet_authorized(sheet_ref) AS TABLE
-        SELECT * FROM read_csv_auto(gsheet_public_csv_url(sheet_ref))
-    `,
-    `
-      CREATE OR REPLACE MACRO read_gsheet(sheet_ref) AS TABLE
-        SELECT * FROM read_gsheet_authorized(sheet_ref)
+      CREATE OR REPLACE MACRO read_gsheet_authorized(sheet_ref, sheet := NULL, range := NULL) AS TABLE
+        SELECT * FROM read_csv_auto(gsheet_public_csv_url(sheet_ref, sheet, range))
     `,
   ];
 }
