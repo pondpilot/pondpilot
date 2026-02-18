@@ -4,6 +4,7 @@ import { createGSheetSheetView } from '@controllers/db/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { makeSecretId, putSecret, deleteSecret } from '@services/secret-store';
 import { Stack, TextInput, Text, Button, Group, Alert, Radio, Loader } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { useAppStore } from '@store/app-store';
@@ -12,10 +13,16 @@ import { addGSheetSheetDataSource, isFlatFileDataSource } from '@utils/data-sour
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { makeLocalEntryId } from '@utils/file-system';
 import {
+  buildCreateGSheetHttpSecretQuery,
+  buildDropGSheetHttpSecretQuery,
+  buildGSheetHttpSecretName,
+} from '@utils/gsheet-auth';
+import {
   buildGSheetSpreadsheetUrl,
   buildGSheetXlsxExportUrl,
   extractGSheetSpreadsheetId,
 } from '@utils/gsheet';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { useState } from 'react';
 
@@ -37,7 +44,7 @@ const GSHEETS_ACCESS_TOKEN = import.meta.env.VITE_GSHEETS_ACCESS_TOKEN ?? '';
 
 function toFriendlyError(error: unknown): string {
   if (error instanceof Error && error.message) {
-    return error.message;
+    return sanitizeErrorMessage(error.message);
   }
   return 'Unknown error';
 }
@@ -45,12 +52,14 @@ function toFriendlyError(error: unknown): string {
 export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigProps) {
   const [sheetRef, setSheetRef] = useInputState('');
   const [connectionName, setConnectionName] = useInputState('');
+  const [accessToken, setAccessToken] = useInputState(GSHEETS_ACCESS_TOKEN);
   const [accessMode, setAccessMode] = useState<'public' | 'authorized'>('public');
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [discoveredSheets, setDiscoveredSheets] = useState<string[] | null>(null);
 
-  const hasAccessToken = GSHEETS_ACCESS_TOKEN.trim().length > 0;
+  const resolvedAccessToken = (accessToken || GSHEETS_ACCESS_TOKEN).trim();
+  const hasAccessToken = resolvedAccessToken.length > 0;
 
   const discoverWorkbook = async (): Promise<GSheetDiscoverResult> => {
     const spreadsheetId = extractGSheetSpreadsheetId(sheetRef);
@@ -58,9 +67,9 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
       throw new Error('Enter a valid Google Sheets URL or spreadsheet ID');
     }
 
-    if (accessMode === 'authorized' && !hasAccessToken) {
+    if (accessMode === 'authorized' && !resolvedAccessToken) {
       throw new Error(
-        'Authorized mode requires VITE_GSHEETS_ACCESS_TOKEN to be set in the environment.',
+        'Authorized mode requires a Google API bearer token.',
       );
     }
 
@@ -71,7 +80,7 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
     const headers =
       accessMode === 'authorized'
         ? {
-            Authorization: `Bearer ${GSHEETS_ACCESS_TOKEN.trim()}`,
+            Authorization: `Bearer ${resolvedAccessToken}`,
           }
         : undefined;
 
@@ -143,10 +152,14 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
 
     setIsLoading(true);
     let createdViewNames: string[] = [];
+    let createdSecretRef: ReturnType<typeof makeSecretId> | undefined;
+    let createdDuckDBSecretName: string | undefined;
+    let iDbConnForCleanup = useAppStore.getState()._iDbConn;
     try {
       const workbook = await discoverWorkbook();
       const sourceGroupId = makeLocalEntryId();
       const { dataSources, databaseMetadata, _iDbConn } = useAppStore.getState();
+      iDbConnForCleanup = _iDbConn;
       const reservedViews = new Set(
         Array.from(dataSources.values())
           .filter(isFlatFileDataSource)
@@ -154,6 +167,30 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
       );
 
       const newSources = [];
+
+      if (accessMode === 'authorized') {
+        if (!resolvedAccessToken) {
+          throw new Error('Authorized mode requires a Google API bearer token.');
+        }
+        if (!_iDbConn) {
+          throw new Error('Secure storage is unavailable. Unable to persist Google Sheets token.');
+        }
+
+        createdSecretRef = makeSecretId();
+        await putSecret(_iDbConn, createdSecretRef, {
+          label: `Google Sheet: ${workbook.resolvedName}`,
+          data: { accessToken: resolvedAccessToken },
+        });
+
+        createdDuckDBSecretName = buildGSheetHttpSecretName(sourceGroupId);
+        await pool.query(
+          buildCreateGSheetHttpSecretQuery(
+            createdDuckDBSecretName,
+            resolvedAccessToken,
+            workbook.spreadsheetId,
+          ),
+        );
+      }
 
       for (const sheetName of workbook.sheetNames) {
         const dataSource = addGSheetSheetDataSource(
@@ -165,6 +202,7 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
             exportUrl: workbook.exportUrl,
             sheetName,
             accessMode,
+            secretRef: createdSecretRef,
           },
           reservedViews,
         );
@@ -219,6 +257,22 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
         }
       }
       createdViewNames = [];
+
+      if (createdDuckDBSecretName) {
+        try {
+          await pool?.query(buildDropGSheetHttpSecretQuery(createdDuckDBSecretName));
+        } catch {
+          // Ignore secret cleanup errors and surface the original failure.
+        }
+      }
+      if (createdSecretRef && iDbConnForCleanup) {
+        try {
+          await deleteSecret(iDbConnForCleanup, createdSecretRef);
+        } catch {
+          // Ignore secret cleanup errors and surface the original failure.
+        }
+      }
+
       showError({
         title: 'Failed to add Google Sheet',
         message: toFriendlyError(error),
@@ -240,7 +294,7 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
         className="text-sm"
         classNames={{ icon: 'mr-1' }}
       >
-        For private sheets, set <code>VITE_GSHEETS_ACCESS_TOKEN</code> and choose Authorized.
+        Authorized mode stores a per-connection token in the encrypted secret store.
       </Alert>
 
       <Stack gap={12}>
@@ -271,9 +325,21 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
           </Group>
         </Radio.Group>
 
+        {accessMode === 'authorized' && (
+          <TextInput
+            label="Google API Bearer Token"
+            type="password"
+            placeholder="ya29...."
+            value={accessToken}
+            onChange={setAccessToken}
+            description="Saved encrypted and used only for this Google Sheet connection."
+            required
+          />
+        )}
+
         {accessMode === 'authorized' && !hasAccessToken && (
           <Text size="xs" c="icon-error">
-            Authorized mode is unavailable because VITE_GSHEETS_ACCESS_TOKEN is not set.
+            Enter a bearer token to use Authorized mode.
           </Text>
         )}
 
@@ -301,11 +367,15 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
           variant="outline"
           onClick={handleTest}
           loading={isTesting}
-          disabled={!sheetRef.trim() || isLoading}
+          disabled={!sheetRef.trim() || isLoading || (accessMode === 'authorized' && !hasAccessToken)}
         >
           Test Connection
         </Button>
-        <Button onClick={handleAdd} loading={isLoading || isTesting} disabled={!sheetRef.trim()}>
+        <Button
+          onClick={handleAdd}
+          loading={isLoading || isTesting}
+          disabled={!sheetRef.trim() || (accessMode === 'authorized' && !hasAccessToken)}
+        >
           Add Google Sheet
         </Button>
       </Group>

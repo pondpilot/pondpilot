@@ -383,11 +383,14 @@ export async function createGSheetSheetView(
     );
     const hasReadGsheetTableFunction = readFunctionTypes.has('table');
 
-    const readFunctionName = hasReadGsheetTableFunction
-      ? 'system.main.read_gsheet'
-      : accessMode === 'authorized'
+    // Authorized reads always use the macro path so we can bind per-sheet
+    // HTTP bearer secrets in PondPilot (extension secret lookup is global).
+    const readFunctionName =
+      accessMode === 'authorized'
         ? 'read_gsheet_authorized'
-        : 'read_gsheet_public';
+        : hasReadGsheetTableFunction
+          ? 'system.main.read_gsheet'
+          : 'read_gsheet_public';
 
     const query = createGSheetSheetViewQuery(spreadsheetRef, sheetName, viewName, readFunctionName);
     await pooled.query(query);

@@ -96,6 +96,11 @@ export interface GSheetSheetView extends FlatFileDataSource {
   exportUrl: string;
   sheetName: string;
   accessMode: GSheetAccessMode;
+  /**
+   * Optional reference to an encrypted secret that stores the per-connection
+   * Google access token for authorized sheet reads.
+   */
+  secretRef?: SecretId;
 }
 
 export type AnyFlatFileDataSource =
