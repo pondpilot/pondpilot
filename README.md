@@ -122,6 +122,91 @@ yarn dev
 
 Visit `http://localhost:5173` in your browser to access the app.
 
+### Optional Google Sheets support (`gsheets`)
+
+PondPilot can try to bootstrap the DuckDB `gsheets` extension at startup, and also ships macro-based Google Sheets reads that work without the extension.
+
+As of **February 17, 2026**, the checked-out upstream `duckdb_gsheets` repository (`main`, tag `v0.0.8`) still documents DuckDB-WASM as not supported, so extension loading is treated as best-effort.
+
+1. Enable community bootstrap in `.env`:
+
+```bash
+VITE_DUCKDB_ENABLE_GSHEETS_EXTENSION=true
+```
+
+2. Or provide a custom WASM extension URL (takes precedence):
+
+```bash
+VITE_GSHEETS_EXTENSION_URL=/duckdb-extensions/gsheets/gsheets.duckdb_extension.wasm
+```
+
+3. If community WASM artifacts are unavailable, PondPilot can auto-build from a local fork checkout at `../duckdb_gsheets` (sibling to this repo):
+
+```bash
+# one-time: place the fork as a sibling checkout
+# /home/.../github.com/pondpilot/pondpilot
+# /home/.../github.com/pondpilot/duckdb_gsheets
+
+# then just run pondpilot normally
+yarn dev
+```
+
+`yarn dev` and `yarn build` run `ensure:gsheets:wasm`, which builds `duckdb_gsheets` (`make wasm_eh`) when source files changed and copies the artifact into `public/duckdb-extensions/gsheets/`.
+
+Optional overrides:
+
+```bash
+# Use a custom fork path
+GSHEETS_EXTENSION_REPO=/path/to/duckdb_gsheets yarn dev
+
+# Use a prebuilt artifact directly
+GSHEETS_WASM_SOURCE=/path/to/gsheets.duckdb_extension.wasm yarn dev
+```
+
+And set:
+
+```bash
+VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS=true
+VITE_GSHEETS_EXTENSION_URL=/duckdb-extensions/gsheets/gsheets.duckdb_extension.wasm
+```
+
+Public sheets can be read without the extension:
+
+```sql
+SELECT * FROM read_gsheet_public(
+  'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit?gid=<gid>#gid=<gid>'
+);
+
+-- compatibility alias
+SELECT * FROM read_gsheet(
+  'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit?gid=<gid>#gid=<gid>'
+);
+```
+
+Authorized reads can also work without the extension when a token is set in `.env`:
+
+```bash
+VITE_GSHEETS_ACCESS_TOKEN=<google_access_token>
+# optional, defaults to pondpilot_gsheet_http
+# VITE_GSHEETS_HTTP_SECRET_NAME=pondpilot_gsheet_http
+# optional, defaults to pondpilot_gsheet (used only when gsheets extension loads)
+# VITE_GSHEETS_SECRET_NAME=pondpilot_gsheet
+```
+
+Then query:
+
+```sql
+SELECT * FROM read_gsheet_authorized(
+  'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit?gid=<gid>#gid=<gid>'
+);
+```
+
+If the `gsheets` extension does load successfully, PondPilot also bootstraps:
+
+```sql
+CREATE OR REPLACE SECRET "<name>" (TYPE gsheet, PROVIDER access_token, TOKEN '<google_access_token>')
+```
+
 ## ⌨️ Keyboard Shortcuts
 
 - `Ctrl/⌘ + K`: Open spotlight menu to navigate, add files, create new queries and explore shortcuts

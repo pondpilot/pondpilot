@@ -106,6 +106,8 @@ export const DuckDBConnectionPoolProvider = ({
   const isCleaningUpRef = useRef(false);
   const ALLOW_UNSIGNED_EXTENSIONS =
     import.meta.env.VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS === 'true';
+  const ENABLE_GSHEETS_COMMUNITY_EXTENSION =
+    import.meta.env.VITE_DUCKDB_ENABLE_GSHEETS_EXTENSION === 'true';
   const READ_STAT_EXTENSION_URL = (() => {
     const raw = import.meta.env.VITE_READ_STAT_EXTENSION_URL ?? '';
     if (!raw) return '';
@@ -113,6 +115,16 @@ export const DuckDBConnectionPoolProvider = ({
       return new URL(raw, window.location.href).toString();
     } catch (error) {
       console.warn('Invalid read_stat extension URL:', raw, error);
+      return '';
+    }
+  })();
+  const GSHEETS_EXTENSION_URL = (() => {
+    const raw = import.meta.env.VITE_GSHEETS_EXTENSION_URL ?? '';
+    if (!raw) return '';
+    try {
+      return new URL(raw, window.location.href).toString();
+    } catch (error) {
+      console.warn('Invalid gsheets extension URL:', raw, error);
       return '';
     }
   })();
@@ -386,7 +398,11 @@ export const DuckDBConnectionPoolProvider = ({
               // Only log checkpoints in development mode
               logCheckpoints: import.meta.env.DEV,
             },
-            configureConnectionForHttpfs,
+            (conn) =>
+              configureConnectionForHttpfs(conn, {
+                enableGsheetsCommunity: ENABLE_GSHEETS_COMMUNITY_EXTENSION,
+                gsheetsExtensionUrl: GSHEETS_EXTENSION_URL,
+              }),
           );
 
           /**

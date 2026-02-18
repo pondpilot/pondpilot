@@ -217,6 +217,9 @@ export const deleteDataSources = async (
 
     const file = localEntries.get(dataSource.fileSourceId);
     if (!file || file.kind !== 'file' || file.fileType !== 'data-source') {
+      if ('viewName' in dataSource) {
+        await dropViewAndUnregisterFile(conn, dataSource.viewName, undefined);
+      }
       continue;
     }
     if (dataSource.type === 'attached-db') {

@@ -18,6 +18,7 @@ import {
   IcebergCatalog,
   PersistentDataSourceId,
   XlsxSheetView,
+  GSheetSheetView,
   LocalDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
@@ -943,6 +944,31 @@ export const restoreAppDataFromIDB = async (
 
   await Promise.all(registerPromises);
 
+  // Recreate Google Sheets-backed views that are not associated with local file handles.
+  const gsheetDataSources = Array.from(dataSources.values()).filter(
+    (ds): ds is GSheetSheetView => ds.type === 'gsheet-sheet',
+  );
+  for (const dataSource of gsheetDataSources) {
+    _reservedViews.add(dataSource.viewName);
+    try {
+      await createXlsxSheetView(
+        conn,
+        dataSource.exportUrl,
+        dataSource.sheetName,
+        dataSource.viewName,
+      );
+      validDataSources.add(dataSource.id);
+    } catch (error) {
+      // Keep persisted Google Sheets data sources on transient restore failures
+      // (offline/expired token/API hiccups) so users can reconnect later.
+      validDataSources.add(dataSource.id);
+      warnings.push(
+        `Google Sheet ${dataSource.spreadsheetName}::${dataSource.sheetName} could not be restored. It will remain saved and can be retried later.`,
+      );
+      console.warn('Failed to restore Google Sheet view:', error);
+    }
+  }
+
   // Handle remote databases and iceberg catalogs - they need to be re-attached.
   // We don't re-attach them here because:
   // 1. They will be re-attached in reconnectRemoteDatabases() after app init
@@ -1107,6 +1133,10 @@ export const restoreAppDataFromIDB = async (
     // Find all file-based data sources that don't have corresponding local entries
     for (const [dataSourceId, dataSource] of dataSources) {
       if (isDatabaseDataSource(dataSource)) {
+        continue;
+      }
+
+      if (dataSource.type === 'gsheet-sheet') {
         continue;
       }
 
