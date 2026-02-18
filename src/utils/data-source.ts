@@ -3,6 +3,7 @@ import {
   AnyFlatFileDataSource,
   DuckLakeCatalog,
   GSheetAccessMode,
+  GSheetSheetView,
   IcebergCatalog,
   LocalDB,
   MotherDuckConnection,
@@ -165,6 +166,7 @@ export function addGSheetSheetDataSource(
     exportUrl: string;
     sheetName: string;
     accessMode: GSheetAccessMode;
+    secretRef?: GSheetSheetView['secretRef'];
   },
   reservedViews: Set<string>,
 ): AnyFlatFileDataSource {
@@ -183,6 +185,7 @@ export function addGSheetSheetDataSource(
     exportUrl: params.exportUrl,
     sheetName: params.sheetName,
     accessMode: params.accessMode,
+    secretRef: params.secretRef,
   };
 }
 

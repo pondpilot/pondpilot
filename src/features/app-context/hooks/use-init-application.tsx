@@ -286,6 +286,20 @@ export function useAppInitialization({
     coreSnapshot: CoreAppDataSnapshot,
     generation: number,
   ) => {
+    // Install CORS + Google Sheets helper macros before restore so persisted
+    // authorized Google Sheet views can be recreated immediately.
+    try {
+      await installCorsProxyMacros(resolvedConn);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('Failed to install CORS proxy macros:', message);
+      showWarning({
+        title: 'CORS Proxy Initialization Warning',
+        message:
+          'CORS proxy macros could not be installed. Remote databases may require manual configuration.',
+      });
+    }
+
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
     try {
@@ -320,19 +334,6 @@ export function useAppInitialization({
             title: 'DuckDB Functions Initialization Warning',
             message:
               'DuckDB function metadata could not be loaded. Some editor help and validation may be incomplete.',
-          });
-        }
-
-        // Install CORS proxy macros
-        try {
-          await installCorsProxyMacros(resolvedConn);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.warn('Failed to install CORS proxy macros:', message);
-          showWarning({
-            title: 'CORS Proxy Initialization Warning',
-            message:
-              'CORS proxy macros could not be installed. Remote databases may require manual configuration.',
           });
         }
 
