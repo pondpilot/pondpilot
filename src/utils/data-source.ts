@@ -2,6 +2,7 @@ import {
   AnyDataSource,
   AnyFlatFileDataSource,
   DuckLakeCatalog,
+  GSheetAccessMode,
   IcebergCatalog,
   LocalDB,
   MotherDuckConnection,
@@ -155,6 +156,36 @@ export function addXlsxSheetDataSource(
   };
 }
 
+export function addGSheetSheetDataSource(
+  params: {
+    fileSourceId: DataSourceLocalFile['id'];
+    spreadsheetId: string;
+    spreadsheetName: string;
+    spreadsheetUrl: string;
+    exportUrl: string;
+    sheetName: string;
+    accessMode: GSheetAccessMode;
+  },
+  reservedViews: Set<string>,
+): AnyFlatFileDataSource {
+  const dataSourceId = makePersistentDataSourceId();
+  const baseViewName = `${params.spreadsheetName}_${params.sheetName}`;
+  const viewName = findUniqueName(baseViewName, (name: string) => reservedViews.has(name));
+
+  return {
+    id: dataSourceId,
+    type: 'gsheet-sheet',
+    fileSourceId: params.fileSourceId,
+    viewName,
+    spreadsheetId: params.spreadsheetId,
+    spreadsheetName: params.spreadsheetName,
+    spreadsheetUrl: params.spreadsheetUrl,
+    exportUrl: params.exportUrl,
+    sheetName: params.sheetName,
+    accessMode: params.accessMode,
+  };
+}
+
 export function addLocalDB(localEntry: DataSourceLocalFile, reservedDbs: Set<string>): LocalDB {
   const dataSourceId = makePersistentDataSourceId();
 
@@ -195,6 +226,7 @@ export function isFlatFileDataSource(
     dataSource.type === 'json' ||
     dataSource.type === 'parquet' ||
     dataSource.type === 'xlsx-sheet' ||
+    dataSource.type === 'gsheet-sheet' ||
     isReadStatDataSource(dataSource)
   );
 }
