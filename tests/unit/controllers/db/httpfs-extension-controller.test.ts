@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 
 type MockConn = {
   query: jest.MockedFunction<(statement: string) => Promise<unknown>>;
+  bindings?: object;
 };
 
 const BASE_BOOTSTRAP_STATEMENTS = [
@@ -27,9 +28,10 @@ function expectedHttpSecretStatement(
   return `CREATE OR REPLACE SECRET "${escapedSecretName}" (TYPE HTTP, PROVIDER CONFIG, BEARER_TOKEN '${escapedToken}', SCOPE (${GSHEETS_HTTP_SCOPE_SQL}))`;
 }
 
-function createMockConn(): MockConn {
+function createMockConn(bindings?: object): MockConn {
   return {
     query: jest.fn(async (_statement: string) => undefined),
+    bindings,
   };
 }
 
@@ -125,6 +127,52 @@ describe('configureConnectionForHttpfs', () => {
     expect(conn.query.mock.calls.map((call) => call[0])).toEqual([
       ...BASE_BOOTSTRAP_STATEMENTS,
       `LOAD '${extensionUrl}'`,
+    ]);
+  });
+
+  it('loads gsheets from explicit extension URL for each connection on same DB instance', async () => {
+    const sharedBindings = {};
+    const connA = createMockConn(sharedBindings);
+    const connB = createMockConn(sharedBindings);
+    const extensionUrl = 'https://example.com/gsheets.duckdb_extension.wasm';
+
+    await configureConnectionForHttpfs(connA as any, {
+      gsheetsExtensionUrl: extensionUrl,
+    });
+    await configureConnectionForHttpfs(connB as any, {
+      gsheetsExtensionUrl: extensionUrl,
+    });
+
+    expect(connA.query.mock.calls.map((call) => call[0])).toEqual([
+      ...BASE_BOOTSTRAP_STATEMENTS,
+      `LOAD '${extensionUrl}'`,
+    ]);
+    expect(connB.query.mock.calls.map((call) => call[0])).toEqual([
+      ...BASE_BOOTSTRAP_STATEMENTS,
+      `LOAD '${extensionUrl}'`,
+    ]);
+  });
+
+  it('installs gsheets once and loads gsheets on each connection for community mode', async () => {
+    const sharedBindings = {};
+    const connA = createMockConn(sharedBindings);
+    const connB = createMockConn(sharedBindings);
+
+    await configureConnectionForHttpfs(connA as any, {
+      enableGsheetsCommunity: true,
+    });
+    await configureConnectionForHttpfs(connB as any, {
+      enableGsheetsCommunity: true,
+    });
+
+    expect(connA.query.mock.calls.map((call) => call[0])).toEqual([
+      ...BASE_BOOTSTRAP_STATEMENTS,
+      'INSTALL gsheets FROM community',
+      'LOAD gsheets',
+    ]);
+    expect(connB.query.mock.calls.map((call) => call[0])).toEqual([
+      ...BASE_BOOTSTRAP_STATEMENTS,
+      'LOAD gsheets',
     ]);
   });
 
