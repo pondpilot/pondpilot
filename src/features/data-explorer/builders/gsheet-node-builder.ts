@@ -1,6 +1,6 @@
 import { TreeNodeData } from '@components/explorer-tree';
-import { copyToClipboard } from '@utils/clipboard';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { deleteDataSources } from '@controllers/data-source';
+import { createSQLScript } from '@controllers/sql-script';
 import {
   findTabFromFlatFileDataSource,
   getOrCreateSchemaBrowserTab,
@@ -10,12 +10,12 @@ import {
   setPreviewTabId,
   deleteTabByDataSourceId,
 } from '@controllers/tab';
-import { createSQLScript } from '@controllers/sql-script';
-import { deleteDataSources } from '@controllers/data-source';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { GSheetSheetView } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';
+import { copyToClipboard } from '@utils/clipboard';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 import { buildComparisonMenuItems } from '../utils/comparison-menu-items';
@@ -120,7 +120,11 @@ export function buildGSheetWorkbookNode(
     iconType: 'gsheet',
     isDisabled: false,
     isSelectable: false,
-    onDelete: () => deleteDataSources(conn, sortedSheets.map((sheet) => sheet.id)),
+    onDelete: () =>
+      deleteDataSources(
+        conn,
+        sortedSheets.map((sheet) => sheet.id),
+      ),
     contextMenu: [
       {
         children: [
