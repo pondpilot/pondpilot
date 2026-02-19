@@ -21,5 +21,7 @@ describe('getGSheetPublicReadMacros', () => {
     expect(urlMacro).toContain('sheet := NULL');
     expect(urlMacro).toContain('range := NULL');
     expect(urlMacro).toContain('/export?format=csv');
+    expect(urlMacro).toContain('url_encode(CAST(sheet AS VARCHAR))');
+    expect(urlMacro).toContain('url_encode(CAST(range AS VARCHAR))');
   });
 });

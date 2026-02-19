@@ -16,17 +16,6 @@ const BASE_BOOTSTRAP_STATEMENTS = [
   'INSTALL iceberg',
   'LOAD iceberg',
 ];
-const GSHEETS_HTTP_SCOPE_SQL =
-  "'https://docs.google.com/spreadsheets/', 'https://sheets.googleapis.com/'";
-
-function expectedHttpSecretStatement(
-  token: string,
-  secretName = 'pondpilot_gsheet_http',
-): string {
-  const escapedSecretName = secretName.replace(/"/g, '""');
-  const escapedToken = token.replace(/'/g, "''");
-  return `CREATE OR REPLACE SECRET "${escapedSecretName}" (TYPE HTTP, PROVIDER CONFIG, BEARER_TOKEN '${escapedToken}', SCOPE (${GSHEETS_HTTP_SCOPE_SQL}))`;
-}
 
 function createMockConn(bindings?: object): MockConn {
   return {
@@ -176,73 +165,7 @@ describe('configureConnectionForHttpfs', () => {
     ]);
   });
 
-  it('creates gsheet access_token secret when token is provided with explicit extension URL', async () => {
-    const conn = createMockConn();
-    const extensionUrl = 'https://example.com/gsheets.duckdb_extension.wasm';
-
-    await configureConnectionForHttpfs(conn as any, {
-      gsheetsExtensionUrl: extensionUrl,
-      gsheetsAccessToken: 'token-123',
-    });
-
-    expect(conn.query.mock.calls.map((call) => call[0])).toEqual([
-      ...BASE_BOOTSTRAP_STATEMENTS,
-      expectedHttpSecretStatement('token-123'),
-      `LOAD '${extensionUrl}'`,
-      `CREATE OR REPLACE SECRET "pondpilot_gsheet" (TYPE gsheet, PROVIDER access_token, TOKEN 'token-123')`,
-    ]);
-  });
-
-  it('creates gsheet + http access token secrets with custom names and escaped token', async () => {
-    const conn = createMockConn();
-    const extensionUrl = 'https://example.com/gsheets.duckdb_extension.wasm';
-
-    await configureConnectionForHttpfs(conn as any, {
-      gsheetsExtensionUrl: extensionUrl,
-      gsheetsAccessToken: "tok'en",
-      gsheetsSecretName: 'my "gsheet" secret',
-      gsheetsHttpSecretName: 'my "http" secret',
-    });
-
-    expect(conn.query.mock.calls.map((call) => call[0])).toEqual([
-      ...BASE_BOOTSTRAP_STATEMENTS,
-      expectedHttpSecretStatement("tok'en", 'my "http" secret'),
-      `LOAD '${extensionUrl}'`,
-      `CREATE OR REPLACE SECRET "my ""gsheet"" secret" (TYPE gsheet, PROVIDER access_token, TOKEN 'tok''en')`,
-    ]);
-  });
-
-  it('creates gsheet access_token secret when community extension is enabled', async () => {
-    const conn = createMockConn();
-
-    await configureConnectionForHttpfs(conn as any, {
-      enableGsheetsCommunity: true,
-      gsheetsAccessToken: 'community-token',
-    });
-
-    expect(conn.query.mock.calls.map((call) => call[0])).toEqual([
-      ...BASE_BOOTSTRAP_STATEMENTS,
-      expectedHttpSecretStatement('community-token'),
-      'INSTALL gsheets FROM community',
-      'LOAD gsheets',
-      `CREATE OR REPLACE SECRET "pondpilot_gsheet" (TYPE gsheet, PROVIDER access_token, TOKEN 'community-token')`,
-    ]);
-  });
-
-  it('creates only HTTP secret when token is provided but gsheets loading is disabled', async () => {
-    const conn = createMockConn();
-
-    await configureConnectionForHttpfs(conn as any, {
-      gsheetsAccessToken: 'token-without-extension',
-    });
-
-    expect(conn.query.mock.calls.map((call) => call[0])).toEqual([
-      ...BASE_BOOTSTRAP_STATEMENTS,
-      expectedHttpSecretStatement('token-without-extension'),
-    ]);
-  });
-
-  it('keeps HTTP secret setup when gsheets extension URL fails to load', async () => {
+  it('warns when gsheets extension URL fails to load', async () => {
     const conn = createMockConn();
     const extensionUrl = 'https://example.com/gsheets.duckdb_extension.wasm';
     conn.query.mockImplementation(async (statement: string) => {
@@ -254,12 +177,10 @@ describe('configureConnectionForHttpfs', () => {
 
     await configureConnectionForHttpfs(conn as any, {
       gsheetsExtensionUrl: extensionUrl,
-      gsheetsAccessToken: 'resilient-token',
     });
 
     expect(conn.query.mock.calls.map((call) => call[0])).toEqual([
       ...BASE_BOOTSTRAP_STATEMENTS,
-      expectedHttpSecretStatement('resilient-token'),
       `LOAD '${extensionUrl}'`,
     ]);
     expect(warnSpy).toHaveBeenCalled();

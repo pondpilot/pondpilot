@@ -10,9 +10,9 @@ import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
-import type { SecretId } from '@services/secret-store';
 import { TabId } from '@models/tab';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
+import type { SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { getDatabaseIdentifier, isDatabaseDataSource, isMotherDuckDbKey } from '@utils/data-source';
 import { buildDropGSheetHttpSecretQuery, buildGSheetHttpSecretName } from '@utils/gsheet-auth';
@@ -97,10 +97,14 @@ export const deleteDataSources = async (
     }
 
     const isStillReferenced = Array.from(newDataSources.values()).some(
-      (remaining) => remaining.type === 'gsheet-sheet' && remaining.secretRef === dataSource.secretRef,
+      (remaining) =>
+        remaining.type === 'gsheet-sheet' && remaining.secretRef === dataSource.secretRef,
     );
     if (!isStillReferenced) {
-      gsheetSecretsToCleanup.set(dataSource.secretRef, buildGSheetHttpSecretName(dataSource.fileSourceId));
+      gsheetSecretsToCleanup.set(
+        dataSource.secretRef,
+        buildGSheetHttpSecretName(dataSource.fileSourceId),
+      );
     }
   }
 

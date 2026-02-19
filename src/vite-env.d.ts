@@ -4,7 +4,6 @@
 interface ImportMetaEnv {
   /** URL for the Polly AI proxy (defaults to https://ai-proxy.pondpilot.io) */
   readonly VITE_POLLY_PROXY_URL?: string;
-
   /** Optional CORS proxy URL for remote object-store requests. */
   readonly VITE_CORS_PROXY_URL?: string;
 
@@ -42,6 +41,12 @@ interface ImportMetaEnv {
 
   /** Optional Quack extension artifact URL used to test newer DuckDB-WASM-compatible builds. */
   readonly VITE_QUACK_WASM_EXTENSION_URL?: string;
+
+  /** Enables the optional Google Sheets extension when set to "true". */
+  readonly VITE_DUCKDB_ENABLE_GSHEETS_EXTENSION?: string;
+
+  /** Optional Google Sheets extension artifact URL. */
+  readonly VITE_GSHEETS_EXTENSION_URL?: string;
 }
 
 interface ImportMeta {
