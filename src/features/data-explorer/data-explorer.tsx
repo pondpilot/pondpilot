@@ -1,8 +1,8 @@
 import { TreeNodeData } from '@components/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { createComparisonWithSources } from '@controllers/tab/comparison-tab-controller';
-import { buildGSheetWorkbookNode } from '@features/data-explorer/builders';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
+import { buildGSheetWorkbookNode } from '@features/data-explorer/builders';
 import { IcebergReconnectModal } from '@features/datasource-wizard/components/iceberg-reconnect-modal';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { ComparisonSource } from '@models/comparison';

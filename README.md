@@ -183,23 +183,7 @@ SELECT * FROM read_gsheet(
 );
 ```
 
-Authorized reads can also work without the extension when a token is set in `.env`:
-
-```bash
-VITE_GSHEETS_ACCESS_TOKEN=<google_access_token>
-# optional, defaults to pondpilot_gsheet_http
-# VITE_GSHEETS_HTTP_SECRET_NAME=pondpilot_gsheet_http
-# optional, defaults to pondpilot_gsheet (used only when gsheets extension loads)
-# VITE_GSHEETS_SECRET_NAME=pondpilot_gsheet
-```
-
-Then query:
-
-```sql
-SELECT * FROM read_gsheet_authorized(
-  'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit?gid=<gid>#gid=<gid>'
-);
-```
+Authorized reads use tokens entered through the connection wizard and stored in the encrypted secret store — not environment variables.
 
 If the `gsheets` extension does load successfully, PondPilot also bootstraps:
 

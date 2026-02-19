@@ -128,7 +128,6 @@ export const DuckDBConnectionPoolProvider = ({
       return '';
     }
   })();
-
   const cleanupWorkerResources = useCallback(() => {
     if (worker.current != null) {
       worker.current.terminate();

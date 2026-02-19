@@ -37,33 +37,8 @@ export interface ExtensionBootstrapOptions {
    * When provided, this takes precedence over community INSTALL/LOAD.
    */
   gsheetsExtensionUrl?: string;
-  /**
-   * Optional Google Sheets API access token.
-   *
-   * When provided, PondPilot will create (or replace):
-   * - an HTTP bearer secret for macro-based reads
-   * - and, if gsheets extension loads, a `gsheet` access_token secret
-   */
-  gsheetsAccessToken?: string;
-  /**
-   * Optional DuckDB secret name used for the gsheets access token secret.
-   * Defaults to `pondpilot_gsheet`.
-   */
-  gsheetsSecretName?: string;
-  /**
-   * Optional DuckDB secret name used for the HTTP bearer secret that powers
-   * macro-based authorized reads (`read_gsheet_authorized(...)`).
-   * Defaults to `pondpilot_gsheet_http`.
-   */
-  gsheetsHttpSecretName?: string;
 }
 
-const DEFAULT_GSHEETS_SECRET_NAME = 'pondpilot_gsheet';
-const DEFAULT_GSHEETS_HTTP_SECRET_NAME = 'pondpilot_gsheet_http';
-const GSHEETS_HTTP_SECRET_SCOPES = [
-  'https://docs.google.com/spreadsheets/',
-  'https://sheets.googleapis.com/',
-];
 let attemptedGsheetsInstallByInstance: WeakSet<object> = new WeakSet();
 
 /**
@@ -75,59 +50,6 @@ export function __resetGsheetsBootstrapForTests(): void {
 
 function escapeSqlLiteral(value: string): string {
   return value.replace(/'/g, "''");
-}
-
-function quoteSqlIdentifier(identifier: string): string {
-  return `"${identifier.replace(/"/g, '""')}"`;
-}
-
-async function configureGsheetsAccessTokenSecret(
-  conn: AsyncDuckDBConnection,
-  token: string,
-  secretName: string,
-): Promise<void> {
-  const normalizedSecretName = secretName.trim() || DEFAULT_GSHEETS_SECRET_NAME;
-  const escapedToken = escapeSqlLiteral(token);
-  const quotedSecretName = quoteSqlIdentifier(normalizedSecretName);
-
-  try {
-    await conn.query(
-      `CREATE OR REPLACE SECRET ${quotedSecretName} (TYPE gsheet, PROVIDER access_token, TOKEN '${escapedToken}')`,
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(
-      `Failed to create gsheets access_token secret "${normalizedSecretName}". ` +
-        'Authorized read_gsheet(...) queries may fail.',
-      message,
-    );
-  }
-}
-
-async function configureGsheetsHttpBearerSecret(
-  conn: AsyncDuckDBConnection,
-  token: string,
-  secretName: string,
-): Promise<void> {
-  const normalizedSecretName = secretName.trim() || DEFAULT_GSHEETS_HTTP_SECRET_NAME;
-  const escapedToken = escapeSqlLiteral(token);
-  const quotedSecretName = quoteSqlIdentifier(normalizedSecretName);
-  const scopeList = GSHEETS_HTTP_SECRET_SCOPES.map((scope) => `'${escapeSqlLiteral(scope)}'`).join(
-    ', ',
-  );
-
-  try {
-    await conn.query(
-      `CREATE OR REPLACE SECRET ${quotedSecretName} (TYPE HTTP, PROVIDER CONFIG, BEARER_TOKEN '${escapedToken}', SCOPE (${scopeList}))`,
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(
-      `Failed to create gsheets HTTP bearer secret "${normalizedSecretName}". ` +
-        'read_gsheet_authorized(...) may fail.',
-      message,
-    );
-  }
 }
 
 /**
@@ -168,44 +90,27 @@ export async function configureConnectionForHttpfs(
     }
   }
 
-  const {
-    enableGsheetsCommunity = false,
-    gsheetsExtensionUrl = '',
-    gsheetsAccessToken = '',
-    gsheetsSecretName = DEFAULT_GSHEETS_SECRET_NAME,
-    gsheetsHttpSecretName = DEFAULT_GSHEETS_HTTP_SECRET_NAME,
-  } = options;
-  const hasGsheetsAccessToken = gsheetsAccessToken.trim().length > 0;
+  const { enableGsheetsCommunity = false, gsheetsExtensionUrl = '' } = options;
 
-  if (hasGsheetsAccessToken) {
-    await configureGsheetsHttpBearerSecret(conn, gsheetsAccessToken, gsheetsHttpSecretName);
-  }
-
+  // bindings is shared across connections from the same DuckDB-WASM instance.
+  // We use it as the WeakSet key so INSTALL runs once per DB, but LOAD runs per connection.
   const bindings = conn.bindings as unknown;
   const dbInstance =
     bindings && (typeof bindings === 'object' || typeof bindings === 'function') ? bindings : conn;
 
   if (gsheetsExtensionUrl) {
     const escapedUrl = escapeSqlLiteral(gsheetsExtensionUrl);
-    let gsheetsLoaded = false;
     try {
       await conn.query(`LOAD '${escapedUrl}'`);
-      gsheetsLoaded = true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (/already loaded/i.test(message)) {
-        gsheetsLoaded = true;
-      } else {
+      if (!/already loaded/i.test(message)) {
         console.warn(
           'Failed to load gsheets extension from configured URL. ' +
             'Using macro-based Google Sheets reads only.',
           message,
         );
       }
-    }
-
-    if (gsheetsLoaded && hasGsheetsAccessToken) {
-      await configureGsheetsAccessTokenSecret(conn, gsheetsAccessToken, gsheetsSecretName);
     }
     return;
   }
@@ -235,23 +140,13 @@ export async function configureConnectionForHttpfs(
     await conn.query('LOAD gsheets');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (/already loaded/i.test(message)) {
-      if (hasGsheetsAccessToken) {
-        await configureGsheetsAccessTokenSecret(conn, gsheetsAccessToken, gsheetsSecretName);
-      }
-      return;
+    if (!/already loaded/i.test(message)) {
+      console.warn(
+        'Failed to load gsheets extension from community repository. ' +
+          'If community WASM is unavailable, set VITE_GSHEETS_EXTENSION_URL to a local/self-hosted wasm build. ' +
+          'Using macro-based Google Sheets reads only.',
+        message,
+      );
     }
-
-    console.warn(
-      'Failed to load gsheets extension from community repository. ' +
-        'If community WASM is unavailable, set VITE_GSHEETS_EXTENSION_URL to a local/self-hosted wasm build. ' +
-        'Using macro-based Google Sheets reads only.',
-      message,
-    );
-    return;
-  }
-
-  if (hasGsheetsAccessToken) {
-    await configureGsheetsAccessTokenSecret(conn, gsheetsAccessToken, gsheetsSecretName);
   }
 }

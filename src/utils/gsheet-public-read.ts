@@ -32,13 +32,13 @@ export function getGSheetPublicReadMacros(): string[] {
             gsheet_spreadsheet_id(sheet_ref) ||
             '/export?format=csv' ||
             CASE
-              WHEN sheet IS NOT NULL AND sheet <> '' THEN '&sheet=' || replace(CAST(sheet AS VARCHAR), ' ', '%20')
+              WHEN sheet IS NOT NULL AND sheet <> '' THEN '&sheet=' || url_encode(CAST(sheet AS VARCHAR))
               WHEN regexp_extract(sheet_ref, '${SHEET_GID_REGEX}', 1) = '' THEN ''
               ELSE '&gid=' || regexp_extract(sheet_ref, '${SHEET_GID_REGEX}', 1)
             END ||
             CASE
               WHEN range IS NULL OR range = '' THEN ''
-              ELSE '&range=' || replace(CAST(range AS VARCHAR), ' ', '%20')
+              ELSE '&range=' || url_encode(CAST(range AS VARCHAR))
             END
         END
       )

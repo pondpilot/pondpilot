@@ -27,7 +27,9 @@ describe('gsheet utils', () => {
 
   it('builds canonical sheet and export URLs', () => {
     const id = 'sheet123';
-    expect(buildGSheetSpreadsheetUrl(id)).toBe('https://docs.google.com/spreadsheets/d/sheet123/edit');
+    expect(buildGSheetSpreadsheetUrl(id)).toBe(
+      'https://docs.google.com/spreadsheets/d/sheet123/edit',
+    );
     expect(buildGSheetXlsxExportUrl(id)).toBe(
       'https://docs.google.com/spreadsheets/d/sheet123/export?format=xlsx',
     );
@@ -67,7 +69,7 @@ describe('gsheet utils', () => {
     );
 
     expect(sql).toBe(
-      `CREATE OR REPLACE VIEW student_roster AS SELECT * FROM "system".main.read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Sheet1');`,
+      "CREATE OR REPLACE VIEW student_roster AS SELECT * FROM \"system\".main.read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Sheet1');",
     );
   });
 });
