@@ -79,7 +79,37 @@ export interface XlsxSheetView extends FlatFileDataSource {
   sheetName: string;
 }
 
-export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView | JSONView | ReadStatView;
+export type GSheetAccessMode = 'public' | 'authorized';
+
+/**
+ * Google Sheets spreadsheet tabs are represented as managed DuckDB views.
+ *
+ * Unlike local files, these sources do not point to a persisted local file handle.
+ * `fileSourceId` is used as a stable grouping key for all tabs that belong to the
+ * same spreadsheet connection.
+ */
+export interface GSheetSheetView extends FlatFileDataSource {
+  readonly type: 'gsheet-sheet';
+  spreadsheetId: string;
+  spreadsheetName: string;
+  spreadsheetUrl: string;
+  exportUrl: string;
+  sheetName: string;
+  accessMode: GSheetAccessMode;
+  /**
+   * Optional reference to an encrypted secret that stores the per-connection
+   * Google access token for authorized sheet reads.
+   */
+  secretRef?: SecretId;
+}
+
+export type AnyFlatFileDataSource =
+  | CSVView
+  | ParquetView
+  | XlsxSheetView
+  | JSONView
+  | ReadStatView
+  | GSheetSheetView;
 
 export type IcebergAuthType = 'oauth2' | 'bearer' | 'sigv4' | 'none';
 

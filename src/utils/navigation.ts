@@ -145,18 +145,29 @@ export function getFlatFileDataSourceName(
   localEntriesOrEntry: Map<LocalEntryId, LocalEntry> | LocalEntry,
   options?: { nonAliased?: boolean },
 ): string {
-  let localEntry: LocalEntry;
+  let localEntry: LocalEntry | undefined;
 
   if (localEntriesOrEntry instanceof Map) {
-    localEntry = localEntriesOrEntry.get(dataSource.fileSourceId)!;
+    localEntry = localEntriesOrEntry.get(dataSource.fileSourceId);
   } else {
     localEntry = localEntriesOrEntry;
   }
 
   if (dataSource.type === 'xlsx-sheet') {
+    const sourceName = localEntry?.name ?? dataSource.viewName;
     return options?.nonAliased
       ? dataSource.viewName
-      : `${dataSource.viewName} (${localEntry.name}::${dataSource.sheetName})`;
+      : `${dataSource.viewName} (${sourceName}::${dataSource.sheetName})`;
+  }
+
+  if (dataSource.type === 'gsheet-sheet') {
+    return options?.nonAliased
+      ? dataSource.viewName
+      : `${dataSource.viewName} (${dataSource.spreadsheetName}::${dataSource.sheetName})`;
+  }
+
+  if (!localEntry) {
+    return dataSource.viewName;
   }
 
   return localEntry.name === dataSource.viewName || options?.nonAliased

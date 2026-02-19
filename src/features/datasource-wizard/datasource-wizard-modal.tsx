@@ -8,6 +8,7 @@ import {
   IconX,
   IconClipboard,
   IconSnowflake,
+  IconBrandGoogle,
 } from '@tabler/icons-react';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { setDataTestId } from '@utils/test-id';
@@ -15,6 +16,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
 import { ClipboardImportConfig } from './components/clipboard-import-config';
+import { GoogleSheetConfig } from './components/google-sheet-config';
 import { IcebergCatalogConfig } from './components/iceberg-catalog-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
 import { validateJSON, validateCSV } from './utils/clipboard-import';
@@ -31,6 +33,7 @@ export type WizardStep =
   | 'selection'
   | 'remote-config'
   | 'iceberg-config'
+  | 'gsheet-config'
   | 'clipboard-csv'
   | 'clipboard-json';
 
@@ -40,6 +43,8 @@ const getStepTitle = (step: WizardStep): string => {
       return 'REMOTE DATABASE';
     case 'iceberg-config':
       return 'ICEBERG CATALOG';
+    case 'gsheet-config':
+      return 'GOOGLE SHEETS';
     case 'clipboard-csv':
       return 'IMPORT CSV FROM CLIPBOARD';
     case 'clipboard-json':
@@ -154,6 +159,10 @@ export function DatasourceWizardModal({
 
   const handleIcebergCatalogClick = () => {
     setStep('iceberg-config');
+  };
+
+  const handleGoogleSheetClick = () => {
+    setStep('gsheet-config');
   };
 
   const handleBack = () => {
@@ -365,6 +374,20 @@ export function DatasourceWizardModal({
       description: 'REST, S3 Tables, Glue',
       testId: 'add-iceberg-catalog-card',
     },
+    {
+      type: 'gsheet' as const,
+      onClick: handleGoogleSheetClick,
+      icon: (
+        <IconBrandGoogle
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'Google Sheets',
+      description: 'Public and authorized',
+      testId: 'add-google-sheet-card',
+    },
   ];
 
   return (
@@ -422,6 +445,10 @@ export function DatasourceWizardModal({
 
       {step === 'iceberg-config' && (
         <IcebergCatalogConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+
+      {step === 'gsheet-config' && (
+        <GoogleSheetConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (

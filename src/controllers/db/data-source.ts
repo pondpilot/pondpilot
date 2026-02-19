@@ -4,6 +4,7 @@ import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { ReadStatViewType, supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { createGSheetSheetViewQuery } from '@utils/gsheet';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
@@ -350,6 +351,52 @@ export async function createXlsxSheetView(
   // Create the view for the specified sheet
   const query = createXlsxSheetViewQuery(fileName, sheetName, viewName);
   await conn.query(query);
+}
+
+/**
+ * Create a view for a Google Sheets worksheet.
+ *
+ * @param conn - DuckDB connection pool
+ * @param spreadsheetRef - Google Sheets URL or spreadsheet ID
+ * @param sheetName - Worksheet name to read
+ * @param viewName - A valid, unique identifier of the view to create.
+ */
+export async function createGSheetSheetView(
+  conn: AsyncDuckDBConnectionPool,
+  spreadsheetRef: string,
+  sheetName: string,
+  viewName: string,
+  accessMode: 'public' | 'authorized' = 'public',
+) {
+  const pooled = await conn.getPooledConnection();
+  try {
+    // Keep detection and CREATE VIEW on the same connection.
+    const readFunctionInfo = await pooled.query(`
+      SELECT function_type
+      FROM duckdb_functions()
+      WHERE function_name='read_gsheet'
+    `);
+    const readFunctionTypes = new Set(
+      readFunctionInfo
+        .toArray()
+        .map((row) => String((row as { function_type?: unknown }).function_type ?? '')),
+    );
+    const hasReadGsheetTableFunction = readFunctionTypes.has('table');
+
+    // Authorized reads always use the macro path so we can bind per-sheet
+    // HTTP bearer secrets in PondPilot (extension secret lookup is global).
+    const readFunctionName =
+      accessMode === 'authorized'
+        ? 'read_gsheet_authorized'
+        : hasReadGsheetTableFunction
+          ? 'system.main.read_gsheet'
+          : 'read_gsheet_public';
+
+    const query = createGSheetSheetViewQuery(spreadsheetRef, sheetName, viewName, readFunctionName);
+    await pooled.query(query);
+  } finally {
+    await pooled.close();
+  }
 }
 
 /**

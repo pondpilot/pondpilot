@@ -48,7 +48,11 @@ export function handleMultiSelectDelete(
       if (nodeType === 'file' && !nodeInfo.isSheet) {
         // For files, we need to find the corresponding data source by entry ID
         for (const [dsId, ds] of context.flatFileSources) {
-          if (ds.fileSourceId === nodeInfo.entryId && ds.type !== 'xlsx-sheet') {
+          if (
+            ds.fileSourceId === nodeInfo.entryId &&
+            ds.type !== 'xlsx-sheet' &&
+            ds.type !== 'gsheet-sheet'
+          ) {
             deletableDataSourceIds.push(dsId);
             break;
           }
@@ -58,7 +62,7 @@ export function handleMultiSelectDelete(
         for (const [dsId, ds] of context.flatFileSources) {
           if (
             ds.fileSourceId === nodeInfo.entryId &&
-            ds.type === 'xlsx-sheet' &&
+            (ds.type === 'xlsx-sheet' || ds.type === 'gsheet-sheet') &&
             'sheetName' in ds &&
             ds.sheetName === nodeInfo.sheetName
           ) {
@@ -182,7 +186,11 @@ export function handleMultiSelectShowSchema(
         const { entryId } = item.info;
         // Find the data source that matches this entry
         for (const [dsId, ds] of flatFileSources) {
-          if (ds.fileSourceId === entryId && ds.type !== 'xlsx-sheet') {
+          if (
+            ds.fileSourceId === entryId &&
+            ds.type !== 'xlsx-sheet' &&
+            ds.type !== 'gsheet-sheet'
+          ) {
             sourceIds.push(dsId);
             break;
           }
@@ -199,7 +207,7 @@ export function handleMultiSelectShowSchema(
         for (const [dsId, ds] of flatFileSources) {
           if (
             ds.fileSourceId === item.info.entryId &&
-            ds.type === 'xlsx-sheet' &&
+            (ds.type === 'xlsx-sheet' || ds.type === 'gsheet-sheet') &&
             'sheetName' in ds &&
             ds.sheetName === item.info.sheetName
           ) {

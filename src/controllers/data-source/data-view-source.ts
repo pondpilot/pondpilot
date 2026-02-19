@@ -12,8 +12,10 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
+import type { SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { getDatabaseIdentifier, isDatabaseDataSource } from '@utils/data-source';
+import { buildDropGSheetHttpSecretQuery, buildGSheetHttpSecretName } from '@utils/gsheet-auth';
 import { parseTableAccessKey } from '@utils/table-access';
 
 import { persistDeleteDataSource } from './persist';
@@ -86,6 +88,24 @@ export const deleteDataSources = async (
   const newDataSources = new Map(
     Array.from(dataSources).filter(([id, _]) => !dataSourceIdsToDelete.has(id)),
   );
+
+  const gsheetSecretsToCleanup = new Map<SecretId, string>();
+  for (const dataSource of deletedDataSources) {
+    if (dataSource.type !== 'gsheet-sheet' || !dataSource.secretRef) {
+      continue;
+    }
+
+    const isStillReferenced = Array.from(newDataSources.values()).some(
+      (remaining) =>
+        remaining.type === 'gsheet-sheet' && remaining.secretRef === dataSource.secretRef,
+    );
+    if (!isStillReferenced) {
+      gsheetSecretsToCleanup.set(
+        dataSource.secretRef,
+        buildGSheetHttpSecretName(dataSource.fileSourceId),
+      );
+    }
+  }
 
   const newDataSourceAccessTimes = new Map(
     Array.from(dataSourceAccessTimes).filter(([id]) => !dataSourceIdsToDelete.has(id)),
@@ -217,6 +237,9 @@ export const deleteDataSources = async (
 
     const file = localEntries.get(dataSource.fileSourceId);
     if (!file || file.kind !== 'file' || file.fileType !== 'data-source') {
+      if ('viewName' in dataSource) {
+        await dropViewAndUnregisterFile(conn, dataSource.viewName, undefined);
+      }
       continue;
     }
     if (dataSource.type === 'attached-db') {
@@ -224,6 +247,26 @@ export const deleteDataSources = async (
     } else if ('viewName' in dataSource) {
       // Wait for the view to be dropped to get fresh views metadata after that
       await dropViewAndUnregisterFile(conn, dataSource.viewName, `${file.uniqueAlias}.${file.ext}`);
+    }
+  }
+
+  if (gsheetSecretsToCleanup.size > 0) {
+    for (const duckdbSecretName of gsheetSecretsToCleanup.values()) {
+      try {
+        await conn.query(buildDropGSheetHttpSecretQuery(duckdbSecretName));
+      } catch (error) {
+        console.warn('Failed to drop Google Sheets HTTP secret during deletion:', error);
+      }
+    }
+    if (iDbConn) {
+      for (const secretRef of gsheetSecretsToCleanup.keys()) {
+        try {
+          const { deleteSecret } = await import('@services/secret-store');
+          await deleteSecret(iDbConn, secretRef);
+        } catch (error) {
+          console.warn('Failed to delete Google Sheets token from secret store:', error);
+        }
+      }
     }
   }
 

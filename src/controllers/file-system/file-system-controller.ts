@@ -638,6 +638,9 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
               dataSource.viewName,
               dataSource.viewName,
             );
+          } else if (dataSource.type === 'gsheet-sheet') {
+            // Google Sheets views are not tied to local file handles.
+            continue;
           } else {
             await reCreateView(
               conn,
