@@ -5,7 +5,7 @@
 
 ## 🚀 What is PondPilot?
 
-PondPilot is a blazing-fast, lightweight, 100% client-side AI-enabled data exploration tool that helps you analyze local & remote data with zero setup. Powered by DuckDB-Wasm and integrated AI assistance, it runs entirely in your browser - no install, no servers, no cloud uploads, complete privacy. Whether you're a data analyst, scientist, or engineer, PondPilot helps you get your data ducks in a row without the overhead of traditional data tools.
+PondPilot is a blazing-fast, lightweight, 100% client-side AI-enabled data exploration tool that helps you analyze local & remote data with zero setup. Powered by DuckDB-WASM and integrated AI assistance, it runs entirely in your browser — no install, no servers, no cloud uploads, complete privacy. Whether you're a data analyst, scientist, or engineer, PondPilot helps you get your data ducks in a row without the overhead of traditional data tools.
 
 ## 💡 Why PondPilot?
 
@@ -19,7 +19,7 @@ PondPilot is a blazing-fast, lightweight, 100% client-side AI-enabled data explo
 **PondPilot solves these problems by:**
 
 - Running entirely in your browser with zero installation
-- Processing all data locally - your data never leaves your device
+- Processing all data locally — your data never leaves your device
 - Using DuckDB's lightning-fast SQL engine optimized for analytical queries
 - Providing the ability to work directly with your files without making copies
 - Being completely free and open-source
@@ -28,41 +28,46 @@ PondPilot is a blazing-fast, lightweight, 100% client-side AI-enabled data explo
 
 ### 🔒 Privacy & Security
 
-- **100% Client-Side**: All processing happens in your browser - your sensitive data never leaves your device
-- **PWA Support**: 📱 Install PondPilot as a Progressive Web App for offline use anywhere
-- **Read-only**: ✅ PondPilot doesn't write to your files, guaranteeing data safety and integrity
+- **100% Client-Side**: All processing happens in your browser — your sensitive data never leaves your device
+- **PWA Support**: Install PondPilot as a Progressive Web App for offline use anywhere
+- **Read-only**: PondPilot doesn't write to your files, guaranteeing data safety and integrity
+- **Encrypted Secret Store**: API keys and credentials are encrypted with AES-GCM and stored in a dedicated IndexedDB
 
 ### ⚡ Performance & Efficiency
 
-- **No data-copy**: 🔄 Unlike similar tools, PondPilot accesses files directly without copying to browser cache - changes outside PondPilot are reflected in real-time
-- **Powered by DuckDB**: 🚀 Leverage the lightning-fast SQL engine for analyzing millions of rows in seconds
-- **Cross-session persistence**: 💾 All data-handles and queries are automatically saved between sessions
+- **No data-copy**: Unlike similar tools, PondPilot accesses files directly without copying to browser cache — changes outside PondPilot are reflected in real-time
+- **Powered by DuckDB**: Leverage the lightning-fast SQL engine for analyzing millions of rows in seconds
+- **Cross-session persistence**: All data handles and queries are automatically saved between sessions
 
 ### 🤖 AI-Powered SQL Assistant
 
-- **Natural Language to SQL**: 💬 Generate complex SQL queries from simple English descriptions
-- **Intelligent Error Fixing**: 🔧 Automatic suggestions to fix SQL on errors
-- **Multiple AI Providers**: 🔌 Support for OpenAI, Anthropic Claude, and custom OpenAI-compatible endpoints
-- **Privacy-First**: 🔐 Uses your own API keys - your queries and data never leave your control
-- **Context-Aware**: 🧠 Understands your database schema and provides relevant suggestions
+- **Natural Language to SQL**: Generate complex SQL queries from simple English descriptions
+- **Intelligent Error Fixing**: Automatic suggestions to fix SQL on errors
+- **Multiple AI Providers**: Support for OpenAI, Anthropic Claude, and custom OpenAI-compatible endpoints
+- **Privacy-First**: Uses your own API keys — your queries and data never leave your control
+- **Context-Aware**: Understands your database schema and provides relevant suggestions
 
-### 🧰 Powerful Analysis Tools
+### 📊 Data Sources & Formats
 
-- **Multiple File Formats**: 📊 Support for CSV, Parquet, JSON, XLSX, DuckDB database and more coming soon
-- **Interactive SQL Editor**: 💻 Write and execute SQL queries with syntax highlighting, auto-completion, and error detection
-- **Data Visualization**: 📈 View, filter, and sort your query results in a responsive interactive table
-- **Full-text Schema Explorer**: 🔍 Easily navigate through tables and columns with auto-generated metadata [coming soon]
+- **Local Files**: CSV, Parquet, JSON, XLSX, DuckDB databases, Stata (.dta), SAS (.sas7bdat, .xpt), and SPSS (.sav, .zsav, .por)
+- **Remote Databases**: Connect to HTTP/HTTPS endpoints and S3-compatible storage with custom endpoint support
+- **Apache Iceberg**: Browse and query Iceberg catalogs with REST, OAuth2, Bearer token, and SigV4 authentication
+- **Clipboard Import**: Paste CSV or JSON data directly from your clipboard
+- **CORS Proxy**: Built-in proxy support (auto or manual) for accessing remote resources blocked by CORS
+
+### 🧰 Analysis Tools
+
+- **Interactive SQL Editor**: Write and execute SQL with syntax highlighting, auto-completion, and error detection powered by Monaco Editor and FlowScope
+- **Charts**: Visualize query results with bar, line, area, scatter, pie, stacked bar, and horizontal bar charts — with aggregation, grouping, color presets, and fullscreen support
+- **Data Comparison**: Compare two data sources side-by-side with automatic join key detection, schema diffing, and multiple join strategies (auto, full outer, left, right, inner)
+- **Schema Browser**: Explore database schemas with an interactive relationship diagram, directional layout, and mini-map navigation
+- **Data Export**: Export results to CSV, TSV, XLSX, Parquet, SQL, XML, or Markdown
+- **Convert To**: Right-click any file or table to convert it to a different format
 
 ### 🎨 User Experience
 
-- **Data Export**: 📁 Export your query results to various formats for further analysis
-- **Keyboard Shortcuts**: ⌨️ Navigate efficiently with intuitive keyboard shortcuts
-- **Dark/Light Mode**: 🌓 Choose the interface that's easiest on your eyes
-
-## 🖥️ Demo
-
-[![Watch Demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?logo=youtube&style=for-the-badge)](https://www.youtube.com/watch?v=vn9Hx7SZ6-g)
-[![Watch the video](https://img.youtube.com/vi/vn9Hx7SZ6-g/maxresdefault.jpg)](https://www.youtube.com/watch?v=vn9Hx7SZ6-g)
+- **Keyboard Shortcuts**: Navigate efficiently with intuitive keyboard shortcuts and a spotlight menu
+- **Dark/Light Mode**: Choose the interface that's easiest on your eyes, or follow your system preference
 
 ## 🚀 Getting Started
 
@@ -71,7 +76,7 @@ PondPilot is a blazing-fast, lightweight, 100% client-side AI-enabled data explo
 The easiest way to use PondPilot is through the hosted web app:
 
 1. Visit [https://app.pondpilot.io](https://app.pondpilot.io)
-2. Click "Add file" or use keyboard shortcut (Ctrl+F) to load your data
+2. Click "Add file" or use keyboard shortcut (`Ctrl+F`) to load your data
 3. Start exploring!
 
 ### Browser Requirements
@@ -79,7 +84,7 @@ The easiest way to use PondPilot is through the hosted web app:
 PondPilot works across all major browsers with different feature sets:
 
 - **Chrome/Edge**: Full functionality with file persistence and folder selection
-- **Firefox/Safari**: Core features with session-only file access (files must be re-selected after refresh)
+- **Firefox/Safari**: Core features with session-only file access (files must be re-selected after refresh). Drag & drop is recommended for the best experience
 
 ### Running Locally
 
@@ -126,21 +131,11 @@ Visit `http://localhost:5173` in your browser to access the app.
 
 - `Ctrl/⌘ + K`: Open spotlight menu to navigate, add files, create new queries and explore shortcuts
 - `Ctrl + F`: Add file to analyze
-- `Ctrl + D`: Add DuckDB file
 - `Ctrl + I`: Import SQL files
 - In editor:
   - `Ctrl/⌘ + Enter`: Run the entire script
   - `Ctrl/⌘ + Shift + Enter`: Run the query under the cursor
   - `Ctrl/⌘ + I`: Open AI assistant for SQL generation and error fixes
-
-## 🚀 Roadmap
-
-The goal for PondPilot is to remain lightweight. We strive to quickly reach feature completeness and then accept only security fixes or updates to keep up with DuckDB.
-
-Here is what we are planning before reaching feature completeness:
-
-- Basic statistics & metadata view without the need to run queries (think data distribution, column types, etc.)
-- Additional popular local & remote sources support: SQLite, MotherDuck
 
 ## 🏷️ Tagged Releases
 
@@ -166,6 +161,8 @@ We welcome contributions from the community! Here's how to get started:
 - DuckDB-WASM for data processing
 - Monaco Editor for SQL editing
 - FlowScope for SQL analysis (completions, folding, symbols)
+- Recharts for data visualization
+- ReactFlow for schema diagrams
 - Vite for building
 
 ### Available Scripts
@@ -180,19 +177,6 @@ We welcome contributions from the community! Here's how to get started:
 - `yarn prettier` - Check formatting
 - `yarn prettier:write` - Format code
 
-## Similar Projects
-
-DuckDB is awesome, and there are many similar proejcts out there. And there is even more SQL IDE's beyond that. We've been inspired by the following projects:
-
-- [Rill](https://github.com/rilldata/rill)
-- [QuackDB](https://github.com/mattf96s/QuackDB)
-- [TablePlus](https://tableplus.com)
-- [Outerbase Studio](https://github.com/outerbase/studio)
-- [harlequin](https://github.com/tconbeer/harlequin)
-- [duck-ui](https://github.com/caioricciuti/duck-ui)
-
-And many more!
-
 ## 📜 License
 
 PondPilot is licensed under the GNU Affero General Public License v3.0. See the [LICENSE](LICENSE) file for details.
@@ -201,10 +185,12 @@ This means you're free to use, modify, and distribute the software, but if you m
 
 ## 🙏 Acknowledgments
 
-- Built with [DuckDB-WASM](https://github.com/duckdb/duckdb-wasm) - the powerful SQL database that runs in your browser
+- Built with [DuckDB-WASM](https://github.com/duckdb/duckdb-wasm) — the powerful SQL database that runs in your browser
 - SQL editor powered by [Monaco Editor](https://microsoft.github.io/monaco-editor/)
 - SQL analysis by [FlowScope](https://github.com/pondpilot/flowscope)
 - UI components by [Mantine](https://mantine.dev/)
+- Charts by [Recharts](https://recharts.org/)
+- Schema diagrams by [ReactFlow](https://reactflow.dev/)
 
 ---
 
