@@ -8,6 +8,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- next-header -->
 ## ✨ Highlights
 
+This is the largest PondPilot release to date, with 15 new features and 6 bug fixes. The main additions are interactive chart visualization, a built-in AI assistant, migration to the Monaco code editor, and script version history.
+
+- **📊 Chart View**: Data tabs now include a chart view alongside the table view. Choose from multiple chart types, configure axes and grouping, use small multiples to compare subsets, and export charts as PNG. Useful for getting a quick visual overview before diving into deeper analysis.
+
+- **🤖 Polly AI Assistant**: PondPilot now ships with a built-in AI assistant that works out of the box — no API key required. Ask questions about your data, get SQL suggestions, or explore analysis approaches directly from the sidebar. You can also bring your own API key if preferred; credentials are stored securely using the new encrypted secret store.
+
+- **⚡ Monaco Editor**: The SQL editor has been migrated from CodeMirror to Monaco (the engine behind VS Code). This brings context-aware autocomplete powered by FlowScope SQL analysis, code folding, go-to-definition, rename symbol, hover tooltips, and better performance on large documents.
+
+- **📜 Script Version History**: PondPilot now automatically tracks versions of your SQL scripts on every run, save, and tab close. Browse the full history, preview changes with a diff view, and restore any previous version with one click. All versions are stored locally in IndexedDB.
+
+## 🎯 What's Next
+
+We're continuing to improve the core data exploration experience:
+
+- Enhanced chart capabilities with more chart types and interactivity
+- AI assistant improvements and broader LLM provider support
+- Additional data format conversions and export options
+- Performance optimizations for large-scale remote datasets
+
+## 📋 Changelog
+
+### 🚀 New
+
+- [Feature]: Add chart view for data tabs [#251](https://github.com/pondpilot/pondpilot/pull/251)
+- [Feature]: Add Polly AI as built-in AI assistant with demo token authentication [#246](https://github.com/pondpilot/pondpilot/pull/246)
+- [Feature]: Migrate Polly AI proxy [#256](https://github.com/pondpilot/pondpilot/pull/256)
+- [Feature]: Migrate to Monaco editor [#255](https://github.com/pondpilot/pondpilot/pull/255)
+- [Feature]: Script Version History [#159](https://github.com/pondpilot/pondpilot/pull/159)
+- [Feature]: Add read_stat extension for SAS, SPSS, and Stata files [#271](https://github.com/pondpilot/pondpilot/pull/271)
+- [Feature]: Add Convert To context menu with Parquet export and format registry [#272](https://github.com/pondpilot/pondpilot/pull/272)
+- [Feature]: Add encrypted secret store for Iceberg and AI credentials [#228](https://github.com/pondpilot/pondpilot/pull/228)
+- [Feature]: Add custom S3 endpoint configuration [#245](https://github.com/pondpilot/pondpilot/pull/245)
+- [Feature]: Spotlight LRU [#253](https://github.com/pondpilot/pondpilot/pull/253)
+- [Feature]: Add tab takeover for multiple tabs detection [#248](https://github.com/pondpilot/pondpilot/pull/248)
+- [Feature]: Add split-view release history to What's New modal [#273](https://github.com/pondpilot/pondpilot/pull/273)
+- [UX]: Improve SQL editor completion performance for large documents [#269](https://github.com/pondpilot/pondpilot/pull/269)
+- [UX]: Fix AI assistant panel width, alignment, and interactivity [#270](https://github.com/pondpilot/pondpilot/pull/270)
+- [UX]: Add 'View all releases' link to WhatsNewModal [#249](https://github.com/pondpilot/pondpilot/pull/249)
+
+### 🐛 Fixed
+
+- [Bug]: Fix Ctrl+C copying table cell instead of editor text [#276](https://github.com/pondpilot/pondpilot/pull/276)
+- [Bug]: Fix DataCloneError and React setState-during-render warnings [#268](https://github.com/pondpilot/pondpilot/pull/268)
+- [Bug]: Switch SQL splitting to FlowScope AST [#254](https://github.com/pondpilot/pondpilot/pull/254)
+- [Bug]: Fix incorrect database name when creating comparison from file source [#243](https://github.com/pondpilot/pondpilot/pull/243)
+- [Bug]: Fix incorrect database name when creating comparison from file source [#242](https://github.com/pondpilot/pondpilot/pull/242)
+- [Bug]: Fix dbname parsing in proxied ATTACH statement [#238](https://github.com/pondpilot/pondpilot/pull/238)
+
+### 📚 Documentation
+
+- Remove YouTube onboarding video and update README [#279](https://github.com/pondpilot/pondpilot/pull/279)
+
+**Full Changelog**: [v0.7.0...v0.8.0](https://github.com/pondpilot/pondpilot/compare/v0.7.0...v0.8.0)
+
+## ✨ Highlights
+
 This release brings powerful new features that make PondPilot more collaborative, accessible, and robust for working with remote data! The headline features are **data comparison**, **built-in feedback system**, and **seamless remote database access** through intelligent CORS proxy support.
 
 - **📊 PondPilot Compare**: Compare datasets side-by-side with visual highlighting of differences. Perfect for validating data transformations, tracking changes over time, or comparing production vs. staging data. The intuitive interface makes it easy to spot discrepancies at a glance.
