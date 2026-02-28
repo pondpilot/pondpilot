@@ -20,6 +20,7 @@ import {
   IconNumber10,
   IconBrackets,
   IconScale,
+  IconNotebook,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -48,6 +49,7 @@ export type IconType =
   | 'xlsx-sheet'
   // Tab types
   | 'comparison'
+  | 'notebook'
   // Column types
   | 'column-float'
   | 'column-decimal'
@@ -147,6 +149,8 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
       return <IconTable {...iconProps} />;
     case 'comparison':
       return <IconScale {...iconProps} />;
+    case 'notebook':
+      return <IconNotebook {...iconProps} />;
 
     case 'error':
       return <IconQuestionMark {...iconProps} />;

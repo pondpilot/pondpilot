@@ -32,6 +32,15 @@ import {
   LocalFolder,
 } from '@models/file-system';
 import {
+  Notebook,
+  NotebookId,
+  isNotebookCellExecutionEqual,
+  isNotebookCellOutputEqual,
+  normalizeNotebookCellExecution,
+  normalizeNotebookCellOutput,
+  normalizeNotebookParameters,
+} from '@models/notebook';
+import {
   ALL_TABLE_NAMES,
   APP_DB_NAME,
   COMPARISON_TABLE_NAME,
@@ -40,6 +49,8 @@ import {
   DATA_SOURCE_TABLE_NAME,
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
+  NOTEBOOK_TABLE_NAME,
+  NOTEBOOK_ACCESS_TIME_TABLE_NAME,
   SCRIPT_ACCESS_TIME_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   SCRIPT_VERSION_TABLE_NAME,
@@ -68,8 +79,22 @@ import {
 import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import { ensureCellRef, NOTEBOOK_CELL_REF_PREFIX } from '@utils/notebook';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
+
+const NOTEBOOK_CELL_NAME_PATTERN = /^--\s*@name[:\s]\s*([a-zA-Z_]\w*)\s*$/;
+
+const parseNotebookCellNameFromContent = (content: string): string | null => {
+  const firstLine = content.split('\n')[0]?.trim();
+  if (!firstLine) return null;
+
+  const match = firstLine.match(NOTEBOOK_CELL_NAME_PATTERN);
+  return match ? match[1] : null;
+};
+
+const containsEphemeralNotebookRef = (query: string | null | undefined): boolean =>
+  !!query && query.toLowerCase().includes(NOTEBOOK_CELL_REF_PREFIX.toLowerCase());
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
@@ -517,6 +542,12 @@ export const restoreAppDataFromIDB = async (
     }),
   );
 
+  // Read notebooks
+  const notebooksArray = await tx.objectStore(NOTEBOOK_TABLE_NAME).getAll();
+  const notebooks = new Map<NotebookId, Notebook>(
+    notebooksArray.map((notebook) => [notebook.id as NotebookId, notebook as Notebook]),
+  );
+
   const comparisonsArray = await tx.objectStore(COMPARISON_TABLE_NAME).getAll();
   const comparisons = new Map<ComparisonId, Comparison>(
     comparisonsArray.map((comparison) => [comparison.id as ComparisonId, comparison as Comparison]),
@@ -525,8 +556,92 @@ export const restoreAppDataFromIDB = async (
   const tabsArray = await tx.objectStore(TAB_TABLE_NAME).getAll();
   const tabs = new Map<TabId, any>(tabsArray.map((tab) => [tab.id as TabId, tab]));
 
+  const notebookWrites: Map<NotebookId, Notebook> = new Map();
   const comparisonWrites: Map<ComparisonId, Comparison> = new Map();
   const tabWrites: Map<TabId, ComparisonTab> = new Map();
+
+  // Normalize existing notebook entries to include stable cell refs/names and SQL state.
+  for (const [notebookId, notebookData] of notebooks.entries()) {
+    let notebookChanged = false;
+    const normalizedParameters = normalizeNotebookParameters(notebookData.parameters);
+    const parametersUnchanged =
+      Array.isArray(notebookData.parameters) &&
+      notebookData.parameters.length === normalizedParameters.length &&
+      notebookData.parameters.every((parameter, index) => {
+        const nextParameter = normalizedParameters[index];
+        return (
+          parameter.name === nextParameter.name &&
+          parameter.type === nextParameter.type &&
+          parameter.value === nextParameter.value
+        );
+      });
+
+    if (!parametersUnchanged) {
+      notebookChanged = true;
+    }
+
+    const normalizedCells = notebookData.cells.map((cell) => {
+      const normalizedRef = ensureCellRef(cell.id, cell.ref);
+      const normalizedName =
+        cell.type === 'sql'
+          ? ((cell.name?.trim() || parseNotebookCellNameFromContent(cell.content)) ?? null)
+          : null;
+
+      const identityUnchanged = cell.ref === normalizedRef && cell.name === normalizedName;
+
+      if (cell.type !== 'sql') {
+        if (identityUnchanged) {
+          return cell;
+        }
+        notebookChanged = true;
+        return {
+          ...cell,
+          ref: normalizedRef,
+          name: normalizedName,
+        };
+      }
+
+      const normalizedOutput = normalizeNotebookCellOutput(cell.output);
+      const normalizedExecution = normalizeNotebookCellExecution(cell.execution);
+      const sanitizedExecution = containsEphemeralNotebookRef(normalizedExecution.lastQuery)
+        ? {
+            ...normalizedExecution,
+            lastQuery: null,
+          }
+        : normalizedExecution;
+
+      const outputUnchanged = cell.output
+        ? isNotebookCellOutputEqual(cell.output, normalizedOutput)
+        : false;
+      const executionUnchanged = cell.execution
+        ? isNotebookCellExecutionEqual(cell.execution, sanitizedExecution)
+        : false;
+
+      if (identityUnchanged && outputUnchanged && executionUnchanged) {
+        return cell;
+      }
+
+      notebookChanged = true;
+      return {
+        ...cell,
+        ref: normalizedRef,
+        name: normalizedName,
+        output: normalizedOutput,
+        execution: sanitizedExecution,
+      };
+    });
+
+    if (!notebookChanged) continue;
+
+    const normalizedNotebook: Notebook = {
+      ...notebookData,
+      cells: normalizedCells,
+      parameters: normalizedParameters,
+    };
+
+    notebooks.set(notebookId, normalizedNotebook);
+    notebookWrites.set(notebookId, normalizedNotebook);
+  }
 
   // Normalize existing comparison entries to include newer persistence fields
   for (const [comparisonId, comparisonData] of comparisons.entries()) {
@@ -728,10 +843,36 @@ export const restoreAppDataFromIDB = async (
     }
   }
 
+  const notebookAccessTimes = new Map<NotebookId, number>();
+  try {
+    const notebookAccessStore = tx.objectStore(NOTEBOOK_ACCESS_TIME_TABLE_NAME);
+    const notebookAccessValues = await notebookAccessStore.getAll();
+    const notebookAccessKeys = await notebookAccessStore.getAllKeys();
+    notebookAccessKeys.forEach((key, index) => {
+      notebookAccessTimes.set(key as NotebookId, notebookAccessValues[index] as number);
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotFoundError') {
+      // eslint-disable-next-line no-console
+      console.info('Notebook access times store not found, initializing empty map');
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('Error loading notebook access times, starting with empty map:', error);
+    }
+  }
+
   await tx.done;
 
-  if (comparisonWrites.size > 0 || tabWrites.size > 0) {
-    const migrationTx = iDbConn.transaction([COMPARISON_TABLE_NAME, TAB_TABLE_NAME], 'readwrite');
+  if (notebookWrites.size > 0 || comparisonWrites.size > 0 || tabWrites.size > 0) {
+    const migrationTx = iDbConn.transaction(
+      [NOTEBOOK_TABLE_NAME, COMPARISON_TABLE_NAME, TAB_TABLE_NAME],
+      'readwrite',
+    );
+
+    const notebookStore = migrationTx.objectStore(NOTEBOOK_TABLE_NAME);
+    for (const notebook of notebookWrites.values()) {
+      await notebookStore.put(notebook, notebook.id);
+    }
 
     const comparisonStore = migrationTx.objectStore(COMPARISON_TABLE_NAME);
     for (const comparison of comparisonWrites.values()) {
@@ -1186,6 +1327,7 @@ export const restoreAppDataFromIDB = async (
       localEntries: localEntriesMap,
       registeredFiles,
       sqlScripts,
+      notebooks,
       comparisons,
       tabs: newTabs,
       tabOrder: newTabOrder,
@@ -1193,6 +1335,7 @@ export const restoreAppDataFromIDB = async (
       previewTabId: newPreviewTabId,
       dataSourceAccessTimes,
       scriptAccessTimes,
+      notebookAccessTimes,
       tableAccessTimes,
     },
     undefined,

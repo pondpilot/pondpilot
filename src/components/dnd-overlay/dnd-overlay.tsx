@@ -64,7 +64,7 @@ export const DndOverlay = ({ children, handleFileDrop }: DndOverlayProps) => {
               </Title>
             </Group>
             <Title order={4} c="text-secondary" size="sm" className="text-center">
-              Accepted file types: csv, xlsx, json, parquet, tsv
+              Accepted file types: csv, xlsx, json, parquet, tsv, sqlnb
             </Title>
           </Stack>
         </div>

@@ -5,8 +5,10 @@
  */
 
 import { PersistentDataSourceId } from '@models/data-source';
+import { NotebookId } from '@models/notebook';
 import {
   DATA_SOURCE_ACCESS_TIME_TABLE_NAME,
+  NOTEBOOK_ACCESS_TIME_TABLE_NAME,
   SCRIPT_ACCESS_TIME_TABLE_NAME,
   TABLE_ACCESS_TIME_TABLE_NAME,
 } from '@models/persisted-store';
@@ -198,4 +200,47 @@ export function updateScriptAccessTime(scriptId: SQLScriptId): void {
 export function getScriptAccessTime(scriptId: SQLScriptId): number {
   const { scriptAccessTimes } = useAppStore.getState();
   return scriptAccessTimes.get(scriptId) ?? 0;
+}
+
+// ========== Notebook Access Tracking ==========
+
+/**
+ * Updates the last access time for a notebook.
+ * Automatically persists to IndexedDB using debounced writer.
+ *
+ * @param notebookId - The ID of the notebook to update
+ */
+export function updateNotebookAccessTime(notebookId: NotebookId): void {
+  if (!notebookId || typeof notebookId !== 'string') {
+    console.warn('updateNotebookAccessTime: Invalid notebookId provided');
+    return;
+  }
+
+  const now = Date.now();
+
+  const { notebookAccessTimes, _iDbConn } = useAppStore.getState();
+  const newAccessTimes = new Map(notebookAccessTimes);
+  newAccessTimes.set(notebookId, now);
+
+  useAppStore.setState(
+    { notebookAccessTimes: newAccessTimes },
+    undefined,
+    'updateNotebookAccessTime',
+  );
+
+  if (_iDbConn) {
+    lastUsedWriter.schedulePut(NOTEBOOK_ACCESS_TIME_TABLE_NAME, now, notebookId, _iDbConn);
+  }
+}
+
+/**
+ * Gets the last access time for a notebook.
+ * Returns 0 if the notebook has never been accessed.
+ *
+ * @param notebookId - The ID of the notebook
+ * @returns Last access timestamp, or 0 if never accessed
+ */
+export function getNotebookAccessTime(notebookId: NotebookId): number {
+  const { notebookAccessTimes } = useAppStore.getState();
+  return notebookAccessTimes.get(notebookId) ?? 0;
 }

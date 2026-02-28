@@ -197,3 +197,12 @@ body {
   background-color: rgba(34, 139, 230, 0.05);
   background-color: color-mix(in srgb, var(--mantine-color-blue-filled) 5%, transparent);
 }
+
+.monaco-error-line-highlight {
+  background-color: rgba(250, 82, 82, 0.12);
+  background-color: color-mix(in srgb, var(--mantine-color-red-filled) 12%, transparent);
+}
+
+.monaco-error-line-gutter {
+  border-left: 2px solid var(--mantine-color-red-filled);
+}

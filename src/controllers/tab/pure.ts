@@ -3,11 +3,13 @@
 // By convetion the order should follow CRUD groups!
 
 import { AnyFlatFileDataSource, IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
+import { NotebookId } from '@models/notebook';
 import { SQLScriptId } from '@models/sql-script';
 import {
   AnyTab,
   LocalDBDataTab,
   FlatFileDataSourceTab,
+  NotebookTab,
   ScriptTab,
   TabId,
   TabDataViewStateCache,
@@ -55,6 +57,14 @@ export const findTabFromScriptImpl = (
   Array.from(tabs.values())
     .filter((tab) => tab.type === 'script')
     .find((tab) => tab.sqlScriptId === sqlScriptId);
+
+export const findTabFromNotebookImpl = (
+  tabs: Map<TabId, AnyTab>,
+  notebookId: NotebookId,
+): NotebookTab | undefined =>
+  Array.from(tabs.values())
+    .filter((tab): tab is NotebookTab => tab.type === 'notebook')
+    .find((tab) => tab.notebookId === notebookId);
 
 /**
  * ------------------------------------------------------------

@@ -31,6 +31,7 @@ import {
 } from '@utils/data-source';
 import {
   updateDataSourceLastUsed,
+  updateNotebookLastUsed,
   updateSQLScriptLastUsed,
   updateTableAccessTime,
 } from '@utils/lru-tracker';
@@ -953,6 +954,8 @@ function updateTabLRUTracking(tabId: TabId): void {
 
   if (tab.type === 'script') {
     updateSQLScriptLastUsed(tab.sqlScriptId);
+  } else if (tab.type === 'notebook') {
+    updateNotebookLastUsed(tab.notebookId);
   } else if (tab.type === 'data-source') {
     updateDataSourceLastUsed(tab.dataSourceId);
 

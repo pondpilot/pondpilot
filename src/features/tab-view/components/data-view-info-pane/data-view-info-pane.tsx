@@ -311,6 +311,14 @@ export const DataViewInfoPane = ({
           );
         }
 
+        case 'notebook': {
+          return (
+            <Text {...textDefaultProps} c="text-error">
+              Notebook execution error.
+            </Text>
+          );
+        }
+
         default:
           assertNeverValueType(tabType);
           break;
