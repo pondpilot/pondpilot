@@ -37,7 +37,9 @@ describe('buildLintConfig', () => {
   });
 
   it('includes disabled rules when present', () => {
-    const config = buildLintConfig(makePrefs({ lintDisabledRules: ['LINT_AM_004', 'LINT_AL_001'] }));
+    const config = buildLintConfig(
+      makePrefs({ lintDisabledRules: ['LINT_AM_004', 'LINT_AL_001'] }),
+    );
     expect(config).toEqual({
       enabled: true,
       disabledRules: ['LINT_AM_004', 'LINT_AL_001'],
@@ -107,19 +109,28 @@ describe('getFixableIssues', () => {
   const fixableLint = makeIssue({
     code: 'LINT_AL_001',
     span: { start: 5, end: 15 },
-    autofix: { applicability: 'safe', edits: [{ span: { start: 5, end: 15 }, replacement: 'FIX' }] },
+    autofix: {
+      applicability: 'safe',
+      edits: [{ span: { start: 5, end: 15 }, replacement: 'FIX' }],
+    },
   });
 
   const unsafeLint = makeIssue({
     code: 'LINT_AM_008',
     span: { start: 5, end: 15 },
-    autofix: { applicability: 'unsafe', edits: [{ span: { start: 5, end: 15 }, replacement: 'FIX' }] },
+    autofix: {
+      applicability: 'unsafe',
+      edits: [{ span: { start: 5, end: 15 }, replacement: 'FIX' }],
+    },
   });
 
   const displayOnlyLint = makeIssue({
     code: 'LINT_CV_001',
     span: { start: 5, end: 15 },
-    autofix: { applicability: 'displayOnly', edits: [{ span: { start: 5, end: 15 }, replacement: 'FIX' }] },
+    autofix: {
+      applicability: 'displayOnly',
+      edits: [{ span: { start: 5, end: 15 }, replacement: 'FIX' }],
+    },
   });
 
   const noAutofixLint = makeIssue({
@@ -130,7 +141,10 @@ describe('getFixableIssues', () => {
   const nonLintIssue = makeIssue({
     code: 'PARSE_ERROR',
     span: { start: 5, end: 15 },
-    autofix: { applicability: 'safe', edits: [{ span: { start: 5, end: 15 }, replacement: 'FIX' }] },
+    autofix: {
+      applicability: 'safe',
+      edits: [{ span: { start: 5, end: 15 }, replacement: 'FIX' }],
+    },
   });
 
   it('returns fixable lint issues overlapping the marker span', () => {

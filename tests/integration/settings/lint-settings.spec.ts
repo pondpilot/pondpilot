@@ -66,9 +66,7 @@ test('Severity filter selection persists', async ({ page, openSettings }) => {
 test('Disabled rule badges appear and can be removed', async ({ page, openSettings }) => {
   // Pre-set a disabled rule via localStorage
   await page.evaluate(() => {
-    const prefs = JSON.parse(
-      localStorage.getItem('pondpilot-editor-preferences') || '{}',
-    );
+    const prefs = JSON.parse(localStorage.getItem('pondpilot-editor-preferences') || '{}');
     prefs.lintDisabledRules = ['LINT_AM_004'];
     localStorage.setItem('pondpilot-editor-preferences', JSON.stringify(prefs));
   });

@@ -6,11 +6,11 @@
  */
 import { formatSQLInEditor } from '@controllers/sql-formatter';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
-import { getEditorPreferences, updateEditorPreference } from '@store/editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
 import type { CompletionItemsResult, Issue, LintConfig, Span } from '@pondpilot/flowscope-core';
 import { applyEdits } from '@pondpilot/flowscope-core';
 import { useAppStore } from '@store/app-store';
+import { getEditorPreferences, updateEditorPreference } from '@store/editor-preferences';
 import { safeSliceBySpan, isSpanValid, type Utf16Span } from '@utils/editor/spans';
 import {
   buildLintConfig,
@@ -282,8 +282,9 @@ function spanToRange(
  * Check whether a cursor position falls within a marker's range.
  */
 function isPositionInMarker(position: monaco.Position, m: monaco.editor.IMarker): boolean {
-  if (position.lineNumber < m.startLineNumber || position.lineNumber > m.endLineNumber)
+  if (position.lineNumber < m.startLineNumber || position.lineNumber > m.endLineNumber) {
     return false;
+  }
   if (position.lineNumber === m.startLineNumber && position.column < m.startColumn) return false;
   if (position.lineNumber === m.endLineNumber && position.column > m.endColumn) return false;
   return true;
@@ -1335,9 +1336,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
             const markers = monacoRef.current?.editor
               .getModelMarkers({ resource: model.uri })
-              .filter(
-                (m) => m.source === 'flowscope-lint' && isPositionInMarker(position, m),
-              );
+              .filter((m) => m.source === 'flowscope-lint' && isPositionInMarker(position, m));
 
             if (!markers || markers.length === 0) return;
 

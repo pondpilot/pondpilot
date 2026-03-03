@@ -46,7 +46,9 @@ export const LintSettings = () => {
             </Text>
             <SegmentedControl
               value={preferences.lintSeverityFilter}
-              onChange={(value) => updatePreference('lintSeverityFilter', value as LintSeverityFilter)}
+              onChange={(value) =>
+                updatePreference('lintSeverityFilter', value as LintSeverityFilter)
+              }
               data={SEVERITY_FILTER_OPTIONS}
               data-testid="lint-severity-filter"
             />
