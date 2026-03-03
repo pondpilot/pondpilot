@@ -6,10 +6,19 @@
  */
 import { formatSQLInEditor } from '@controllers/sql-formatter';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
+import { getEditorPreferences, updateEditorPreference } from '@store/editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
-import type { CompletionItemsResult, Span } from '@pondpilot/flowscope-core';
+import type { CompletionItemsResult, Issue, LintConfig, Span } from '@pondpilot/flowscope-core';
+import { applyEdits } from '@pondpilot/flowscope-core';
 import { useAppStore } from '@store/app-store';
 import { safeSliceBySpan, isSpanValid, type Utf16Span } from '@utils/editor/spans';
+import {
+  buildLintConfig,
+  collectAllFixEdits,
+  getFixableIssues,
+  isLintIssue,
+  shouldDisplayLintIssue,
+} from '@utils/lint-config';
 import * as monaco from 'monaco-editor';
 import {
   forwardRef,
@@ -242,11 +251,18 @@ function getFontWeightValue(weight: FontWeight): string {
 
 /**
  * Converts a UTF-16 span to a Monaco Range.
- * Returns null if the span is missing or invalid.
- *
- * @param model - The Monaco text model
- * @param span - The span to convert (may be null/undefined)
- * @returns A Monaco Range, or null if span is invalid
+ */
+function spanToMonacoRange(
+  model: monaco.editor.ITextModel,
+  span: { start: number; end: number },
+): monaco.Range {
+  const startPos = model.getPositionAt(span.start);
+  const endPos = model.getPositionAt(span.end);
+  return new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
+}
+
+/**
+ * Converts a UTF-16 span to a Monaco Range, returning null for invalid or missing spans.
  */
 function spanToRange(
   model: monaco.editor.ITextModel,
@@ -259,11 +275,46 @@ function spanToRange(
     return null;
   }
 
-  const startPos = model.getPositionAt(span.start);
-  const endPos = model.getPositionAt(span.end);
-
-  return new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
+  return spanToMonacoRange(model, span);
 }
+
+/**
+ * Check whether a cursor position falls within a marker's range.
+ */
+function isPositionInMarker(position: monaco.Position, m: monaco.editor.IMarker): boolean {
+  if (position.lineNumber < m.startLineNumber || position.lineNumber > m.endLineNumber)
+    return false;
+  if (position.lineNumber === m.startLineNumber && position.column < m.startColumn) return false;
+  if (position.lineNumber === m.endLineNumber && position.column > m.endColumn) return false;
+  return true;
+}
+
+/**
+ * Extract a string rule code from a Monaco marker's code field.
+ */
+function extractMarkerCode(marker: monaco.editor.IMarker): string | null {
+  const { code } = marker;
+  if (typeof code === 'string') return code;
+  if (code && typeof code === 'object' && 'value' in code) return String(code.value);
+  return null;
+}
+
+/**
+ * Map a FlowScope severity string to a Monaco MarkerSeverity.
+ */
+function getMarkerSeverity(severity: string): monaco.MarkerSeverity {
+  switch (severity) {
+    case 'error':
+      return monaco.MarkerSeverity.Error;
+    case 'warning':
+      return monaco.MarkerSeverity.Warning;
+    default:
+      return monaco.MarkerSeverity.Info;
+  }
+}
+
+// Context menu ordering: place lint actions at the bottom of the navigation group
+const LINT_CONTEXT_MENU_ORDER = 99;
 
 /**
  * Detects user's preference for reduced motion (accessibility setting).
@@ -518,10 +569,15 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
     const schemaCacheKey = useMemo(() => (schema ? JSON.stringify(schema) : ''), [schema]);
 
+    const lintConfig: LintConfig = useMemo(
+      () => buildLintConfig(preferences),
+      [preferences.lintEnabled, preferences.lintDisabledRules],
+    );
+
     useEffect(() => {
       analysisCacheRef.current = { sql: '', result: null, promise: null };
       statementAnalysisCacheRef.current.clear();
-    }, [schemaCacheKey]);
+    }, [schemaCacheKey, lintConfig]);
 
     const getFlowScopeAnalysis = useCallback(
       async (sqlText: string) => {
@@ -542,7 +598,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         const client = getFlowScopeClient();
         cache.sql = sqlText;
         cache.promise = client
-          .analyze(sqlText, schema)
+          .analyze(sqlText, schema, 'duckdb', lintConfig)
           .then((result) => {
             cache.result = result;
             cache.promise = null;
@@ -556,7 +612,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
         return cache.promise;
       },
-      [schema],
+      [schema, lintConfig],
     );
 
     const getStatementSpans = useCallback(async (sqlText: string): Promise<Span[]> => {
@@ -933,44 +989,51 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           return;
         }
 
-        const getMarkerSeverity = (severity: string): monaco.MarkerSeverity => {
-          switch (severity) {
-            case 'error':
-              return monaco.MarkerSeverity.Error;
-            case 'warning':
-              return monaco.MarkerSeverity.Warning;
-            default:
-              return monaco.MarkerSeverity.Info;
-          }
-        };
-        const markers: monaco.editor.IMarkerData[] = analysis.issues.map((issue) => {
-          if (!issue.span) {
+        const severityFilter = preferences.lintSeverityFilter;
+
+        // Show lint issues filtered by severity preference, plus any non-lint errors
+        // (e.g. parse errors) which are always actionable.
+        const markers: monaco.editor.IMarkerData[] = analysis.issues
+          .filter((issue) => {
+            if (isLintIssue(issue.code)) {
+              return shouldDisplayLintIssue(issue.severity, severityFilter);
+            }
+            return issue.severity === 'error';
+          })
+          .map((issue) => {
+            const source = isLintIssue(issue.code) ? 'flowscope-lint' : 'flowscope';
+
+            if (!issue.span) {
+              return {
+                severity: getMarkerSeverity(issue.severity),
+                message: `${issue.message} [${issue.code}]`,
+                startLineNumber: 1,
+                startColumn: 1,
+                endLineNumber: 1,
+                endColumn: 1,
+                source,
+                code: issue.code,
+              };
+            }
+
+            const startPos = model.getPositionAt(issue.span.start);
+            const endPos = model.getPositionAt(issue.span.end);
+
             return {
-              severity: monaco.MarkerSeverity.Info,
-              message: issue.message,
-              startLineNumber: 1,
-              startColumn: 1,
-              endLineNumber: 1,
-              endColumn: 1,
+              severity: getMarkerSeverity(issue.severity),
+              message: `${issue.message} [${issue.code}]`,
+              startLineNumber: startPos.lineNumber,
+              startColumn: startPos.column,
+              endLineNumber: endPos.lineNumber,
+              endColumn: endPos.column,
+              source,
+              code: issue.code,
             };
-          }
-
-          const startPos = model.getPositionAt(issue.span.start);
-          const endPos = model.getPositionAt(issue.span.end);
-
-          return {
-            severity: getMarkerSeverity(issue.severity),
-            message: issue.message,
-            startLineNumber: startPos.lineNumber,
-            startColumn: startPos.column,
-            endLineNumber: endPos.lineNumber,
-            endColumn: endPos.column,
-          };
-        });
+          });
 
         monacoRef.current.editor.setModelMarkers(model, 'flowscope', markers);
       },
-      [],
+      [preferences.lintSeverityFilter],
     );
 
     const scheduleFullAnalysis = useCallback(
@@ -1257,6 +1320,38 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           }
         }
       });
+
+      disposablesRef.current.push(
+        editor.addAction({
+          id: 'pondpilot.disableLintRule',
+          label: 'Disable Lint Rule',
+          contextMenuGroupId: 'navigation',
+          contextMenuOrder: LINT_CONTEXT_MENU_ORDER,
+          precondition: undefined,
+          run: (ed) => {
+            const position = ed.getPosition();
+            const model = ed.getModel();
+            if (!position || !model) return;
+
+            const markers = monacoRef.current?.editor
+              .getModelMarkers({ resource: model.uri })
+              .filter(
+                (m) => m.source === 'flowscope-lint' && isPositionInMarker(position, m),
+              );
+
+            if (!markers || markers.length === 0) return;
+
+            const ruleCode = extractMarkerCode(markers[0]);
+            if (!ruleCode || !isLintIssue(ruleCode)) return;
+
+            // Read fresh state to avoid stale closure over React preferences
+            const current = getEditorPreferences().lintDisabledRules;
+            if (!current.includes(ruleCode)) {
+              updateEditorPreference('lintDisabledRules', [...current, ruleCode]);
+            }
+          },
+        }),
+      );
 
       const completionProvider = monacoInstance.languages.registerCompletionItemProvider('sql', {
         triggerCharacters: ['.'],
@@ -2008,6 +2103,92 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         },
       );
 
+      // Code action provider: "Fix" and "Fix All" for lint issues with autofix
+      const codeActionProvider = monacoInstance.languages.registerCodeActionProvider('sql', {
+        provideCodeActions(model, range, context) {
+          try {
+            const lintMarkers = context.markers.filter((m) => m.source === 'flowscope-lint');
+            if (lintMarkers.length === 0) return { actions: [], dispose() {} };
+
+            const cached = analysisCacheRef.current;
+            if (!cached.result) return { actions: [], dispose() {} };
+
+            // Don't offer fixes when the text has changed since the analysis
+            const sqlText = model.getValue();
+            if (cached.sql !== sqlText) return { actions: [], dispose() {} };
+
+            const actions: monaco.languages.CodeAction[] = [];
+
+            // "Fix: <message>" for each fixable issue overlapping a marker
+            for (const marker of lintMarkers) {
+              const markerSpan = {
+                start: model.getOffsetAt(
+                  new monacoInstance.Position(marker.startLineNumber, marker.startColumn),
+                ),
+                end: model.getOffsetAt(
+                  new monacoInstance.Position(marker.endLineNumber, marker.endColumn),
+                ),
+              };
+              const fixable = getFixableIssues(cached.result.issues, markerSpan);
+
+              for (const issue of fixable) {
+                const edits: monaco.languages.IWorkspaceTextEdit[] = issue.autofix!.edits.map(
+                  (patchEdit) => ({
+                    resource: model.uri,
+                    versionId: undefined,
+                    textEdit: {
+                      range: spanToMonacoRange(model, patchEdit.span),
+                      text: patchEdit.replacement,
+                    },
+                  }),
+                );
+
+                actions.push({
+                  title: `Fix: ${issue.message}`,
+                  kind: 'quickfix',
+                  diagnostics: [marker],
+                  isPreferred: issue.autofix!.applicability === 'safe',
+                  edit: { edits },
+                });
+              }
+            }
+
+            // "Fix all lint issues (N)" when multiple fixable issues exist
+            const allFixable = cached.result.issues.filter(
+              (i: Issue) =>
+                isLintIssue(i.code) &&
+                i.autofix != null &&
+                i.autofix.applicability !== 'displayOnly',
+            );
+            if (allFixable.length > 1) {
+              const allEdits = collectAllFixEdits(cached.result.issues);
+              const fixedText = applyEdits(sqlText, allEdits);
+              actions.push({
+                title: `Fix all lint issues (${allFixable.length})`,
+                kind: 'quickfix',
+                edit: {
+                  edits: [
+                    {
+                      resource: model.uri,
+                      versionId: undefined,
+                      textEdit: {
+                        range: model.getFullModelRange(),
+                        text: fixedText,
+                      },
+                    },
+                  ],
+                },
+              });
+            }
+
+            return { actions, dispose() {} };
+          } catch (error) {
+            console.error('Code action provider error:', error);
+            return { actions: [], dispose() {} };
+          }
+        },
+      });
+
       disposablesRef.current.push(
         completionProvider,
         hoverProvider,
@@ -2019,6 +2200,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         renameProvider,
         codeLensProvider,
         linkedEditingProvider,
+        codeActionProvider,
       );
     };
 
@@ -2049,6 +2231,16 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         });
       }
     }, [preferences.fontSize, preferences.fontWeight, preferences.minimap]);
+
+    // Re-apply diagnostics from cached results when severity filter changes
+    // (avoids re-running WASM — just re-filters existing issues)
+    useEffect(() => {
+      const model = editorRef.current?.getModel();
+      const cached = analysisCacheRef.current;
+      if (model && cached.result) {
+        applyDiagnostics(model, cached.result);
+      }
+    }, [applyDiagnostics]);
 
     return (
       <div className="relative w-full h-full">
