@@ -46,6 +46,8 @@ export async function reauthGSheetOAuth(
         label: `${GSHEET_SECRET_LABEL_PREFIX} ${dataSource.spreadsheetName}`,
         data: { accessToken: result.accessToken },
       });
+    } else {
+      console.warn('GSheet OAuth source missing secretRef; cannot update encrypted token.');
     }
 
     // Recreate DuckDB HTTP secret (CREATE OR REPLACE)
