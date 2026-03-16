@@ -6,7 +6,6 @@ import { IconCheck, IconInfoCircle } from '@tabler/icons-react';
 import { requestGoogleAccessToken } from '@services/google-identity-services';
 import { getGoogleOAuthClientId } from '@utils/google-oauth-config';
 import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { useGSheetConnection } from '../hooks/use-gsheet-connection';
 
@@ -24,7 +23,6 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
   const [oauthAuthenticated, setOauthAuthenticated] = useState(false);
   const [oauthExpiresIn, setOauthExpiresIn] = useState<number | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const navigate = useNavigate();
 
   const { isLoading, isTesting, discoveredSheets, testConnection, addGoogleSheet } =
     useGSheetConnection(pool);
@@ -66,8 +64,9 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
 
   const handleOpenSettings = useCallback(() => {
     onClose();
-    navigate('/settings#google-integration');
-  }, [onClose, navigate]);
+    // Navigate via full page load since the modal renders outside the Router
+    window.location.href = '/settings';
+  }, [onClose]);
 
   return (
     <Stack gap={16}>
