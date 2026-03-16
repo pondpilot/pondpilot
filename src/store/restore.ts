@@ -51,7 +51,13 @@ import {
 } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ComparisonTab, TabId } from '@models/tab';
-import { deleteSecret, getSecret, listSecrets, makeSecretId, putSecret } from '@services/secret-store';
+import {
+  deleteSecret,
+  getSecret,
+  listSecrets,
+  makeSecretId,
+  putSecret,
+} from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';
 import {
@@ -1038,10 +1044,7 @@ export const restoreAppDataFromIDB = async (
     const allSecrets = await listSecrets(iDbConn);
     for (const secret of allSecrets) {
       const id = String(secret.id);
-      if (
-        secret.label.startsWith(GSHEET_SECRET_LABEL_PREFIX) &&
-        !activeSecretIds.has(id)
-      ) {
+      if (secret.label.startsWith(GSHEET_SECRET_LABEL_PREFIX) && !activeSecretIds.has(id)) {
         try {
           await deleteSecret(iDbConn, secret.id);
         } catch (err) {
