@@ -1,10 +1,10 @@
 import { showError } from '@components/app-notifications';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import type { GSheetAccessMode } from '@models/data-source';
 import { Stack, TextInput, Text, Button, Group, Radio, Loader, Alert, Anchor } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
-import { IconCheck, IconInfoCircle } from '@tabler/icons-react';
+import type { GSheetAccessMode } from '@models/data-source';
 import { requestGoogleAccessToken } from '@services/google-identity-services';
+import { IconCheck, IconInfoCircle } from '@tabler/icons-react';
 import { getGoogleOAuthClientId } from '@utils/google-oauth-config';
 import { useState, useCallback } from 'react';
 

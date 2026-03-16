@@ -56,7 +56,10 @@ export const GoogleIntegrationSettings = () => {
               <Text span className="font-mono" c="dimmed">
                 {window.location.origin}
               </Text>{' '}
-              to <Text span fw={500}>Authorized JavaScript origins</Text>
+              to{' '}
+              <Text span fw={500}>
+                Authorized JavaScript origins
+              </Text>
             </li>
             <li>Copy the Client ID and paste it above</li>
           </Text>
@@ -65,16 +68,16 @@ export const GoogleIntegrationSettings = () => {
 
       <Alert icon={<IconShieldCheck size={16} />} color="background-accent" variant="light">
         <Text size="sm">
-          <Text span fw={500}>Privacy:</Text> Your Client ID stays in this browser.
-          PondPilot never sends it to any server. Authentication happens directly between your
-          browser and Google.
+          <Text span fw={500}>
+            Privacy:
+          </Text>{' '}
+          Your Client ID stays in this browser. PondPilot never sends it to any server.
+          Authentication happens directly between your browser and Google.
         </Text>
       </Alert>
 
       <Group justify="space-between" className="mt-2">
-        <Group>
-          {hasChanges && <Button onClick={handleSave}>Save Changes</Button>}
-        </Group>
+        <Group>{hasChanges && <Button onClick={handleSave}>Save Changes</Button>}</Group>
         {hasChanges && (
           <Button color="text-error" onClick={handleReset} variant="outline">
             Reset

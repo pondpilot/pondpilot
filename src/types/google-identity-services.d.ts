@@ -35,10 +35,7 @@ declare namespace google.accounts.oauth2 {
 
   function initTokenClient(config: TokenClientConfig): TokenClient;
 
-  function hasGrantedAllScopes(
-    tokenResponse: TokenResponse,
-    ...scopes: string[]
-  ): boolean;
+  function hasGrantedAllScopes(tokenResponse: TokenResponse, ...scopes: string[]): boolean;
 
   function revoke(accessToken: string, done?: () => void): void;
 }

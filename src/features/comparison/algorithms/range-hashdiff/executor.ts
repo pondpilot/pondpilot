@@ -408,7 +408,7 @@ export const runRangeHashDiff = async (
     return insertedCount;
   };
 
-  while (true) {
+  for (;;) {
     throwIfAborted(signal);
     const current = pickNextSegment();
     if (!current) {

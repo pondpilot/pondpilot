@@ -12,10 +12,7 @@ describe('google-oauth-config', () => {
     });
 
     it('should return stored client ID', () => {
-      localStorage.setItem(
-        'GOOGLE_OAUTH_CLIENT_ID',
-        '123456.apps.googleusercontent.com',
-      );
+      localStorage.setItem('GOOGLE_OAUTH_CLIENT_ID', '123456.apps.googleusercontent.com');
       expect(getGoogleOAuthClientId()).toBe('123456.apps.googleusercontent.com');
     });
 

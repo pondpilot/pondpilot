@@ -860,6 +860,10 @@ export const DuckDBConnectionPoolProvider = ({
     });
 
     return connectionPromise;
+    // JSDELIVR_BUNDLES, logger, and env-derived constants are created in the
+    // render body but are effectively stable. Including them would cause
+    // unnecessary re-creation of the connection callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     persistenceState.dbPath,
     updatePersistenceState,

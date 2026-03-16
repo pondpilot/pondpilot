@@ -1,15 +1,12 @@
 import { showError, showWarningWithAction } from '@components/app-notifications';
+import { persistPutDataSources } from '@controllers/data-source/persist';
 import type { GSheetSheetView, PersistentDataSourceId } from '@models/data-source';
 import { requestGoogleAccessToken } from '@services/google-identity-services';
 import { putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
-import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getGoogleOAuthClientId } from '@utils/google-oauth-config';
-import {
-  buildCreateGSheetHttpSecretQuery,
-  buildGSheetHttpSecretName,
-} from '@utils/gsheet-auth';
 import { GSHEET_SECRET_LABEL_PREFIX } from '@utils/gsheet';
+import { buildCreateGSheetHttpSecretQuery, buildGSheetHttpSecretName } from '@utils/gsheet-auth';
 
 /**
  * Trigger a re-authorization flow for an OAuth Google Sheet connection.
@@ -53,11 +50,7 @@ export async function reauthGSheetOAuth(
     // Recreate DuckDB HTTP secret (CREATE OR REPLACE)
     const secretName = buildGSheetHttpSecretName(dataSource.fileSourceId);
     await pool.query(
-      buildCreateGSheetHttpSecretQuery(
-        secretName,
-        result.accessToken,
-        dataSource.spreadsheetId,
-      ),
+      buildCreateGSheetHttpSecretQuery(secretName, result.accessToken, dataSource.spreadsheetId),
     );
 
     // Update tokenExpiresAt on all data sources from same connection
@@ -80,11 +73,7 @@ export async function reauthGSheetOAuth(
       }
     }
 
-    useAppStore.setState(
-      { dataSources: newDataSources },
-      false,
-      'GSheetReauth/updateToken',
-    );
+    useAppStore.setState({ dataSources: newDataSources }, false, 'GSheetReauth/updateToken');
 
     if (updatedSources.length > 0) {
       await persistPutDataSources(_iDbConn, updatedSources);

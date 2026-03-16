@@ -44,30 +44,31 @@ test.describe('AI Assistant Structured Response', () => {
     // They're included here as placeholders for when that functionality is available
 
     // eslint-disable-next-line playwright/expect-expect, unused-imports/no-unused-vars
-    test.skip('should apply first action on Enter', async ({ scriptEditorContent }) => {
+    test.fixme('should apply first action on Enter', async ({ scriptEditorContent }) => {
       // This would test pressing Enter to apply the recommended action
       // TODO: Add assertions when AI service mocking is available
     });
 
     // eslint-disable-next-line playwright/expect-expect, unused-imports/no-unused-vars
-    test.skip('should copy code on C key', async ({ scriptEditorContent }) => {
+    test.fixme('should copy code on C key', async ({ scriptEditorContent }) => {
       // This would test pressing C to copy code and close the widget
       // TODO: Add assertions when AI service mocking is available
     });
 
     // eslint-disable-next-line playwright/expect-expect, unused-imports/no-unused-vars
-    test.skip('should close widget on Escape', async ({ scriptEditorContent }) => {
+    test.fixme('should close widget on Escape', async ({ scriptEditorContent }) => {
       // This would test pressing Escape to close without applying
       // TODO: Add assertions when AI service mocking is available
     });
 
     // eslint-disable-next-line playwright/expect-expect, unused-imports/no-unused-vars
-    test.skip('should navigate between action cards with arrow keys', async ({
-      scriptEditorContent: _scriptEditorContent,
-    }) => {
-      // This would test arrow key navigation between different SQL actions
-      // TODO: Add assertions when AI service mocking is available
-    });
+    test.fixme(
+      'should navigate between action cards with arrow keys',
+      async ({ scriptEditorContent: _scriptEditorContent }) => {
+        // This would test arrow key navigation between different SQL actions
+        // TODO: Add assertions when AI service mocking is available
+      },
+    );
   });
 
   test('structured response action types', async () => {

@@ -582,6 +582,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
     const lintConfig: LintConfig = useMemo(
       () => buildLintConfig(preferences),
+      // Only recompute when lint-relevant preferences change, not the entire preferences object
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       [preferences.lintEnabled, preferences.lintDisabledRules],
     );
 
@@ -672,6 +674,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         });
 
       return cache.promise ?? [];
+      // syncIncrementalFromFullSplit is stable (empty deps) and declared later
+      // in the same component; adding it here causes a block-scoped TDZ error.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     /**
@@ -1165,7 +1170,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           end: span.end,
         };
       },
-      [findStatementSpan, getSpansImmediate],
+      [findStatementSpan],
     );
 
     useImperativeHandle(ref, () => ({
