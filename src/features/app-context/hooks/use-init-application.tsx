@@ -323,16 +323,14 @@ export function useAppInitialization({
       const now = Date.now();
       const notifiedConnections = new Set<string>();
       for (const ds of dataSources.values()) {
-        if (
-          ds.type === 'gsheet-sheet' &&
-          ds.accessMode === 'oauth' &&
-          (ds as GSheetSheetView).tokenExpiresAt &&
-          (ds as GSheetSheetView).tokenExpiresAt! < now
-        ) {
-          const groupKey = (ds as GSheetSheetView).fileSourceId;
-          if (!notifiedConnections.has(String(groupKey))) {
-            notifiedConnections.add(String(groupKey));
-            notifyGSheetTokenExpired(resolvedConn, ds as GSheetSheetView);
+        if (ds.type !== 'gsheet-sheet' || ds.accessMode !== 'oauth') continue;
+        const gsheetDs = ds as GSheetSheetView;
+        const expiresAt = gsheetDs.tokenExpiresAt;
+        if (expiresAt && expiresAt < now) {
+          const groupKey = String(gsheetDs.fileSourceId);
+          if (!notifiedConnections.has(groupKey)) {
+            notifiedConnections.add(groupKey);
+            notifyGSheetTokenExpired(resolvedConn, gsheetDs);
           }
         }
       }

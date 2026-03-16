@@ -6,6 +6,7 @@ import {
   buildGSheetHttpSecretName,
   buildGSheetSpreadsheetHttpScope,
   resolveGSheetAccessToken,
+  validateSpreadsheetId,
 } from '@utils/gsheet-auth';
 
 describe('gsheet auth utils', () => {
@@ -36,5 +37,13 @@ describe('gsheet auth utils', () => {
     expect(resolveGSheetAccessToken({ accessToken: '  abc  ' })).toBe('abc');
     expect(resolveGSheetAccessToken({ token: 'xyz' })).toBe('xyz');
     expect(resolveGSheetAccessToken({})).toBeUndefined();
+  });
+
+  it('validates spreadsheet ID format', () => {
+    expect(validateSpreadsheetId('abc123-_XYZ')).toBe('abc123-_XYZ');
+    expect(() => validateSpreadsheetId('')).toThrow('Invalid spreadsheet ID format');
+    expect(() => validateSpreadsheetId("abc')--")).toThrow('Invalid spreadsheet ID format');
+    expect(() => validateSpreadsheetId('has spaces')).toThrow('Invalid spreadsheet ID format');
+    expect(() => validateSpreadsheetId('has/slash')).toThrow('Invalid spreadsheet ID format');
   });
 });

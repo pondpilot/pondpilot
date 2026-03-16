@@ -181,9 +181,12 @@ Public sheets can be read without the extension:
 SELECT * FROM read_gsheet_public(
   'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit?gid=<gid>#gid=<gid>'
 );
+```
 
--- compatibility alias
-SELECT * FROM read_gsheet(
+Authorized reads (with a bearer token stored via the connection wizard):
+
+```sql
+SELECT * FROM read_gsheet_authorized(
   'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit?gid=<gid>#gid=<gid>'
 );
 ```

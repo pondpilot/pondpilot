@@ -40,12 +40,14 @@ export interface ExtensionBootstrapOptions {
 }
 
 let attemptedGsheetsInstallByInstance: WeakSet<object> = new WeakSet();
+let warnedMissingBindings = false;
 
 /**
  * Test-only hook to clear module-level gsheets bootstrap state.
  */
 export function __resetGsheetsBootstrapForTests(): void {
   attemptedGsheetsInstallByInstance = new WeakSet();
+  warnedMissingBindings = false;
 }
 
 function escapeSqlLiteral(value: string): string {
@@ -94,9 +96,18 @@ export async function configureConnectionForHttpfs(
 
   // bindings is shared across connections from the same DuckDB-WASM instance.
   // We use it as the WeakSet key so INSTALL runs once per DB, but LOAD runs per connection.
+  // When bindings is unavailable, INSTALL deduplication is per-connection (harmless: the
+  // "already installed" error is handled below).
   const bindings = conn.bindings as unknown;
-  const dbInstance =
-    bindings && (typeof bindings === 'object' || typeof bindings === 'function') ? bindings : conn;
+  const hasValidBindings =
+    bindings != null && (typeof bindings === 'object' || typeof bindings === 'function');
+  if (!hasValidBindings && !warnedMissingBindings) {
+    warnedMissingBindings = true;
+    console.warn(
+      'DuckDB connection bindings not available; gsheets INSTALL dedup will run per-connection.',
+    );
+  }
+  const dbInstance = hasValidBindings ? (bindings as object) : conn;
 
   if (gsheetsExtensionUrl) {
     const escapedUrl = escapeSqlLiteral(gsheetsExtensionUrl);

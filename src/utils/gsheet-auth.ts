@@ -4,13 +4,21 @@ import { toDuckDBIdentifier } from './duckdb/identifier';
 import { quote } from './helpers';
 
 const GSHEET_HTTP_SECRET_PREFIX = 'pondpilot_gsheet_http_';
+const SPREADSHEET_ID_FORMAT = /^[a-zA-Z0-9-_]+$/;
 
 export function buildGSheetHttpSecretName(sourceGroupId: LocalEntryId): string {
   return `${GSHEET_HTTP_SECRET_PREFIX}${String(sourceGroupId).replace(/[^a-zA-Z0-9_]/g, '_')}`;
 }
 
+export function validateSpreadsheetId(spreadsheetId: string): string {
+  if (!spreadsheetId || !SPREADSHEET_ID_FORMAT.test(spreadsheetId)) {
+    throw new Error(`Invalid spreadsheet ID format: ${spreadsheetId}`);
+  }
+  return spreadsheetId;
+}
+
 export function buildGSheetSpreadsheetHttpScope(spreadsheetId: string): string {
-  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/`;
+  return `https://docs.google.com/spreadsheets/d/${validateSpreadsheetId(spreadsheetId)}/`;
 }
 
 export function buildCreateGSheetHttpSecretQuery(

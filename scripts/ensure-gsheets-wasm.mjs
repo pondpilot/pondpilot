@@ -196,6 +196,11 @@ async function copyIfNeeded(sourcePath, destinationPath) {
 }
 
 async function main() {
+  if ((process.env.PONDPILOT_SKIP_GSHEETS_BUILD ?? '').toLowerCase() === 'true') {
+    console.log('PONDPILOT_SKIP_GSHEETS_BUILD is set; skipping gsheets wasm build.');
+    return;
+  }
+
   if (sourceFromEnv) {
     if (!(await pathExists(sourceFromEnv))) {
       throw new Error(`GSHEETS_WASM_SOURCE does not exist: ${sourceFromEnv}`);

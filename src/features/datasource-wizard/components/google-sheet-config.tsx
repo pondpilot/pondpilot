@@ -1,3 +1,4 @@
+import { showError } from '@components/app-notifications';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import type { GSheetAccessMode } from '@models/data-source';
 import { Stack, TextInput, Text, Button, Group, Radio, Loader, Alert, Anchor } from '@mantine/core';
@@ -51,12 +52,16 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
     setIsAuthenticating(true);
     try {
       const result = await requestGoogleAccessToken(clientId);
-      setAccessToken({ currentTarget: { value: result.accessToken } } as any);
+      setAccessToken(result.accessToken);
       setOauthAuthenticated(true);
       setOauthExpiresIn(result.expiresIn);
-    } catch {
+    } catch (error) {
       setOauthAuthenticated(false);
       setOauthExpiresIn(null);
+      showError({
+        title: 'Google Sign-In failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
     } finally {
       setIsAuthenticating(false);
     }

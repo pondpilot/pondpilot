@@ -8,10 +8,16 @@ import {
 // Store references to script callbacks
 let lastScript: { src: string; async: boolean; onload: () => void; onerror: () => void } | null =
   null;
+let originalDocument: typeof globalThis.document;
+let originalGoogle: any;
 
 beforeEach(() => {
   _resetGISLoader();
   lastScript = null;
+
+  // Save originals so we can restore them without side-effects on other test suites
+  originalDocument = (global as any).document;
+  originalGoogle = (global as any).google;
 
   // Reset the global google namespace
   (global as any).google = undefined;
@@ -33,8 +39,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  (global as any).google = undefined;
-  (global as any).document = undefined;
+  (global as any).google = originalGoogle;
+  (global as any).document = originalDocument;
 });
 
 describe('loadGISScript', () => {
