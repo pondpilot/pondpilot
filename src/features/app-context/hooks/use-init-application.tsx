@@ -3,6 +3,7 @@ import { installCorsProxyMacros } from '@controllers/db/cors-proxy-macros-contro
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import type { GSheetSheetView } from '@models/data-source';
 import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
@@ -32,6 +33,7 @@ import {
   updateMotherDuckConnectionState,
 } from '@utils/motherduck';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
+import { notifyGSheetTokenExpired } from '@utils/gsheet-reauth';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect } from 'react';
@@ -313,6 +315,27 @@ export function useAppInitialization({
         title: 'Cannot restore app data',
         message: `Failed to restore app data. ${message}`,
       });
+    }
+
+    // Notify about expired OAuth Google Sheet tokens after restore
+    if (resolvedConn) {
+      const { dataSources } = useAppStore.getState();
+      const now = Date.now();
+      const notifiedConnections = new Set<string>();
+      for (const ds of dataSources.values()) {
+        if (
+          ds.type === 'gsheet-sheet' &&
+          ds.accessMode === 'oauth' &&
+          (ds as GSheetSheetView).tokenExpiresAt &&
+          (ds as GSheetSheetView).tokenExpiresAt! < now
+        ) {
+          const groupKey = (ds as GSheetSheetView).fileSourceId;
+          if (!notifiedConnections.has(String(groupKey))) {
+            notifiedConnections.add(String(groupKey));
+            notifyGSheetTokenExpired(resolvedConn, ds as GSheetSheetView);
+          }
+        }
+      }
     }
 
     // Report we are ready

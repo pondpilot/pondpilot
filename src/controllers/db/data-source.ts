@@ -2,6 +2,7 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { ReadStatViewType, supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import type { GSheetAccessMode } from '@models/data-source';
 import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { createGSheetSheetViewQuery } from '@utils/gsheet';
@@ -366,7 +367,7 @@ export async function createGSheetSheetView(
   spreadsheetRef: string,
   sheetName: string,
   viewName: string,
-  accessMode: 'public' | 'authorized' = 'public',
+  accessMode: GSheetAccessMode = 'public',
 ) {
   const pooled = await conn.getPooledConnection();
   try {
@@ -383,14 +384,14 @@ export async function createGSheetSheetView(
     );
     const hasReadGsheetTableFunction = readFunctionTypes.has('table');
 
-    // Authorized reads always use the macro path so we can bind per-sheet
+    // Authorized/OAuth reads always use the macro path so we can bind per-sheet
     // HTTP bearer secrets in PondPilot (extension secret lookup is global).
-    const readFunctionName =
-      accessMode === 'authorized'
-        ? 'read_gsheet_authorized'
-        : hasReadGsheetTableFunction
-          ? 'system.main.read_gsheet'
-          : 'read_gsheet_public';
+    const needsBearerToken = accessMode === 'authorized' || accessMode === 'oauth';
+    const readFunctionName = needsBearerToken
+      ? 'read_gsheet_authorized'
+      : hasReadGsheetTableFunction
+        ? 'system.main.read_gsheet'
+        : 'read_gsheet_public';
 
     const query = createGSheetSheetViewQuery(spreadsheetRef, sheetName, viewName, readFunctionName);
     await pooled.query(query);

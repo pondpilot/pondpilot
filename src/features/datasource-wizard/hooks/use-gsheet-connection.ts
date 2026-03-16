@@ -3,6 +3,7 @@ import { persistPutDataSources } from '@controllers/data-source/persist';
 import { createGSheetSheetView } from '@controllers/db/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import type { GSheetAccessMode } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { deleteSecret, makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
@@ -35,14 +36,16 @@ export type GSheetDiscoverResult = {
 export interface GSheetConnectionParams {
   sheetRef: string;
   connectionName: string;
-  accessMode: 'public' | 'authorized';
+  accessMode: GSheetAccessMode;
   accessToken: string;
+  /** Token lifetime in seconds (from GIS response). Only used for `oauth` mode. */
+  tokenExpiresIn?: number;
 }
 
 type CachedDiscovery = {
   /** Inputs that produced this result (for staleness check) */
   sheetRef: string;
-  accessMode: 'public' | 'authorized';
+  accessMode: GSheetAccessMode;
   accessToken: string;
   result: GSheetDiscoverResult;
   cachedAt: number;
@@ -81,8 +84,9 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         throw new Error('Enter a valid Google Sheets URL or spreadsheet ID');
       }
 
-      if (params.accessMode === 'authorized' && !resolvedAccessToken) {
-        throw new Error('Authorized mode requires a Google API bearer token.');
+      const needsBearerToken = params.accessMode === 'authorized' || params.accessMode === 'oauth';
+      if (needsBearerToken && !resolvedAccessToken) {
+        throw new Error('A Google API bearer token is required for this access mode.');
       }
 
       // Return cached result if inputs haven't changed and cache is fresh
@@ -101,10 +105,9 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
       const spreadsheetUrl = buildGSheetSpreadsheetUrl(spreadsheetId);
       const resolvedName = params.connectionName.trim() || `gsheet_${spreadsheetId.slice(0, 8)}`;
 
-      const headers =
-        params.accessMode === 'authorized'
-          ? { Authorization: `Bearer ${resolvedAccessToken}` }
-          : undefined;
+      const headers = needsBearerToken
+        ? { Authorization: `Bearer ${resolvedAccessToken}` }
+        : undefined;
 
       let response: Response;
       const controller = new AbortController();
@@ -218,9 +221,11 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
 
         const newSources = [];
 
-        if (params.accessMode === 'authorized') {
+        const needsSecretStorage =
+          params.accessMode === 'authorized' || params.accessMode === 'oauth';
+        if (needsSecretStorage) {
           if (!resolvedAccessToken) {
-            throw new Error('Authorized mode requires a Google API bearer token.');
+            throw new Error('A Google API bearer token is required for this access mode.');
           }
           if (!_iDbConn) {
             throw new Error(
@@ -244,6 +249,12 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
           );
         }
 
+        // Compute token expiry timestamp for OAuth connections
+        const tokenExpiresAt =
+          params.accessMode === 'oauth' && params.tokenExpiresIn
+            ? Date.now() + params.tokenExpiresIn * 1000
+            : undefined;
+
         for (const sheetName of workbook.sheetNames) {
           const dataSource = addGSheetSheetDataSource(
             {
@@ -255,6 +266,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
               sheetName,
               accessMode: params.accessMode,
               secretRef: createdSecretRef,
+              tokenExpiresAt,
             },
             reservedViews,
           );

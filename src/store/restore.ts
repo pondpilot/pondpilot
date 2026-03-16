@@ -969,7 +969,9 @@ export const restoreAppDataFromIDB = async (
   for (const dataSource of gsheetDataSources) {
     _reservedViews.add(dataSource.viewName);
 
-    if (dataSource.accessMode === 'authorized' && dataSource.secretRef) {
+    const needsBearerToken =
+      dataSource.accessMode === 'authorized' || dataSource.accessMode === 'oauth';
+    if (needsBearerToken && dataSource.secretRef) {
       const cacheKey = String(dataSource.secretRef);
       if (!cachedGSheetTokens.has(cacheKey)) {
         try {
@@ -1004,6 +1006,17 @@ export const restoreAppDataFromIDB = async (
         );
         warnedMissingGSheetTokens.add(cacheKey);
       }
+    }
+
+    // Warn about expired OAuth tokens (queries will fail until re-auth)
+    if (
+      dataSource.accessMode === 'oauth' &&
+      dataSource.tokenExpiresAt &&
+      dataSource.tokenExpiresAt < Date.now()
+    ) {
+      console.warn(
+        `Google Sheet ${dataSource.spreadsheetName}: OAuth token expired. Re-authorization required.`,
+      );
     }
   }
 
