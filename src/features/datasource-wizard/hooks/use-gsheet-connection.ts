@@ -250,7 +250,11 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         }
 
         // Compute token expiry timestamp for OAuth connections
-        if (params.accessMode === 'oauth' && params.tokenExpiresIn != null && params.tokenExpiresIn <= 0) {
+        if (
+          params.accessMode === 'oauth' &&
+          params.tokenExpiresIn != null &&
+          params.tokenExpiresIn <= 0
+        ) {
           throw new Error('OAuth token has already expired. Please sign in again.');
         }
         const tokenExpiresAt =

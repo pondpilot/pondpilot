@@ -1,8 +1,8 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import type { GSheetAccessMode } from '@models/data-source';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { ReadStatViewType, supportedFlatFileDataSourceFileExt } from '@models/file-system';
-import type { GSheetAccessMode } from '@models/data-source';
 import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { createGSheetSheetViewQuery } from '@utils/gsheet';

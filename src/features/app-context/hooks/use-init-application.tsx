@@ -3,11 +3,11 @@ import { installCorsProxyMacros } from '@controllers/db/cors-proxy-macros-contro
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import type { GSheetSheetView } from '@models/data-source';
 import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
+import type { GSheetSheetView } from '@models/data-source';
 import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
@@ -22,6 +22,7 @@ import {
   attachAndVerifyDuckLakeCatalog,
   updateDuckLakeConnectionState,
 } from '@utils/ducklake-catalog';
+import { notifyGSheetTokenExpired } from '@utils/gsheet-reauth';
 import {
   attachAndVerifyIcebergCatalog,
   resolveIcebergCredentials,
@@ -33,7 +34,6 @@ import {
   updateMotherDuckConnectionState,
 } from '@utils/motherduck';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
-import { notifyGSheetTokenExpired } from '@utils/gsheet-reauth';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect } from 'react';
@@ -359,5 +359,9 @@ export function useAppInitialization({
       setAppLoadState('init');
       connectDuckDb();
     }
+    // initAppData and connectDuckDb are defined fresh each render; adding them
+    // would re-trigger initialization. The remaining props are stable booleans
+    // that don't change after mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conn, isTabBlocked]);
 }

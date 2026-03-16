@@ -85,6 +85,9 @@ export const ModifierProvider = ({ children }: { children: React.ReactNode }) =>
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
+    // The handlers intentionally read state variables to gate setState calls,
+    // but adding them as deps would re-subscribe on every key press.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <ModifierContext.Provider value={activeModifiers}>{children}</ModifierContext.Provider>;

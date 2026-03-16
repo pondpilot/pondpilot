@@ -2,8 +2,7 @@
 
 const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client';
 
-const GOOGLE_SHEETS_READONLY_SCOPE =
-  'https://www.googleapis.com/auth/spreadsheets.readonly';
+const GOOGLE_SHEETS_READONLY_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
 
 /** Deduplication guard: set once the first load starts. */
 let loadPromise: Promise<void> | null = null;
@@ -48,9 +47,7 @@ export interface GoogleAccessTokenResult {
  * Loads the GIS script if not yet loaded, then opens the Google consent popup.
  * Must be called from a user gesture (click handler) to avoid popup blockers.
  */
-export async function requestGoogleAccessToken(
-  clientId: string,
-): Promise<GoogleAccessTokenResult> {
+export async function requestGoogleAccessToken(clientId: string): Promise<GoogleAccessTokenResult> {
   if (!clientId.trim()) {
     throw new Error('Google OAuth Client ID is required. Configure it in Settings.');
   }
@@ -74,9 +71,7 @@ export async function requestGoogleAccessToken(
       },
       error_callback: (error) => {
         // Fires when the popup is closed or a non-OAuth error occurs
-        reject(
-          new Error(error.message || 'Google sign-in was cancelled or failed'),
-        );
+        reject(new Error(error.message || 'Google sign-in was cancelled or failed'));
       },
     });
 

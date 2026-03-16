@@ -48,7 +48,7 @@ export class PriorityQueue<T> {
     let current = index;
     const { length } = this.heap;
 
-    while (true) {
+    for (;;) {
       const left = current * 2 + 1;
       const right = left + 1;
 

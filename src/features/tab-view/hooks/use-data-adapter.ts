@@ -457,6 +457,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         }
       }
     },
+    // reset and getNewReader have a circular dependency; adding reset here
+    // would cause an infinite callback recreation loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       fetchRowCount,
       getDataFetchAbortSignal,

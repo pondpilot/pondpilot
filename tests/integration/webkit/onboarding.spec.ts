@@ -4,6 +4,7 @@ import { test } from '../fixtures/base';
 import { waitForAppReady } from '../utils';
 
 // Skip WebKit tests due to Playwright WebKit OPFS limitations
+// eslint-disable-next-line playwright/no-skipped-test -- conditional skip for unsupported Playwright WebKit OPFS
 test.skip(({ browserName }) => browserName === 'webkit', 'WebKit tests skipped');
 
 test('Onboarding modal displays in all supported browsers', async ({ page, browserName }) => {
