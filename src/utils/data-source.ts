@@ -167,6 +167,7 @@ export function addGSheetSheetDataSource(
     sheetName: string;
     accessMode: GSheetAccessMode;
     secretRef?: GSheetSheetView['secretRef'];
+    tokenExpiresAt?: number;
   },
   reservedViews: Set<string>,
 ): AnyFlatFileDataSource {
@@ -186,6 +187,7 @@ export function addGSheetSheetDataSource(
     sheetName: params.sheetName,
     accessMode: params.accessMode,
     secretRef: params.secretRef,
+    tokenExpiresAt: params.tokenExpiresAt,
   };
 }
 

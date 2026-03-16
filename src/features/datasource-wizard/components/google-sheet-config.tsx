@@ -1,7 +1,12 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { Stack, TextInput, Text, Button, Group, Radio, Loader } from '@mantine/core';
+import type { GSheetAccessMode } from '@models/data-source';
+import { Stack, TextInput, Text, Button, Group, Radio, Loader, Alert, Anchor } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
-import { useState } from 'react';
+import { IconCheck, IconInfoCircle } from '@tabler/icons-react';
+import { requestGoogleAccessToken } from '@services/google-identity-services';
+import { getGoogleOAuthClientId } from '@utils/google-oauth-config';
+import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useGSheetConnection } from '../hooks/use-gsheet-connection';
 
@@ -15,23 +20,54 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
   const [sheetRef, setSheetRef] = useInputState('');
   const [connectionName, setConnectionName] = useInputState('');
   const [accessToken, setAccessToken] = useInputState('');
-  const [accessMode, setAccessMode] = useState<'public' | 'authorized'>('public');
+  const [accessMode, setAccessMode] = useState<GSheetAccessMode>('public');
+  const [oauthAuthenticated, setOauthAuthenticated] = useState(false);
+  const [oauthExpiresIn, setOauthExpiresIn] = useState<number | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const navigate = useNavigate();
 
   const { isLoading, isTesting, discoveredSheets, testConnection, addGoogleSheet } =
     useGSheetConnection(pool);
 
   const resolvedAccessToken = accessToken.trim();
   const hasAccessToken = resolvedAccessToken.length > 0;
+  const clientId = getGoogleOAuthClientId();
+  const hasClientId = clientId.length > 0;
+
+  const needsToken =
+    (accessMode === 'authorized' && !hasAccessToken) ||
+    (accessMode === 'oauth' && !oauthAuthenticated);
 
   const params = {
     sheetRef,
     connectionName,
     accessMode,
     accessToken,
+    tokenExpiresIn: oauthExpiresIn ?? undefined,
   };
 
   const handleTest = () => testConnection(params);
   const handleAdd = () => addGoogleSheet(params, onClose);
+
+  const handleOAuthSignIn = useCallback(async () => {
+    setIsAuthenticating(true);
+    try {
+      const result = await requestGoogleAccessToken(clientId);
+      setAccessToken({ currentTarget: { value: result.accessToken } } as any);
+      setOauthAuthenticated(true);
+      setOauthExpiresIn(result.expiresIn);
+    } catch {
+      setOauthAuthenticated(false);
+      setOauthExpiresIn(null);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }, [clientId, setAccessToken]);
+
+  const handleOpenSettings = useCallback(() => {
+    onClose();
+    navigate('/settings#google-integration');
+  }, [onClose, navigate]);
 
   return (
     <Stack gap={16}>
@@ -59,13 +95,52 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
         <Radio.Group
           label="Access Mode"
           value={accessMode}
-          onChange={(value) => setAccessMode(value as 'public' | 'authorized')}
+          onChange={(value) => {
+            setAccessMode(value as GSheetAccessMode);
+            // Reset OAuth state when switching modes
+            if (value !== 'oauth') {
+              setOauthAuthenticated(false);
+              setOauthExpiresIn(null);
+            }
+          }}
         >
           <Group mt="xs">
             <Radio value="public" label="Public" />
-            <Radio value="authorized" label="Authorized (Bearer token)" />
+            <Radio value="oauth" label="Google Sign-In" />
+            <Radio value="authorized" label="Bearer Token (manual)" />
           </Group>
         </Radio.Group>
+
+        {accessMode === 'oauth' && !hasClientId && (
+          <Alert icon={<IconInfoCircle size={16} />} color="yellow" variant="light">
+            <Text size="sm">
+              Google Sign-In requires a Client ID.{' '}
+              <Anchor component="button" size="sm" onClick={handleOpenSettings}>
+                Configure it in Settings
+              </Anchor>
+            </Text>
+          </Alert>
+        )}
+
+        {accessMode === 'oauth' && hasClientId && !oauthAuthenticated && (
+          <Button
+            variant="outline"
+            onClick={handleOAuthSignIn}
+            loading={isAuthenticating}
+            disabled={isAuthenticating}
+          >
+            Sign in with Google
+          </Button>
+        )}
+
+        {accessMode === 'oauth' && oauthAuthenticated && (
+          <Group gap={8}>
+            <IconCheck size={16} color="var(--mantine-color-green-6)" />
+            <Text size="sm" c="green">
+              Authenticated
+            </Text>
+          </Group>
+        )}
 
         {accessMode === 'authorized' && (
           <TextInput
@@ -109,16 +184,14 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
           variant="outline"
           onClick={handleTest}
           loading={isTesting}
-          disabled={
-            !sheetRef.trim() || isLoading || (accessMode === 'authorized' && !hasAccessToken)
-          }
+          disabled={!sheetRef.trim() || isLoading || needsToken}
         >
           Test Connection
         </Button>
         <Button
           onClick={handleAdd}
           loading={isLoading || isTesting}
-          disabled={!sheetRef.trim() || (accessMode === 'authorized' && !hasAccessToken)}
+          disabled={!sheetRef.trim() || needsToken}
         >
           Add Google Sheet
         </Button>

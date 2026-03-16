@@ -3,6 +3,7 @@ import { installCorsProxyMacros } from '@controllers/db/cors-proxy-macros-contro
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
+import type { GSheetSheetView } from '@models/data-source';
 import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
@@ -45,6 +46,7 @@ import {
   updateQuackConnectionState,
 } from '@utils/quack';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
+import { notifyGSheetTokenExpired } from '@utils/gsheet-reauth';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect, useRef } from 'react';
@@ -310,6 +312,24 @@ export function useAppInitialization({
       );
 
       if (generation !== initializationGenerationRef.current) return;
+
+      // Notify once per workbook when a restored OAuth token has expired.
+      const now = Date.now();
+      const notifiedConnections = new Set<string>();
+      for (const ds of useAppStore.getState().dataSources.values()) {
+        if (
+          ds.type === 'gsheet-sheet' &&
+          ds.accessMode === 'oauth' &&
+          (ds as GSheetSheetView).tokenExpiresAt &&
+          (ds as GSheetSheetView).tokenExpiresAt! < now
+        ) {
+          const groupKey = (ds as GSheetSheetView).fileSourceId;
+          if (!notifiedConnections.has(String(groupKey))) {
+            notifiedConnections.add(String(groupKey));
+            notifyGSheetTokenExpired(resolvedConn, ds as GSheetSheetView);
+          }
+        }
+      }
 
       // Report we're ready for user interactions now.
       setAppLoadState('ready');

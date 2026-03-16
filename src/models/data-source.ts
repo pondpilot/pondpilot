@@ -79,7 +79,7 @@ export interface XlsxSheetView extends FlatFileDataSource {
   sheetName: string;
 }
 
-export type GSheetAccessMode = 'public' | 'authorized';
+export type GSheetAccessMode = 'public' | 'authorized' | 'oauth';
 
 /**
  * Google Sheets spreadsheet tabs are represented as managed DuckDB views.
@@ -101,6 +101,12 @@ export interface GSheetSheetView extends FlatFileDataSource {
    * Google access token for authorized sheet reads.
    */
   secretRef?: SecretId;
+
+  /**
+   * Epoch-millisecond timestamp when the stored access token expires.
+   * Present only for `oauth` access mode; used to surface re-auth prompts.
+   */
+  tokenExpiresAt?: number;
 }
 
 export type AnyFlatFileDataSource =
