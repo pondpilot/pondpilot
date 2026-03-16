@@ -2,11 +2,16 @@
  * Editor preferences stored in localStorage
  */
 
+export type LintSeverityFilter = 'errors' | 'errors-warnings' | 'all';
+
 export interface EditorPreferences {
   formatOnRun: boolean;
   fontSize: number;
   fontWeight: 'light' | 'regular' | 'semibold' | 'bold';
   minimap: boolean;
+  lintEnabled: boolean;
+  lintSeverityFilter: LintSeverityFilter;
+  lintDisabledRules: string[];
 }
 
 const EDITOR_PREFERENCES_KEY = 'pondpilot-editor-preferences';
@@ -16,6 +21,10 @@ const defaultPreferences: EditorPreferences = {
   fontSize: 0.875,
   fontWeight: 'regular',
   minimap: false,
+  lintEnabled: true,
+  lintSeverityFilter: 'all',
+  // AM_004 (ambiguous column reference) is noisy for exploratory queries; disabled by default
+  lintDisabledRules: ['LINT_AM_004'],
 };
 
 /**

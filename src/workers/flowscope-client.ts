@@ -13,6 +13,7 @@ import type {
   StatementSplitResult,
   CompletionItemsResult,
   SchemaMetadata,
+  LintConfig,
 } from '@pondpilot/flowscope-core';
 
 import type { FlowScopeRequestType, FlowScopeResponse } from './flowscope-worker';
@@ -154,12 +155,14 @@ class FlowScopeClient {
     sql: string,
     schema?: SchemaMetadata,
     dialect: string = 'duckdb',
+    lint?: LintConfig,
   ): Promise<AnalyzeResult> {
     return this.sendRequest<AnalyzeResult>('analyze', {
       type: 'analyze',
       sql,
       dialect,
       schema,
+      lint,
     });
   }
 

@@ -14,6 +14,7 @@ import {
   type StatementSplitResult,
   type CompletionItemsResult,
   type SchemaMetadata,
+  type LintConfig,
 } from '@pondpilot/flowscope-core';
 import wasmUrl from '@pondpilot/flowscope-core/wasm/flowscope_wasm_bg.wasm?url';
 
@@ -25,6 +26,7 @@ export interface FlowScopeAnalyzeRequest {
   sql: string;
   dialect: string;
   schema?: SchemaMetadata;
+  lint?: LintConfig;
 }
 
 export interface FlowScopeSplitRequest {
@@ -134,6 +136,7 @@ async function handleAnalyze(request: FlowScopeAnalyzeRequest): Promise<void> {
       ...FLOWSCOPE_OPTIONS,
       sql: request.sql,
       schema: request.schema,
+      options: request.lint ? { lint: request.lint } : undefined,
     });
     globalThis.postMessage({
       id: request.id,
