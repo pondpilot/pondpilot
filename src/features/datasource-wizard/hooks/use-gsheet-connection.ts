@@ -13,6 +13,7 @@ import {
   buildGSheetSpreadsheetUrl,
   buildGSheetXlsxExportUrl,
   extractGSheetSpreadsheetId,
+  GSHEET_SECRET_LABEL_PREFIX,
 } from '@utils/gsheet';
 import {
   buildCreateGSheetHttpSecretQuery,
@@ -44,7 +45,14 @@ type CachedDiscovery = {
   accessMode: 'public' | 'authorized';
   accessToken: string;
   result: GSheetDiscoverResult;
+  cachedAt: number;
 };
+
+/** Discovery results are considered stale after 5 minutes. */
+const DISCOVERY_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/** Timeout for fetching the spreadsheet XLSX export. */
+const FETCH_TIMEOUT_MS = 30_000;
 
 function toFriendlyError(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -77,13 +85,14 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         throw new Error('Authorized mode requires a Google API bearer token.');
       }
 
-      // Return cached result if inputs haven't changed
+      // Return cached result if inputs haven't changed and cache is fresh
       const cached = cachedDiscoveryRef.current;
       if (
         cached &&
         cached.sheetRef === params.sheetRef &&
         cached.accessMode === params.accessMode &&
-        cached.accessToken === resolvedAccessToken
+        cached.accessToken === resolvedAccessToken &&
+        Date.now() - cached.cachedAt < DISCOVERY_CACHE_TTL_MS
       ) {
         return cached.result;
       }
@@ -98,12 +107,19 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
           : undefined;
 
       let response: Response;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
-        response = await fetch(exportUrl, { headers });
-      } catch {
+        response = await fetch(exportUrl, { headers, signal: controller.signal });
+      } catch (fetchError) {
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Spreadsheet export request timed out. Please try again.');
+        }
         throw new Error(
           'Unable to fetch spreadsheet export. This is usually a CORS or access-permission issue.',
         );
+      } finally {
+        clearTimeout(timeoutId);
       }
 
       if (!response.ok) {
@@ -138,6 +154,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         accessMode: params.accessMode,
         accessToken: resolvedAccessToken,
         result,
+        cachedAt: Date.now(),
       };
 
       return result;
@@ -213,7 +230,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
 
           createdSecretRef = makeSecretId();
           await putSecret(_iDbConn, createdSecretRef, {
-            label: `Google Sheet: ${workbook.resolvedName}`,
+            label: `${GSHEET_SECRET_LABEL_PREFIX} ${workbook.resolvedName}`,
             data: { accessToken: resolvedAccessToken },
           });
 

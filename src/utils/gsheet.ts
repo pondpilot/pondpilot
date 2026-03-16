@@ -1,6 +1,9 @@
 import { toDuckDBIdentifier } from './duckdb/identifier';
 import { quote } from './helpers';
 
+/** Label prefix used when storing Google Sheet secrets. Shared between creation and GC. */
+export const GSHEET_SECRET_LABEL_PREFIX = 'Google Sheet:';
+
 const SPREADSHEET_URL_ID_REGEX = /spreadsheets\/d\/([a-zA-Z0-9-_]+)/;
 const SPREADSHEET_ID_ONLY_REGEX = /^([a-zA-Z0-9-_]{20,})$/;
 
