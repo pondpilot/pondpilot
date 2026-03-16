@@ -53,7 +53,7 @@ import {
 import { SQLScript, SQLScriptId, SQLScriptSession } from '@models/sql-script';
 import { AnyTab, ComparisonTab, TabId } from '@models/tab';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
-import { getSecret, makeSecretId, putSecret } from '@services/secret-store';
+import { deleteSecret, getSecret, listSecrets, makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';
 import {
@@ -70,7 +70,7 @@ import {
   requestFileHandlePersmissions,
 } from '@utils/file-system';
 import { fileSystemService } from '@utils/file-system-adapter';
-import { buildGSheetSpreadsheetUrl } from '@utils/gsheet';
+import { buildGSheetSpreadsheetUrl, GSHEET_SECRET_LABEL_PREFIX } from '@utils/gsheet';
 import {
   buildCreateGSheetHttpSecretQuery,
   buildGSheetHttpSecretName,
@@ -1153,6 +1153,33 @@ export const restoreAppDataFromIDB = async (
       validDataSources.add(dataSource.id);
     }),
   );
+
+  // Prune orphaned gsheet secrets: remove any secret referenced by a gsheet data
+  // source that no longer exists (e.g. partial add/delete failures in prior sessions).
+  const activeSecretIds = new Set(
+    gsheetDataSources
+      .map((ds) => ds.secretRef)
+      .filter((ref): ref is NonNullable<typeof ref> => ref != null)
+      .map(String),
+  );
+  try {
+    const allSecrets = await listSecrets(iDbConn);
+    for (const secret of allSecrets) {
+      const id = String(secret.id);
+      if (
+        secret.label.startsWith(GSHEET_SECRET_LABEL_PREFIX) &&
+        !activeSecretIds.has(id)
+      ) {
+        try {
+          await deleteSecret(iDbConn, secret.id);
+        } catch (err) {
+          console.warn(`Failed to delete orphaned GSheet secret ${id}:`, err);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to list secrets for orphan cleanup:', err);
+  }
 
   // Handle remote databases and iceberg catalogs - they need to be re-attached.
   // We don't re-attach them here because:

@@ -110,7 +110,9 @@ export function buildGSheetWorkbookNode(
   const firstSheet = sortedSheets[0];
   const label = firstSheet?.spreadsheetName || firstSheet?.spreadsheetId || 'Google Sheet';
 
-  nodeMap.set(sourceGroupId, { entryId: null, isSheet: false, sheetName: null });
+  // Workbook group node uses its own ID as entryId so it can participate in
+  // generic node maps and selections (even though it has no backing Drive entry).
+  nodeMap.set(sourceGroupId, { entryId: sourceGroupId, isSheet: false, sheetName: null });
   anyNodeIdToNodeTypeMap.set(sourceGroupId, 'file');
 
   return {

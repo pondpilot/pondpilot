@@ -19,6 +19,9 @@ const CREATE_SECRET_BLANKET =
 const CREDENTIAL_KEY_PATTERNS =
   /\b(CLIENT_SECRET|TOKEN|SECRET|KEY_ID|CLIENT_ID|PASSWORD|API_KEY|ACCESS_TOKEN|REFRESH_TOKEN)\s+['"][^'"]*['"]/gi;
 
+/** Bearer tokens in HTTP Authorization headers that may leak into error messages. */
+const BEARER_TOKEN_PATTERN = /\bBearer\s+[A-Za-z0-9._\-/+=~]+/gi;
+
 export function sanitizeErrorMessage(message: string): string {
   let sanitized = message;
 
@@ -33,6 +36,9 @@ export function sanitizeErrorMessage(message: string): string {
     }
     return '[REDACTED]';
   });
+
+  // Layer 3: redact Bearer tokens from HTTP Authorization headers
+  sanitized = sanitized.replace(BEARER_TOKEN_PATTERN, 'Bearer [REDACTED]');
 
   return sanitized;
 }
