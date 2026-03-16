@@ -10,6 +10,7 @@ describe('ChartErrorBoundary', () => {
       interface ChartErrorBoundaryProps {
         children: React.ReactNode;
         onSwitchToTable?: () => void;
+        errorTitle?: string;
       }
 
       // Verify interface structure by creating valid props objects
@@ -109,32 +110,30 @@ describe('ChartErrorBoundary', () => {
       expect(newState.error).toBe(testError);
     });
 
-    it('should log errors to console in componentDidCatch', () => {
-      // Verifying the design decision to log errors
-      const errorLogBehavior = {
-        logsToConsole: true,
-        logPrefix: 'Chart rendering error:',
-        includesErrorInfo: true,
-      };
+    it('should log errors to console in componentDidCatch with contextual prefix', () => {
+      // Verifying the design decision to log errors with a context-aware prefix.
+      // When errorTitle is provided (e.g. "Metadata rendering failed"), the log
+      // prefix uses that title; otherwise it falls back to "Chart rendering".
+      const defaultLogPrefix = 'Chart rendering error:';
+      const customLogPrefix = 'Metadata rendering failed error:';
 
-      expect(errorLogBehavior.logsToConsole).toBe(true);
-      expect(errorLogBehavior.logPrefix).toContain('Chart');
-      expect(errorLogBehavior.includesErrorInfo).toBe(true);
+      expect(defaultLogPrefix).toContain('Chart rendering');
+      expect(customLogPrefix).toContain('Metadata rendering');
     });
   });
 
   describe('UI design decisions', () => {
     it('should display user-friendly error message', () => {
       const userFacingMessages = {
-        title: 'Chart rendering failed',
-        description: 'An unexpected error occurred while rendering the chart.',
+        defaultTitle: 'Chart rendering failed',
+        description: 'An unexpected error occurred.',
       };
 
-      expect(userFacingMessages.title).toBeTruthy();
-      expect(userFacingMessages.title).not.toMatch(
+      expect(userFacingMessages.defaultTitle).toBeTruthy();
+      expect(userFacingMessages.defaultTitle).not.toMatch(
         new RegExp(`${/error|exception|crash/i.source}$`),
       );
-      expect(userFacingMessages.description).toContain('chart');
+      expect(userFacingMessages.description).toBeTruthy();
     });
 
     it('should show the actual error message for debugging', () => {

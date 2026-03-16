@@ -4,7 +4,10 @@ import {
   ChartAggregationType,
   ChartSortOrder,
   ColumnAggregateType,
+  ColumnDistribution,
+  ColumnStats,
   DataAdapterQueries,
+  MetadataColumnType,
 } from '@models/data-adapter';
 import {
   AnyDataSource,
@@ -197,6 +200,446 @@ function getGetChartAggregatedDataFromFQN(
   };
 }
 
+/**
+ * Maximum number of top values to return for text column distributions.
+ */
+const MAX_TOP_VALUES = 20;
+
+/**
+ * Number of histogram buckets for numeric/date column distributions.
+ */
+const NUM_HISTOGRAM_BUCKETS = 20;
+
+/**
+ * Builds a SQL query that computes summary statistics for multiple columns in a single pass.
+ * Returns one row per column with: column_name, total_count, distinct_count, null_count, min_value, max_value, mean_value.
+ */
+export function buildColumnStatsQuery(source: string, columnNames: string[]): string {
+  if (columnNames.length === 0) {
+    return 'SELECT NULL AS column_name, NULL AS total_count, NULL AS distinct_count, NULL AS null_count, NULL AS min_value, NULL AS max_value, NULL AS mean_value WHERE 1=0';
+  }
+
+  const perColumn = columnNames.map((name) => {
+    const col = toDuckDBIdentifier(name);
+    const nameStr = `'${name.replace(/'/g, "''")}'`;
+
+    return `SELECT
+      ${nameStr} AS column_name,
+      COUNT(*) AS total_count,
+      COUNT(DISTINCT ${col}) AS distinct_count,
+      COUNT(*) - COUNT(${col}) AS null_count,
+      CAST(MIN(${col}) AS VARCHAR) AS min_value,
+      CAST(MAX(${col}) AS VARCHAR) AS max_value,
+      CAST(AVG(TRY_CAST(${col} AS DOUBLE)) AS VARCHAR) AS mean_value
+    FROM ${source}`;
+  });
+
+  return perColumn.join('\nUNION ALL\n');
+}
+
+/**
+ * Builds a SQL query for numeric column distribution using equi-width buckets.
+ */
+export function buildNumericDistributionQuery(source: string, columnName: string): string {
+  const col = toDuckDBIdentifier(columnName);
+
+  return `WITH stats AS (
+  SELECT MIN(${col}) AS min_val, MAX(${col}) AS max_val FROM ${source} WHERE ${col} IS NOT NULL
+),
+buckets AS (
+  SELECT
+    CASE
+      WHEN stats.max_val = stats.min_val THEN 0
+      ELSE LEAST(
+        FLOOR((${col} - stats.min_val) / ((stats.max_val - stats.min_val) / ${NUM_HISTOGRAM_BUCKETS}.0)),
+        ${NUM_HISTOGRAM_BUCKETS} - 1
+      )
+    END AS bucket,
+    stats.min_val,
+    stats.max_val
+  FROM ${source}, stats
+  WHERE ${col} IS NOT NULL
+)
+SELECT
+  CAST(min_val + bucket * ((max_val - min_val) / ${NUM_HISTOGRAM_BUCKETS}.0) AS VARCHAR)
+    || ' - '
+    || CAST(min_val + (bucket + 1) * ((max_val - min_val) / ${NUM_HISTOGRAM_BUCKETS}.0) AS VARCHAR) AS label,
+  COUNT(*) AS count
+FROM buckets
+GROUP BY bucket, min_val, max_val
+ORDER BY bucket`;
+}
+
+/**
+ * Builds a SQL query for text column distribution (top N values by frequency).
+ */
+export function buildTextDistributionQuery(source: string, columnName: string): string {
+  const col = toDuckDBIdentifier(columnName);
+
+  return `SELECT
+  CAST(${col} AS VARCHAR) AS value,
+  COUNT(*) AS count
+FROM ${source}
+WHERE ${col} IS NOT NULL
+GROUP BY ${col}
+ORDER BY count DESC
+LIMIT ${MAX_TOP_VALUES}`;
+}
+
+/**
+ * Builds a SQL query for date/timestamp column distribution using auto time buckets.
+ * Uses a CASE expression for DATE_TRUNC because DuckDB requires a string literal
+ * (not a column reference) as the first argument.
+ */
+export function buildDateDistributionQuery(source: string, columnName: string): string {
+  const col = toDuckDBIdentifier(columnName);
+
+  return `WITH date_range AS (
+  SELECT
+    DATEDIFF('day', MIN(${col}), MAX(${col})) AS day_span
+  FROM ${source}
+  WHERE ${col} IS NOT NULL
+)
+SELECT
+  CAST(
+    CASE
+      WHEN dr.day_span <= 31 THEN DATE_TRUNC('day', ${col})
+      WHEN dr.day_span <= 365 THEN DATE_TRUNC('month', ${col})
+      ELSE DATE_TRUNC('year', ${col})
+    END
+  AS VARCHAR) AS label,
+  COUNT(*) AS count
+FROM ${source}, date_range dr
+WHERE ${col} IS NOT NULL
+GROUP BY label
+ORDER BY label`;
+}
+
+/**
+ * Parses column stats from an Arrow table result.
+ */
+function convertArrowToColumnStats(arrowTable: any): ColumnStats[] {
+  const result: ColumnStats[] = [];
+  const { numRows } = arrowTable;
+
+  for (let i = 0; i < numRows; i += 1) {
+    const columnName = arrowTable.getChildAt(0)?.get(i);
+    const totalCount = arrowTable.getChildAt(1)?.get(i);
+    const distinctCount = arrowTable.getChildAt(2)?.get(i);
+    const nullCount = arrowTable.getChildAt(3)?.get(i);
+    const minValue = arrowTable.getChildAt(4)?.get(i);
+    const maxValue = arrowTable.getChildAt(5)?.get(i);
+    const meanValue = arrowTable.getChildAt(6)?.get(i);
+
+    result.push({
+      columnName: String(columnName),
+      totalCount: Number(totalCount),
+      distinctCount: Number(distinctCount),
+      nullCount: Number(nullCount),
+      min: minValue != null ? String(minValue) : null,
+      max: maxValue != null ? String(maxValue) : null,
+      mean: meanValue != null ? String(meanValue) : null,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Parses distribution data from an Arrow table result.
+ */
+function convertArrowToDistribution(
+  arrowTable: any,
+  columnType: MetadataColumnType,
+): ColumnDistribution {
+  const { numRows } = arrowTable;
+
+  if (columnType === 'text') {
+    const values: ColumnDistribution & { type: 'text' } = { type: 'text', values: [] };
+    for (let i = 0; i < numRows; i += 1) {
+      const value = arrowTable.getChildAt(0)?.get(i);
+      const count = arrowTable.getChildAt(1)?.get(i);
+      if (value != null) {
+        values.values.push({ value: String(value), count: Number(count) });
+      }
+    }
+    return values;
+  }
+
+  const buckets: ColumnDistribution & { type: 'numeric' | 'date' } = {
+    type: columnType,
+    buckets: [],
+  };
+  for (let i = 0; i < numRows; i += 1) {
+    const label = arrowTable.getChildAt(0)?.get(i);
+    const count = arrowTable.getChildAt(1)?.get(i);
+    if (label != null) {
+      buckets.buckets.push({ label: String(label), count: Number(count) });
+    }
+  }
+  return buckets;
+}
+
+/**
+ * Builds a SUMMARIZE query that returns one row per column with built-in stats.
+ */
+export function buildSummarizeQuery(source: string): string {
+  return `SUMMARIZE SELECT * FROM ${source}`;
+}
+
+/**
+ * Converts the Arrow table returned by SUMMARIZE into ColumnStats[].
+ * SUMMARIZE columns: column_name, column_type, min, max, approx_unique, avg, std, q25, q50, q75, count, null_percentage
+ */
+export function convertArrowToColumnStatsFromSummarize(arrowTable: any): ColumnStats[] {
+  const result: ColumnStats[] = [];
+  const { numRows } = arrowTable;
+
+  // Find column indices by name from the schema
+  const { schema } = arrowTable;
+  const fieldIndex = (name: string): number => {
+    for (let i = 0; i < schema.fields.length; i += 1) {
+      if (schema.fields[i].name === name) return i;
+    }
+    return -1;
+  };
+
+  const colNameIdx = fieldIndex('column_name');
+  const countIdx = fieldIndex('count');
+  const approxUniqueIdx = fieldIndex('approx_unique');
+  const nullPctIdx = fieldIndex('null_percentage');
+  const minIdx = fieldIndex('min');
+  const maxIdx = fieldIndex('max');
+  const avgIdx = fieldIndex('avg');
+
+  for (let i = 0; i < numRows; i += 1) {
+    const columnName = String(arrowTable.getChildAt(colNameIdx)?.get(i));
+    const count = Number(arrowTable.getChildAt(countIdx)?.get(i));
+    const approxUnique = Number(arrowTable.getChildAt(approxUniqueIdx)?.get(i));
+
+    const nullPctRaw = arrowTable.getChildAt(nullPctIdx)?.get(i);
+    const nullPct = nullPctRaw != null ? parseFloat(String(nullPctRaw).replace('%', '')) : 0;
+    const nullCount = Math.round((nullPct / 100) * count);
+
+    const minVal = arrowTable.getChildAt(minIdx)?.get(i);
+    const maxVal = arrowTable.getChildAt(maxIdx)?.get(i);
+    const avgVal = arrowTable.getChildAt(avgIdx)?.get(i);
+
+    result.push({
+      columnName,
+      totalCount: count,
+      distinctCount: approxUnique,
+      nullCount,
+      min: minVal != null ? String(minVal) : null,
+      max: maxVal != null ? String(maxVal) : null,
+      mean: avgVal != null ? String(avgVal) : null,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Builds a single UNION ALL query that computes distributions for all columns at once.
+ * Each subquery includes a `column_name` discriminator. All subqueries produce
+ * columns: column_name, label, count.
+ */
+export function buildAllDistributionsQuery(
+  source: string,
+  columns: Array<{ name: string; type: MetadataColumnType }>,
+): string {
+  if (columns.length === 0) {
+    return 'SELECT NULL AS column_name, NULL AS label, NULL AS count WHERE 1=0';
+  }
+
+  const subqueries = columns.map((col) => {
+    const nameStr = `'${col.name.replace(/'/g, "''")}'`;
+
+    const sub = (() => {
+      switch (col.type) {
+        case 'numeric':
+          return buildNumericDistributionQuery(source, col.name);
+        case 'date':
+          return buildDateDistributionQuery(source, col.name);
+        case 'text':
+          return buildTextDistributionQuery(source, col.name);
+      }
+    })();
+
+    const labelAlias = col.type === 'text' ? 'value AS label' : 'label';
+
+    return `SELECT ${nameStr} AS column_name, ${labelAlias}, count FROM (${sub})`;
+  });
+
+  return subqueries.join('\nUNION ALL\n');
+}
+
+/**
+ * Converts the Arrow table from a combined distribution query into a Map of distributions.
+ * The Arrow table has columns: column_name, label, count.
+ */
+export function convertArrowToAllDistributions(
+  arrowTable: any,
+  columns: Array<{ name: string; type: MetadataColumnType }>,
+): Map<string, ColumnDistribution> {
+  const result = new Map<string, ColumnDistribution>();
+  const { numRows } = arrowTable;
+
+  // Build a type lookup
+  const typeMap = new Map<string, MetadataColumnType>();
+  for (const col of columns) {
+    typeMap.set(col.name, col.type);
+  }
+
+  // Group rows by column_name
+  const grouped = new Map<string, Array<{ label: string; count: number }>>();
+  for (let i = 0; i < numRows; i += 1) {
+    const colName = String(arrowTable.getChildAt(0)?.get(i));
+    const label = arrowTable.getChildAt(1)?.get(i);
+    const count = Number(arrowTable.getChildAt(2)?.get(i));
+
+    if (label == null) continue;
+
+    if (!grouped.has(colName)) {
+      grouped.set(colName, []);
+    }
+    grouped.get(colName)!.push({ label: String(label), count });
+  }
+
+  // Convert grouped rows to ColumnDistribution
+  for (const [colName, rows] of grouped) {
+    const colType = typeMap.get(colName);
+    if (!colType) continue;
+
+    if (colType === 'text') {
+      result.set(colName, {
+        type: 'text',
+        values: rows.map((r) => ({ value: r.label, count: r.count })),
+      });
+    } else {
+      result.set(colName, {
+        type: colType,
+        buckets: rows.map((r) => ({ label: r.label, count: r.count })),
+      });
+    }
+  }
+
+  return result;
+}
+
+function getGetColumnStatsFromFQN(
+  pool: AsyncDuckDBConnectionPool,
+  fqn: string,
+): DataAdapterQueries['getColumnStats'] {
+  return async (columnNames: string[], abortSignal: AbortSignal) => {
+    if (columnNames.length === 0) {
+      return { value: [], aborted: false };
+    }
+
+    // Try SUMMARIZE first for better performance (single table scan)
+    try {
+      const summarizeQuery = buildSummarizeQuery(fqn);
+      const { value, aborted } = await pool.queryAbortable(summarizeQuery, abortSignal);
+
+      if (aborted) {
+        return { value: [], aborted };
+      }
+
+      const allStats = convertArrowToColumnStatsFromSummarize(value);
+      // Filter to only requested columns
+      const requestedSet = new Set(columnNames);
+      const filtered = allStats.filter((s) => requestedSet.has(s.columnName));
+      return { value: filtered, aborted };
+    } catch {
+      // Fallback to the original UNION ALL approach
+      const query = buildColumnStatsQuery(fqn, columnNames);
+      const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+
+      if (aborted) {
+        return { value: [], aborted };
+      }
+      return { value: convertArrowToColumnStats(value), aborted };
+    }
+  };
+}
+
+/**
+ * Maximum number of columns per batch distribution query.
+ * Each subquery (especially numeric/date with CTEs and cross-joins) consumes
+ * significant memory in DuckDB WASM; batching avoids Out of Memory errors
+ * while still reducing round-trips from N to N/BATCH_SIZE.
+ */
+const DISTRIBUTION_BATCH_SIZE = 10;
+
+function getGetAllColumnDistributionsFromFQN(
+  pool: AsyncDuckDBConnectionPool,
+  fqn: string,
+): DataAdapterQueries['getAllColumnDistributions'] {
+  return async (
+    columns: Array<{ name: string; type: MetadataColumnType }>,
+    abortSignal: AbortSignal,
+  ) => {
+    if (columns.length === 0) {
+      return { value: new Map(), aborted: false };
+    }
+
+    const result = new Map<string, ColumnDistribution>();
+
+    // Process columns in chunks to avoid OOM in DuckDB WASM
+    for (let i = 0; i < columns.length; i += DISTRIBUTION_BATCH_SIZE) {
+      const chunk = columns.slice(i, i + DISTRIBUTION_BATCH_SIZE);
+      const query = buildAllDistributionsQuery(fqn, chunk);
+      const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+
+      if (aborted) {
+        return { value: result, aborted };
+      }
+
+      const chunkDistributions = convertArrowToAllDistributions(value, chunk);
+      for (const [key, dist] of chunkDistributions) {
+        result.set(key, dist);
+      }
+    }
+
+    return { value: result, aborted: false };
+  };
+}
+
+function getGetColumnDistributionFromFQN(
+  pool: AsyncDuckDBConnectionPool,
+  fqn: string,
+): DataAdapterQueries['getColumnDistribution'] {
+  return async (columnName: string, columnType: MetadataColumnType, abortSignal: AbortSignal) => {
+    let query: string;
+
+    switch (columnType) {
+      case 'numeric':
+        query = buildNumericDistributionQuery(fqn, columnName);
+        break;
+      case 'date':
+        query = buildDateDistributionQuery(fqn, columnName);
+        break;
+      case 'text':
+        query = buildTextDistributionQuery(fqn, columnName);
+        break;
+    }
+
+    const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+
+    if (aborted) {
+      return {
+        value:
+          columnType === 'text'
+            ? { type: 'text' as const, values: [] }
+            : { type: columnType, buckets: [] },
+        aborted,
+      };
+    }
+
+    return { value: convertArrowToDistribution(value, columnType), aborted };
+  };
+}
+
 function getFlatFileDataAdapterQueries(
   pool: AsyncDuckDBConnectionPool,
   dataSource: AnyFlatFileDataSource,
@@ -211,6 +654,9 @@ function getFlatFileDataAdapterQueries(
     getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
     getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
     getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
+    getColumnStats: getGetColumnStatsFromFQN(pool, fqn),
+    getColumnDistribution: getGetColumnDistributionFromFQN(pool, fqn),
+    getAllColumnDistributions: getGetAllColumnDistributionsFromFQN(pool, fqn),
   };
 
   if (dataSource.type === 'parquet') {
@@ -291,6 +737,9 @@ function getDatabaseDataAdapterApi(
       getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
       getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
       getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
+      getColumnStats: getGetColumnStatsFromFQN(pool, fqn),
+      getColumnDistribution: getGetColumnDistributionFromFQN(pool, fqn),
+      getAllColumnDistributions: getGetAllColumnDistributionsFromFQN(pool, fqn),
     },
     userErrors: [],
     internalErrors: [],
@@ -534,6 +983,15 @@ export function getScriptAdapterQueries({
 
             return { value: convertArrowToChartData(value, groupByColumn !== null), aborted };
           }
+        : undefined,
+      getColumnStats: classifiedStmt.isAllowedInSubquery
+        ? getGetColumnStatsFromFQN(pool, `(${trimmedQuery})`)
+        : undefined,
+      getColumnDistribution: classifiedStmt.isAllowedInSubquery
+        ? getGetColumnDistributionFromFQN(pool, `(${trimmedQuery})`)
+        : undefined,
+      getAllColumnDistributions: classifiedStmt.isAllowedInSubquery
+        ? getGetAllColumnDistributionsFromFQN(pool, `(${trimmedQuery})`)
         : undefined,
     },
     userErrors: [],

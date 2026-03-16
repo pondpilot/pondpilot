@@ -817,10 +817,10 @@ export const updateScriptTabLayout = (
 };
 
 /**
- * Updates the view mode (table/chart) for a tab's data view.
+ * Updates the view mode (table/chart/metadata) for a tab's data view.
  *
  * @param tabId - The ID of the tab to update.
- * @param viewMode - The view mode to set ('table' or 'chart').
+ * @param viewMode - The view mode to set ('table', 'chart', or 'metadata').
  */
 export const updateTabViewMode = (tabId: TabId, viewMode: ViewMode): void => {
   const { tabs } = useAppStore.getState();

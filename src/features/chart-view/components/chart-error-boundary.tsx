@@ -5,6 +5,8 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 interface ChartErrorBoundaryProps {
   children: ReactNode;
   onSwitchToTable?: () => void;
+  /** Custom title shown when an error is caught (defaults to "Chart rendering failed") */
+  errorTitle?: string;
 }
 
 interface ChartErrorBoundaryState {
@@ -26,7 +28,7 @@ export class ChartErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Chart rendering error:', error, errorInfo);
+    console.error(`${this.props.errorTitle ?? 'Chart rendering'} error:`, error, errorInfo);
   }
 
   handleRetry = () => {
@@ -47,11 +49,10 @@ export class ChartErrorBoundary extends Component<
               <IconAlertTriangle size={24} />
             </ThemeIcon>
             <Text fw={500} size="sm">
-              Chart rendering failed
+              {this.props.errorTitle ?? 'Chart rendering failed'}
             </Text>
             <Text c="dimmed" size="xs" maw={300} ta="center">
-              {this.state.error?.message ||
-                'An unexpected error occurred while rendering the chart.'}
+              {this.state.error?.message || 'An unexpected error occurred.'}
             </Text>
             <Stack gap="xs" mt="xs">
               <Button size="xs" variant="outline" onClick={this.handleRetry}>

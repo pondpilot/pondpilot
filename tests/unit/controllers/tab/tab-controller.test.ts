@@ -99,6 +99,34 @@ describe('tab-controller', () => {
       expect(updatedTab?.dataViewStateCache?.dataViewPage).toBe(5);
     });
 
+    it('should update viewMode to metadata', () => {
+      const existingTab: ScriptTab = {
+        type: 'script',
+        id: testTabId,
+        sqlScriptId: 'script-1' as any,
+        dataViewPaneHeight: 300,
+        editorPaneHeight: 500,
+        lastExecutedQuery: null,
+        dataViewStateCache: {
+          dataViewPage: 0,
+          tableColumnSizes: null,
+          sort: null,
+          staleData: null,
+          viewMode: 'table',
+          chartConfig: null,
+        },
+      };
+      mockTabs.set(testTabId, existingTab);
+
+      updateTabViewMode(testTabId, 'metadata');
+
+      expect(mockSetState).toHaveBeenCalledTimes(1);
+      const stateUpdate = mockSetState.mock.calls[0][0] as { tabs: Map<TabId, AnyTab> };
+      const updatedTab = stateUpdate.tabs.get(testTabId);
+
+      expect(updatedTab?.dataViewStateCache?.viewMode).toBe('metadata');
+    });
+
     it('should create dataViewStateCache if it does not exist', () => {
       const existingTab: ScriptTab = {
         type: 'script',
