@@ -1,10 +1,10 @@
 import { showError } from '@components/app-notifications';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { Stack, TextInput, Text, Button, Group, Radio, Loader, Alert, Anchor } from '@mantine/core';
+import { Stack, TextInput, Text, Button, Group, Radio, Loader } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import type { GSheetAccessMode } from '@models/data-source';
 import { requestGoogleAccessToken } from '@services/google-identity-services';
-import { IconCheck, IconInfoCircle } from '@tabler/icons-react';
+import { IconBrandGoogle, IconCheck } from '@tabler/icons-react';
 import { getGoogleOAuthClientId } from '@utils/google-oauth-config';
 import { useState, useCallback } from 'react';
 
@@ -12,11 +12,11 @@ import { useGSheetConnection } from '../hooks/use-gsheet-connection';
 
 interface GoogleSheetConfigProps {
   pool: AsyncDuckDBConnectionPool | null;
-  onBack: () => void;
   onClose: () => void;
+  onNavigate?: (path: string) => void;
 }
 
-export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigProps) {
+export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConfigProps) {
   const [sheetRef, setSheetRef] = useInputState('');
   const [connectionName, setConnectionName] = useInputState('');
   const [accessToken, setAccessToken] = useInputState('');
@@ -68,10 +68,13 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
   }, [clientId, setAccessToken]);
 
   const handleOpenSettings = useCallback(() => {
-    onClose();
-    // Navigate via full page load since the modal renders outside the Router
-    window.location.href = '/settings';
-  }, [onClose]);
+    if (onNavigate) {
+      onNavigate('/settings#google-sheets');
+    } else {
+      onClose();
+      window.location.href = '/settings#google-sheets';
+    }
+  }, [onClose, onNavigate]);
 
   return (
     <Stack gap={16}>
@@ -115,25 +118,16 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
           </Group>
         </Radio.Group>
 
-        {accessMode === 'oauth' && !hasClientId && (
-          <Alert icon={<IconInfoCircle size={16} />} color="yellow" variant="light">
-            <Text size="sm">
-              Google Sign-In requires a Client ID.{' '}
-              <Anchor component="button" size="sm" onClick={handleOpenSettings}>
-                Configure it in Settings
-              </Anchor>
-            </Text>
-          </Alert>
-        )}
-
-        {accessMode === 'oauth' && hasClientId && !oauthAuthenticated && (
+        {accessMode === 'oauth' && !oauthAuthenticated && (
           <Button
             variant="outline"
-            onClick={handleOAuthSignIn}
+            size="md"
+            leftSection={<IconBrandGoogle size={18} />}
+            onClick={hasClientId ? handleOAuthSignIn : handleOpenSettings}
             loading={isAuthenticating}
             disabled={isAuthenticating}
           >
-            Sign in with Google
+            {hasClientId ? 'Sign in with Google' : 'Configure Google Sign-In in Settings'}
           </Button>
         )}
 
@@ -181,9 +175,6 @@ export function GoogleSheetConfig({ pool, onBack, onClose }: GoogleSheetConfigPr
       </Stack>
 
       <Group justify="end" className="mt-4">
-        <Button variant="transparent" onClick={onBack}>
-          Cancel
-        </Button>
         <Button
           variant="outline"
           onClick={handleTest}

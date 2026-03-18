@@ -1,36 +1,55 @@
-import { Alert, Button, Group, Stack, Text, TextInput } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Stack, Text, TextInput } from '@mantine/core';
 import { IconInfoCircle, IconShieldCheck } from '@tabler/icons-react';
 import { getGoogleOAuthClientId, saveGoogleOAuthClientId } from '@utils/google-oauth-config';
 import { useCallback, useState } from 'react';
 
 export const GoogleIntegrationSettings = () => {
-  const [clientId, setClientId] = useState(() => getGoogleOAuthClientId());
-  const [hasChanges, setHasChanges] = useState(false);
+  const savedClientId = getGoogleOAuthClientId();
+  const [clientId, setClientId] = useState(() => savedClientId);
+  const [isEditing, setIsEditing] = useState(() => savedClientId.length === 0);
+  const hasValue = savedClientId.length > 0;
 
   const handleClientIdChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setClientId(event.currentTarget.value);
-    setHasChanges(true);
   }, []);
 
   const handleSave = useCallback(() => {
     saveGoogleOAuthClientId(clientId);
-    setHasChanges(false);
+    setIsEditing(false);
   }, [clientId]);
 
-  const handleReset = useCallback(() => {
+  const handleCancel = useCallback(() => {
     setClientId(getGoogleOAuthClientId());
-    setHasChanges(false);
+    setIsEditing(false);
   }, []);
 
   return (
     <Stack className="gap-4">
-      <TextInput
-        label="Google OAuth Client ID"
-        description="Used to authenticate with Google Sheets via the Sign-In popup"
-        placeholder="123456789.apps.googleusercontent.com"
-        value={clientId}
-        onChange={handleClientIdChange}
-      />
+      <Group align="end" gap="xs" wrap="nowrap">
+        <TextInput
+          label="Google OAuth Client ID"
+          description="Used to authenticate with Google Sheets via the Sign-In popup"
+          placeholder="123456789.apps.googleusercontent.com"
+          value={clientId}
+          onChange={handleClientIdChange}
+          disabled={!isEditing}
+          className="flex-1"
+        />
+        {isEditing ? (
+          <Group gap="xs" wrap="nowrap">
+            <Button size="md" onClick={handleSave}>
+              Save
+            </Button>
+            <Button size="md" variant="subtle" color="gray" onClick={handleCancel}>
+              Cancel
+            </Button>
+          </Group>
+        ) : (
+          <Button size="md" variant="outline" onClick={() => setIsEditing(true)}>
+            Edit
+          </Button>
+        )}
+      </Group>
 
       <Alert icon={<IconInfoCircle size={16} />} color="background-accent" variant="light">
         <Stack gap="xs">
@@ -39,10 +58,16 @@ export const GoogleIntegrationSettings = () => {
           </Text>
           <Text size="sm" component="ol" className="list-decimal pl-4">
             <li>
+              Create or select a project in{' '}
+              <Anchor href="https://console.cloud.google.com/" target="_blank" c="blue">
+                Google Cloud Console
+              </Anchor>
+            </li>
+            <li>
               Go to{' '}
-              <Text span fw={500}>
-                Google Cloud Console → APIs &amp; Services → Credentials
-              </Text>
+              <Anchor href="https://console.cloud.google.com/apis/credentials" target="_blank" c="blue">
+                APIs &amp; Services → Credentials
+              </Anchor>
             </li>
             <li>
               Create an{' '}
@@ -76,14 +101,6 @@ export const GoogleIntegrationSettings = () => {
         </Text>
       </Alert>
 
-      <Group justify="space-between" className="mt-2">
-        <Group>{hasChanges && <Button onClick={handleSave}>Save Changes</Button>}</Group>
-        {hasChanges && (
-          <Button color="text-error" onClick={handleReset} variant="outline">
-            Reset
-          </Button>
-        )}
-      </Group>
     </Stack>
   );
 };
