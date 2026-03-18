@@ -28,6 +28,7 @@ import { validateJSON, validateCSV } from './utils/clipboard-import';
 
 interface DatasourceWizardModalProps {
   onClose: () => void;
+  onNavigate?: (path: string) => void;
   pool: AsyncDuckDBConnectionPool | null;
   handleAddFolder: () => Promise<void>;
   handleAddFile: () => Promise<void>;
@@ -67,6 +68,7 @@ const getStepTitle = (step: WizardStep): string => {
 
 export function DatasourceWizardModal({
   onClose,
+  onNavigate,
   initialStep = 'selection',
   pool,
   handleAddFolder,
@@ -534,7 +536,7 @@ export function DatasourceWizardModal({
       )}
 
       {step === 'gsheet-config' && (
-        <GoogleSheetConfig onBack={handleBack} onClose={onClose} pool={pool} />
+        <GoogleSheetConfig onClose={onClose} onNavigate={onNavigate} pool={pool} />
       )}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (
