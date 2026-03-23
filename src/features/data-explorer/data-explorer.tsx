@@ -62,7 +62,7 @@ export const DataExplorer = memo(() => {
   } = useDataExplorerData();
 
   // Separate databases by type
-  const { systemDatabase, localDatabases, remoteDatabases, icebergCatalogs } =
+  const { systemDatabase, localDatabases, remoteDatabases, icebergCatalogs, duckLakeCatalogs } =
     useDatabaseSeparation(allDataSources);
 
   // Build file system tree
@@ -101,17 +101,19 @@ export const DataExplorer = memo(() => {
     const hasLocalDbs = localDatabases.length > 0;
     const hasRemoteDbs = remoteDatabases.length > 0;
     const hasIcebergCatalogs = icebergCatalogs.length > 0;
+    const hasDuckLakeCatalogs = duckLakeCatalogs.length > 0;
 
     return {
       files: hasFiles,
       databases: hasLocalDbs,
-      remote: hasRemoteDbs || hasIcebergCatalogs,
+      remote: hasRemoteDbs || hasIcebergCatalogs || hasDuckLakeCatalogs,
     };
   }, [
     fileSystemNodes.length,
     localDatabases.length,
     remoteDatabases.length,
     icebergCatalogs.length,
+    duckLakeCatalogs.length,
   ]);
 
   // Build database nodes
@@ -119,6 +121,7 @@ export const DataExplorer = memo(() => {
     localDbNodes,
     remoteDatabaseNodes,
     icebergCatalogNodes,
+    duckLakeCatalogNodes,
     systemDbNode,
     systemDbNodeForDisplay,
   } = useBuildNodes({
@@ -126,6 +129,7 @@ export const DataExplorer = memo(() => {
     localDatabases,
     remoteDatabases,
     icebergCatalogs,
+    duckLakeCatalogs,
     nodeMap,
     anyNodeIdToNodeTypeMap,
     conn,
@@ -145,6 +149,7 @@ export const DataExplorer = memo(() => {
     ...localDbNodes,
     ...remoteDatabaseNodes,
     ...icebergCatalogNodes,
+    ...duckLakeCatalogNodes,
   ];
 
   // Actions
@@ -194,7 +199,8 @@ export const DataExplorer = memo(() => {
           !dataSource ||
           (dataSource.type !== 'attached-db' &&
             dataSource.type !== 'remote-db' &&
-            dataSource.type !== 'iceberg-catalog')
+            dataSource.type !== 'iceberg-catalog' &&
+            dataSource.type !== 'ducklake-catalog')
         ) {
           return null;
         }
@@ -299,6 +305,7 @@ export const DataExplorer = memo(() => {
     localDbNodes,
     remoteDatabaseNodes,
     icebergCatalogNodes,
+    duckLakeCatalogNodes,
     activeFilter,
     fileTypeFilter,
     searchQuery,
@@ -344,6 +351,8 @@ export const DataExplorer = memo(() => {
         remoteDbNodes={filteredSections.filteredRemoteDbNodes}
         showIcebergCatalogs={filteredSections.showIcebergCatalogs}
         icebergCatalogNodes={filteredSections.filteredIcebergCatalogNodes}
+        showDuckLakeCatalogs={filteredSections.showDuckLakeCatalogs}
+        duckLakeCatalogNodes={filteredSections.filteredDuckLakeCatalogNodes}
         initialExpandedState={initialExpandedState}
         searchExpandedState={searchExpandedState}
         extraData={enhancedExtraData}

@@ -9,6 +9,7 @@ import {
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
+  DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
   RemoteDB,
@@ -252,7 +253,7 @@ function getFlatFileDataAdapterQueries(
 // for database operations (both have dbName and dbType fields)
 function getDatabaseDataAdapterApi(
   pool: AsyncDuckDBConnectionPool,
-  dataSource: LocalDB | RemoteDB | IcebergCatalog,
+  dataSource: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog,
   tab: TabReactiveState<LocalDBDataTab>,
 ): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
   const rawDbName = getDatabaseIdentifier(dataSource);
@@ -425,6 +426,28 @@ export function getFileDataAdapterQueries({
     }
 
     // Iceberg catalogs use the same logic as other databases
+    return getDatabaseDataAdapterApi(pool, dataSource, tab);
+  }
+
+  if (dataSource.type === 'ducklake-catalog') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating a DuckLake catalog data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: [`DuckLake catalog '${dataSource.catalogAlias}' is not connected`],
+        internalErrors: [],
+      };
+    }
+
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 

@@ -211,6 +211,16 @@ export const deleteDataSources = async (
       continue;
     }
 
+    if (dataSource.type === 'ducklake-catalog') {
+      // For DuckLake catalogs, just detach
+      try {
+        detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.url);
+      } catch (detachError) {
+        console.warn('Failed to detach DuckLake catalog during deletion:', detachError);
+      }
+      continue;
+    }
+
     if (!('fileSourceId' in dataSource)) {
       continue;
     }

@@ -11,7 +11,11 @@ import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry } from '@utils/connection-manager';
-import { isRemoteDatabase, isIcebergCatalog } from '@utils/data-source';
+import { isRemoteDatabase, isIcebergCatalog, isDuckLakeCatalog } from '@utils/data-source';
+import {
+  attachAndVerifyDuckLakeCatalog,
+  updateDuckLakeConnectionState,
+} from '@utils/ducklake-catalog';
 import {
   attachAndVerifyIcebergCatalog,
   resolveIcebergCredentials,
@@ -72,6 +76,40 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
         const sanitized = sanitizeErrorMessage(errorMessage);
         console.warn(`Failed to reconnect iceberg catalog ${dataSource.catalogAlias}:`, sanitized);
         updateIcebergCatalogConnectionState(id, 'error', sanitized);
+      }
+      continue;
+    }
+
+    if (isDuckLakeCatalog(dataSource)) {
+      try {
+        updateDuckLakeConnectionState(id, 'connecting');
+
+        await attachAndVerifyDuckLakeCatalog({
+          pool: conn,
+          url: dataSource.url,
+          catalogAlias: dataSource.catalogAlias,
+          readOnly: dataSource.readOnly ?? true,
+          useCorsProxy: dataSource.useCorsProxy ?? false,
+          settleDelayMs: 0,
+          maxVerifyAttempts: 3,
+        });
+
+        updateDuckLakeConnectionState(id, 'connected');
+        connectedDatabases.push(dataSource.catalogAlias);
+      } catch (error) {
+        let errorMessage: string;
+
+        if (error instanceof MaxRetriesExceededError) {
+          errorMessage = `Connection timeout after ${error.attempts} attempts: ${error.lastError.message}`;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = String(error);
+        }
+
+        const sanitized = sanitizeErrorMessage(errorMessage);
+        console.warn(`Failed to reconnect DuckLake catalog ${dataSource.catalogAlias}:`, sanitized);
+        updateDuckLakeConnectionState(id, 'error', sanitized);
       }
       continue;
     }

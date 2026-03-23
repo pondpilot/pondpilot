@@ -1,4 +1,5 @@
 import {
+  DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
   RemoteDB,
@@ -13,6 +14,7 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
     const localDbs: LocalDB[] = [];
     const remoteDbs: RemoteDB[] = [];
     const icebergCatalogs: IcebergCatalog[] = [];
+    const duckLakeCatalogs: DuckLakeCatalog[] = [];
 
     allDataSources.forEach((dataSource) => {
       if (dataSource.type === 'attached-db') {
@@ -25,6 +27,8 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
         remoteDbs.push(dataSource);
       } else if (dataSource.type === 'iceberg-catalog') {
         icebergCatalogs.push(dataSource);
+      } else if (dataSource.type === 'ducklake-catalog') {
+        duckLakeCatalogs.push(dataSource);
       }
     });
 
@@ -32,12 +36,14 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
     localDbs.sort((a, b) => a.dbName.localeCompare(b.dbName));
     remoteDbs.sort((a, b) => a.dbName.localeCompare(b.dbName));
     icebergCatalogs.sort((a, b) => a.catalogAlias.localeCompare(b.catalogAlias));
+    duckLakeCatalogs.sort((a, b) => a.catalogAlias.localeCompare(b.catalogAlias));
 
     return {
       systemDatabase: systemDb,
       localDatabases: localDbs,
       remoteDatabases: remoteDbs,
       icebergCatalogs,
+      duckLakeCatalogs,
     };
   }, [allDataSources]);
 };

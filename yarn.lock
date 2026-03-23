@@ -1538,13 +1538,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@duckdb/duckdb-wasm@npm:1.33.1-dev18.0":
-  version: 1.33.1-dev18.0
-  resolution: "@duckdb/duckdb-wasm@npm:1.33.1-dev18.0"
+"@duckdb/duckdb-wasm@npm:1.33.1-dev38.0":
+  version: 1.33.1-dev38.0
+  resolution: "@duckdb/duckdb-wasm@npm:1.33.1-dev38.0"
   dependencies:
     apache-arrow: "npm:^17.0.0"
     qs: "npm:^6.14.1"
-  checksum: 10c0/22ab00d521c05db44b82f0291d77846178bc878aca95492813541aa817e810f447fe6f19f633f1af5820ae9d914ccadd350537bfa02892fb63dbdd0bcd1e34f2
+  checksum: 10c0/8ac77972e9dc00e90ff541af91b33dfef701fc1d3c7ceea340731111e9c772ca2833828e3afc756690c92fa2c22d63b834aea776fa4f91aaf581568d13b12353
   languageName: node
   linkType: hard
 
@@ -4878,9 +4878,9 @@ __metadata:
   linkType: hard
 
 "caniuse-lite@npm:^1.0.30001688, caniuse-lite@npm:^1.0.30001702":
-  version: 1.0.30001731
-  resolution: "caniuse-lite@npm:1.0.30001731"
-  checksum: 10c0/d8cddf817d5bec8e7c2106affdbf1bfc3923463ca16697c992b2efeb043e6a5d9dcb70cda913bc6acf9112fd66f9e80279316c08e7800359116925066a63fdfa
+  version: 1.0.30001781
+  resolution: "caniuse-lite@npm:1.0.30001781"
+  checksum: 10c0/79e77d8759a55e90f0f5db96ab9e7925c7b2e3021f77852e647e45f64f7dc701954174188438e84b810824afc16d706c64a38f20f9c1ed9ac174b6362d33325f
   languageName: node
   linkType: hard
 
@@ -10177,7 +10177,7 @@ __metadata:
     "@dnd-kit/modifiers": "npm:^9.0.0"
     "@dnd-kit/sortable": "npm:^10.0.0"
     "@dnd-kit/utilities": "npm:^3.2.2"
-    "@duckdb/duckdb-wasm": "npm:1.33.1-dev18.0"
+    "@duckdb/duckdb-wasm": "npm:1.33.1-dev38.0"
     "@hello-pangea/dnd": "npm:^17.0.0"
     "@mantine/core": "npm:^8.2.3"
     "@mantine/hooks": "npm:^8.2.3"

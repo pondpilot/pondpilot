@@ -1,6 +1,7 @@
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
+  DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
   PersistentDataSourceId,
@@ -33,7 +34,12 @@ export function ensureFlatFileDataSource(
     obj = dataSourceOrId;
   }
 
-  if (obj.type === 'attached-db' || obj.type === 'remote-db' || obj.type === 'iceberg-catalog') {
+  if (
+    obj.type === 'attached-db' ||
+    obj.type === 'remote-db' ||
+    obj.type === 'iceberg-catalog' ||
+    obj.type === 'ducklake-catalog'
+  ) {
     throw new Error(`Data source with id ${obj.id} is not a flat file data source`);
   }
 
@@ -66,9 +72,9 @@ export function ensureLocalDBDataSource(
 }
 
 export function ensureDatabaseDataSource(
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
+  dataSourceOrId: DatabaseDataSource | PersistentDataSourceId,
   dataSources: Map<PersistentDataSourceId, AnyDataSource>,
-): LocalDB | RemoteDB | IcebergCatalog {
+): DatabaseDataSource {
   let obj: AnyDataSource;
 
   if (typeof dataSourceOrId === 'string') {
@@ -83,11 +89,11 @@ export function ensureDatabaseDataSource(
     obj = dataSourceOrId;
   }
 
-  if (obj.type !== 'attached-db' && obj.type !== 'remote-db' && obj.type !== 'iceberg-catalog') {
+  if (!isDatabaseDataSource(obj)) {
     throw new Error(`Data source with id ${obj.id} is not a database data source`);
   }
 
-  return obj as LocalDB | RemoteDB | IcebergCatalog;
+  return obj;
 }
 
 export function addFlatFileDataSource(
@@ -201,22 +207,29 @@ export function isIcebergCatalog(dataSource: AnyDataSource): dataSource is Icebe
   return dataSource.type === 'iceberg-catalog';
 }
 
-export type DatabaseDataSource = LocalDB | RemoteDB | IcebergCatalog;
+export function isDuckLakeCatalog(dataSource: AnyDataSource): dataSource is DuckLakeCatalog {
+  return dataSource.type === 'ducklake-catalog';
+}
+
+export type DatabaseDataSource = LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog;
 
 export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is DatabaseDataSource {
   return (
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
-    dataSource.type === 'iceberg-catalog'
+    dataSource.type === 'iceberg-catalog' ||
+    dataSource.type === 'ducklake-catalog'
   );
 }
 
 /**
  * Returns the DuckDB database name for a database data source.
- * For iceberg catalogs this is the catalog alias; for others, the dbName.
+ * For iceberg/ducklake catalogs this is the catalog alias; for others, the dbName.
  */
 export function getDatabaseIdentifier(dataSource: DatabaseDataSource): string {
-  return dataSource.type === 'iceberg-catalog' ? dataSource.catalogAlias : dataSource.dbName;
+  if (dataSource.type === 'iceberg-catalog') return dataSource.catalogAlias;
+  if (dataSource.type === 'ducklake-catalog') return dataSource.catalogAlias;
+  return dataSource.dbName;
 }
 
 export function getFlatFileDataSourceFromMap(
