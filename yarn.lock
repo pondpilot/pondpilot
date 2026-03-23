@@ -1538,13 +1538,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@duckdb/duckdb-wasm@npm:1.33.1-dev38.0":
-  version: 1.33.1-dev38.0
-  resolution: "@duckdb/duckdb-wasm@npm:1.33.1-dev38.0"
+"@duckdb/duckdb-wasm@npm:1.33.1-dev39.0":
+  version: 1.33.1-dev39.0
+  resolution: "@duckdb/duckdb-wasm@npm:1.33.1-dev39.0"
   dependencies:
     apache-arrow: "npm:^17.0.0"
     qs: "npm:^6.14.1"
-  checksum: 10c0/8ac77972e9dc00e90ff541af91b33dfef701fc1d3c7ceea340731111e9c772ca2833828e3afc756690c92fa2c22d63b834aea776fa4f91aaf581568d13b12353
+  checksum: 10c0/11c57926ab00968767b0f4fb3ffa25179229f320857ac4e2154dce3cc72e9dde5f93b1564fdb0a314c0d6b24a4ea984a723d3f900bba7166e5a9a0f3d5f8bf23
   languageName: node
   linkType: hard
 
@@ -10177,7 +10177,7 @@ __metadata:
     "@dnd-kit/modifiers": "npm:^9.0.0"
     "@dnd-kit/sortable": "npm:^10.0.0"
     "@dnd-kit/utilities": "npm:^3.2.2"
-    "@duckdb/duckdb-wasm": "npm:1.33.1-dev38.0"
+    "@duckdb/duckdb-wasm": "npm:1.33.1-dev39.0"
     "@hello-pangea/dnd": "npm:^17.0.0"
     "@mantine/core": "npm:^8.2.3"
     "@mantine/hooks": "npm:^8.2.3"

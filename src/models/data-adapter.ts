@@ -1,5 +1,5 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
+import type * as arrow from 'apache-arrow';
 
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
 
@@ -279,6 +279,22 @@ export interface DataAdapterApi {
   ackDataReadCancelled: () => void;
 }
 
+export interface DataAdapterStreamReader<
+  T extends {
+    [key: string]: arrow.DataType;
+  } = any,
+> {
+  readonly closed: boolean;
+  cancel: () => Promise<void>;
+  next: () => Promise<
+    | { done: false; value: arrow.RecordBatch<T> }
+    | {
+        done: true;
+        value: null;
+      }
+  >;
+}
+
 /**
  * Type definitions for internal functions that perform various data related queries.
  */
@@ -309,7 +325,7 @@ export interface DataAdapterQueries {
   getSortableReader?: (
     sort: ColumnSortSpecList,
     abortSignal: AbortSignal,
-  ) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
+  ) => Promise<DataAdapterStreamReader<any> | null>;
 
   /**
    * Returns a streaming reader.
@@ -319,7 +335,7 @@ export interface DataAdapterQueries {
    *
    * If both are missing it essentially means no data source exists.
    */
-  getReader?: (abortSignal: AbortSignal) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
+  getReader?: (abortSignal: AbortSignal) => Promise<DataAdapterStreamReader<any> | null>;
 
   /**
    * Returns column aggregate for the given column.
