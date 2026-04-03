@@ -23,6 +23,7 @@ import { getTableColumnId } from '@utils/db';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
+import { escapeSqlStringValue } from '@utils/sql-security';
 import { IDBPDatabase } from 'idb';
 
 /** MotherDuck extension version API endpoint. */
@@ -66,7 +67,8 @@ export async function isMotherDuckExtensionLoaded(
       "SELECT extension_name FROM duckdb_extensions() WHERE extension_name = 'motherduck' AND loaded = true",
     );
     return result.numRows > 0;
-  } catch {
+  } catch (error) {
+    console.warn('Failed to check MotherDuck extension status:', error);
     return false;
   }
 }
@@ -130,7 +132,7 @@ export async function loadMotherDuckExtension(pool: AsyncDuckDBConnectionPool): 
   }
 
   const repo = `https://ext.motherduck.com/${extensionVersion}`;
-  const safeRepo = repo.replace(/'/g, "''");
+  const safeRepo = escapeSqlStringValue(repo);
 
   await pool.query(`SET custom_extension_repository='${safeRepo}';`);
   try {
@@ -164,7 +166,7 @@ export async function connectMotherDuck(
   // configured (e.g. by a preceding test-connection), the SET will fail.
   // In that case we proceed to ATTACH, which will validate the token.
   try {
-    await pool.query(`SET motherduck_token='${token.replace(/'/g, "''")}';`);
+    await pool.query(`SET motherduck_token='${escapeSqlStringValue(token)}';`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (!message.includes('can only be set during initialization')) {
@@ -233,6 +235,12 @@ export async function listMotherDuckDatabases(
  * we switch the active database with `USE`, query `information_schema`
  * which resolves relative to the current database, then switch back.
  *
+ * CONCURRENCY NOTE: This function uses `USE <db>` to switch the active
+ * database context. This is safe because AsyncDuckDBConnectionPool serializes
+ * all queries through a single DuckDB-WASM worker. If the pool ever supports
+ * parallel query execution, this approach will need to be revisited (e.g.
+ * using dedicated connections or fully qualified catalog queries).
+ *
  * Results are stored under 'md:' prefixed keys (e.g. 'md:my_db') to avoid
  * collisions with local databases and to let the tree builder identify them.
  */
@@ -248,8 +256,8 @@ export async function getMotherDuckDatabaseModel(
   try {
     const dbResult = await pool.query('SELECT current_database() AS db');
     originalDb = dbResult.toArray()[0]?.db ?? 'pondpilot';
-  } catch {
-    // Fall back to default
+  } catch (error) {
+    console.warn('Failed to determine current database, falling back to default:', error);
   }
 
   for (const dbName of dbNames) {
@@ -260,7 +268,7 @@ export async function getMotherDuckDatabaseModel(
       // Query information_schema — resolves to the current (MotherDuck) database.
       // MotherDuck's shared catalog exposes all databases in information_schema,
       // so we filter by table_catalog to get only the current database's objects.
-      const quotedDbName = dbName.replace(/'/g, "''");
+      const quotedDbName = escapeSqlStringValue(dbName);
       const sql = `
         SELECT
           c.table_schema,
@@ -338,8 +346,8 @@ export async function getMotherDuckDatabaseModel(
   // Switch back to the original database
   try {
     await pool.query(`USE ${toDuckDBIdentifier(originalDb)}`);
-  } catch {
-    // Best effort — the local database should always be available
+  } catch (error) {
+    console.warn(`Failed to switch back to database '${originalDb}':`, error);
   }
 
   return result;

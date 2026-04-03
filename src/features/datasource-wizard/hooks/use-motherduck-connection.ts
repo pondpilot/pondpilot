@@ -64,8 +64,8 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
         // Best-effort cleanup
         try {
           await detachMotherDuckDatabases(pool);
-        } catch {
-          // Ignore cleanup errors
+        } catch (cleanupError) {
+          console.warn('Failed to clean up MotherDuck databases after test:', cleanupError);
         }
 
         await finishTesting();
@@ -172,16 +172,16 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
         // Best-effort cleanup
         try {
           await detachMotherDuckDatabases(pool);
-        } catch {
-          // Ignore cleanup errors
+        } catch (cleanupError) {
+          console.warn('Failed to clean up MotherDuck databases after connection error:', cleanupError);
         }
 
         if (secretPersisted && iDbConn) {
           try {
             const { deleteSecret } = await import('@services/secret-store');
             await deleteSecret(iDbConn, secretRefId);
-          } catch {
-            // Ignore cleanup errors
+          } catch (secretError) {
+            console.warn('Failed to delete MotherDuck secret during cleanup:', secretError);
           }
         }
 

@@ -57,8 +57,8 @@ export function MotherDuckReconnectModal({
           onClose();
           return;
         }
-      } catch {
-        // Stored token failed — fall through to manual entry
+      } catch (error) {
+        console.warn('Auto-reconnect with stored token failed:', error);
       }
       if (!cancelled) {
         setAutoReconnecting(false);

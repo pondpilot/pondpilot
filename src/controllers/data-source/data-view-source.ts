@@ -92,7 +92,7 @@ export const deleteDataSources = async (
     Array.from(dataSourceAccessTimes).filter(([id]) => !dataSourceIdsToDelete.has(id)),
   );
 
-  const deletedDataBases = new Set(
+  const deletedDbIdentifiers = new Set(
     deletedDataSources
       .filter(isDatabaseDataSource)
       .map((dataSource) => getDatabaseIdentifier(dataSource)),
@@ -103,7 +103,7 @@ export const deleteDataSources = async (
   if (shouldClearMotherDuckMetadata) {
     for (const dbName of databaseMetadata.keys()) {
       if (isMotherDuckDbKey(dbName)) {
-        deletedDataBases.add(dbName);
+        deletedDbIdentifiers.add(dbName);
       }
     }
   }
@@ -114,7 +114,7 @@ export const deleteDataSources = async (
         return true;
       }
       const [dbName] = parsed;
-      return !deletedDataBases.has(dbName);
+      return !deletedDbIdentifiers.has(dbName);
     }),
   );
 
@@ -277,7 +277,7 @@ export const deleteDataSources = async (
   // Filter out deleted databases from the metadata
   // eslint-disable-next-line prefer-const
   let newDatabaseMetadata = new Map(
-    Array.from(databaseMetadata).filter(([dbName, _]) => !deletedDataBases.has(dbName)),
+    Array.from(databaseMetadata).filter(([dbName, _]) => !deletedDbIdentifiers.has(dbName)),
   );
   // Update metadata views
   if (deletedDataSources.some((ds) => !isDatabaseDataSource(ds))) {

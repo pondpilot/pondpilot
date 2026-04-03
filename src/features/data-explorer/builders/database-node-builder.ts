@@ -113,13 +113,16 @@ export function buildColumnTreeNode({
  * - Includes context menu for querying, schema viewing, and copying names
  * - Supports column expansion in development mode
  *
- * @param dbId - Persistent identifier for the database source
- * @param dbName - Name of the database containing the object
+ * @param nodeDbId - Scoped node ID prefix used for tree node value uniqueness
+ * @param sourceDbId - Persistent data source ID that owns this object
+ * @param dbName - DuckDB database name used in SQL queries (e.g. the catalog name)
  * @param schemaName - Name of the schema containing the object
  * @param object - Table or view metadata including columns
  * @param fileViewNames - Set of file view names for identifying special views
  * @param conn - Database connection pool for operations like dropping objects
  * @param context - Builder context containing node maps for tree structure
+ * @param databaseName - Display/metadata key override for multi-database sources (e.g. MotherDuck).
+ *   When provided, used instead of dbName for tab routing and metadata lookups.
  * @returns TreeNodeData configured for a database table/view with full functionality
  */
 export function buildObjectTreeNode({
