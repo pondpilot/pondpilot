@@ -28,8 +28,18 @@ import { IDBPDatabase } from 'idb';
 /** MotherDuck extension version API endpoint. */
 const MD_EXTENSION_VERSION_URL = 'https://api.motherduck.com/extension_version';
 
-/** DuckDB version header sent to the MotherDuck API. */
-const DUCKDB_VERSION_HEADER = 'v1.4.3';
+/**
+ * Returns the DuckDB core version (e.g. "v1.5.1") by querying the running engine.
+ * This keeps the MotherDuck API header in sync when the @duckdb/duckdb-wasm package is upgraded.
+ */
+async function getDuckDBVersion(pool: AsyncDuckDBConnectionPool): Promise<string> {
+  const result = await pool.query('SELECT version() AS v');
+  const version: string = result.toArray()[0]?.v;
+  if (!version) {
+    throw new Error('Could not determine DuckDB version from SELECT version()');
+  }
+  return version;
+}
 
 /**
  * Resolves the MotherDuck token from the encrypted secret store.
@@ -84,13 +94,15 @@ export async function loadMotherDuckExtension(pool: AsyncDuckDBConnectionPool): 
     return;
   }
 
+  const duckdbVersion = await getDuckDBVersion(pool);
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), MD_FETCH_TIMEOUT_MS);
 
   let versionResponse: Response;
   try {
     versionResponse = await fetch(MD_EXTENSION_VERSION_URL, {
-      headers: { 'x-md-duckdb-version': DUCKDB_VERSION_HEADER },
+      headers: { 'x-md-duckdb-version': duckdbVersion },
       signal: controller.signal,
     });
   } catch (error) {
@@ -146,7 +158,19 @@ export async function connectMotherDuck(
   // the token as a string literal with single-quote escaping. The pool.query
   // API executes a single statement, so semicolons in the value cannot cause
   // statement multiplexing.
-  await pool.query(`SET motherduck_token='${token.replace(/'/g, "''")}';`);
+  //
+  // motherduck_token is an initialization-only setting: once set, it cannot be
+  // changed for the lifetime of the engine instance. If the token was already
+  // configured (e.g. by a preceding test-connection), the SET will fail.
+  // In that case we proceed to ATTACH, which will validate the token.
+  try {
+    await pool.query(`SET motherduck_token='${token.replace(/'/g, "''")}';`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes('can only be set during initialization')) {
+      throw error;
+    }
+  }
 
   // Attach MotherDuck — this triggers the connection handshake
   // and auto-discovers the user's databases.
@@ -162,6 +186,13 @@ export async function connectMotherDuck(
       return;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+
+      // If databases are already attached (e.g. from a preceding test-connection),
+      // the connection is already live — treat as success.
+      if (message.includes('already attached')) {
+        return;
+      }
+
       const isNetworkNotReady = message.includes('Network is not ready');
 
       if (!isNetworkNotReady || attempt === retryDelaysMs.length) {
@@ -315,9 +346,12 @@ export async function getMotherDuckDatabaseModel(
 }
 
 /**
- * Detaches all MotherDuck databases from DuckDB and clears the token.
+ * Detaches all MotherDuck databases from DuckDB.
  * This is the low-level DB cleanup; for the full lifecycle (state, tabs,
  * metadata, persistence), use disconnectMotherDuckConnection instead.
+ *
+ * Note: motherduck_token is an initialization-only setting and cannot be
+ * cleared after being set. The token persists for the engine lifetime.
  */
 export async function detachMotherDuckDatabases(pool: AsyncDuckDBConnectionPool): Promise<void> {
   // Find all MotherDuck databases (type='motherduck', plain names)
@@ -330,13 +364,6 @@ export async function detachMotherDuckDatabases(pool: AsyncDuckDBConnectionPool)
     } catch (error) {
       console.warn(`Failed to detach MotherDuck database '${db.name}':`, error);
     }
-  }
-
-  // Clear the token
-  try {
-    await pool.query("SET motherduck_token='';");
-  } catch {
-    // Ignore — token may already be cleared
   }
 }
 
