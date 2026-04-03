@@ -4,6 +4,7 @@ import {
   DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   PersistentDataSourceId,
   ReadStatView,
   RemoteDB,
@@ -38,7 +39,8 @@ export function ensureFlatFileDataSource(
     obj.type === 'attached-db' ||
     obj.type === 'remote-db' ||
     obj.type === 'iceberg-catalog' ||
-    obj.type === 'ducklake-catalog'
+    obj.type === 'ducklake-catalog' ||
+    obj.type === 'motherduck'
   ) {
     throw new Error(`Data source with id ${obj.id} is not a flat file data source`);
   }
@@ -211,24 +213,66 @@ export function isDuckLakeCatalog(dataSource: AnyDataSource): dataSource is Duck
   return dataSource.type === 'ducklake-catalog';
 }
 
-export type DatabaseDataSource = LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog;
+export function isMotherDuckConnection(
+  dataSource: AnyDataSource,
+): dataSource is MotherDuckConnection {
+  return dataSource.type === 'motherduck';
+}
+
+// ──────────────────────────────────────────────────────────────────
+// MotherDuck metadata key helpers.
+//
+// MotherDuck database metadata is stored with an "md:" prefix to avoid
+// collisions with local databases (e.g. "md:my_db"). The bare "md:"
+// value is the root identifier for the connection itself (returned by
+// getDatabaseIdentifier) and does NOT represent a specific database.
+// ──────────────────────────────────────────────────────────────────
+
+/** Prefix used when keying per-database MotherDuck metadata. */
+export const MD_DB_PREFIX = 'md:';
+
+/** Builds a metadata key for a MotherDuck database (e.g. "md:my_db"). */
+export function formatMotherDuckDbKey(dbName: string): string {
+  return `${MD_DB_PREFIX}${dbName}`;
+}
+
+/** Returns true if `key` is a per-database MotherDuck metadata key (not the bare "md:" root). */
+export function isMotherDuckDbKey(key: string): boolean {
+  return key.startsWith(MD_DB_PREFIX) && key !== MD_DB_PREFIX;
+}
+
+/** Strips the "md:" prefix, returning the plain database name. Returns null for non-MD keys. */
+export function parseMotherDuckDbKey(key: string): string | null {
+  if (!isMotherDuckDbKey(key)) return null;
+  return key.slice(MD_DB_PREFIX.length);
+}
+
+export type DatabaseDataSource =
+  | LocalDB
+  | RemoteDB
+  | IcebergCatalog
+  | DuckLakeCatalog
+  | MotherDuckConnection;
 
 export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is DatabaseDataSource {
   return (
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
     dataSource.type === 'iceberg-catalog' ||
-    dataSource.type === 'ducklake-catalog'
+    dataSource.type === 'ducklake-catalog' ||
+    dataSource.type === 'motherduck'
   );
 }
 
 /**
  * Returns the DuckDB database name for a database data source.
  * For iceberg/ducklake catalogs this is the catalog alias; for others, the dbName.
+ * MotherDuck connections don't have a single database name — returns the bare MD_DB_PREFIX.
  */
 export function getDatabaseIdentifier(dataSource: DatabaseDataSource): string {
   if (dataSource.type === 'iceberg-catalog') return dataSource.catalogAlias;
   if (dataSource.type === 'ducklake-catalog') return dataSource.catalogAlias;
+  if (dataSource.type === 'motherduck') return MD_DB_PREFIX;
   return dataSource.dbName;
 }
 

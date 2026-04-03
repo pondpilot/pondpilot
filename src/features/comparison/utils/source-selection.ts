@@ -20,7 +20,8 @@ export function dataSourceToComparisonSource(
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
     dataSource.type === 'iceberg-catalog' ||
-    dataSource.type === 'ducklake-catalog'
+    dataSource.type === 'ducklake-catalog' ||
+    dataSource.type === 'motherduck'
   ) {
     if (!schemaName || !tableName) {
       console.error(

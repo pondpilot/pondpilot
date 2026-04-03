@@ -11,6 +11,7 @@ type UseFilterNodesProps = {
   remoteDatabaseNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   icebergCatalogNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   duckLakeCatalogNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
+  motherduckConnectionNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   activeFilter: DataExplorerFilterType;
   fileTypeFilter: FileTypeFilter;
   searchQuery: string;
@@ -23,6 +24,7 @@ export const useFilterNodes = ({
   remoteDatabaseNodes,
   icebergCatalogNodes,
   duckLakeCatalogNodes,
+  motherduckConnectionNodes,
   activeFilter,
   fileTypeFilter,
   searchQuery,
@@ -103,6 +105,18 @@ export const useFilterNodes = ({
         )
       : duckLakeCatalogNodes;
 
+    const showMotherDuck = showAll || activeFilter === 'remote';
+    const filteredMotherDuckNodes = searchQuery
+      ? filterTreeNodes(
+          motherduckConnectionNodes,
+          'all',
+          undefined,
+          undefined,
+          searchQuery,
+          expandedState,
+        )
+      : motherduckConnectionNodes;
+
     return {
       filteredSections: {
         showSystemDb,
@@ -111,11 +125,13 @@ export const useFilterNodes = ({
         showRemoteDbs,
         showIcebergCatalogs,
         showDuckLakeCatalogs,
+        showMotherDuck,
         filteredFileSystemNodes,
         filteredLocalDbNodes,
         filteredRemoteDbNodes,
         filteredIcebergCatalogNodes,
         filteredDuckLakeCatalogNodes,
+        filteredMotherDuckNodes,
       },
       searchExpandedState: searchQuery ? expandedState : {},
     };
@@ -129,6 +145,7 @@ export const useFilterNodes = ({
     remoteDatabaseNodes,
     icebergCatalogNodes,
     duckLakeCatalogNodes,
+    motherduckConnectionNodes,
   ]);
 
   return { filteredSections, searchExpandedState };

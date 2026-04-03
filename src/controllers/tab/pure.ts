@@ -7,6 +7,7 @@ import {
   DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   RemoteDB,
 } from '@models/data-source';
 import { SQLScriptId } from '@models/sql-script';
@@ -33,9 +34,10 @@ import {
 
 export const findTabFromLocalDBObjectImpl = (
   tabs: Map<TabId, AnyTab>,
-  dataSource: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog,
+  dataSource: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection,
   schemaName: string,
   objectName: string,
+  databaseName?: string,
 ): LocalDBDataTab | undefined =>
   Array.from(tabs.values())
     .filter((tab) => tab.type === 'data-source' && tab.dataSourceType === 'db')
@@ -43,7 +45,8 @@ export const findTabFromLocalDBObjectImpl = (
       (tab) =>
         tab.dataSourceId === dataSource.id &&
         tab.schemaName === schemaName &&
-        tab.objectName === objectName,
+        tab.objectName === objectName &&
+        (databaseName === undefined || tab.databaseName === databaseName),
     );
 
 export const findTabFromFlatFileDataSourceImpl = (

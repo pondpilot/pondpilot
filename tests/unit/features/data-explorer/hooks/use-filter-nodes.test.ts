@@ -54,6 +54,7 @@ describe('useFilterNodes', () => {
     remoteDatabaseNodes: [createDbNode('remote1', 'cloud.db')],
     icebergCatalogNodes: [] as any[],
     duckLakeCatalogNodes: [] as any[],
+    motherduckConnectionNodes: [] as any[],
     activeFilter: 'all' as DataExplorerFilterType,
     fileTypeFilter: {
       csv: true,

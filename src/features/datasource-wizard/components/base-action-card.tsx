@@ -10,6 +10,7 @@ export interface BaseActionCardProps {
   description: string;
   className?: string;
   testId?: string;
+  disabled?: boolean;
 }
 
 export function BaseActionCard({
@@ -19,11 +20,13 @@ export function BaseActionCard({
   description,
   className,
   testId,
+  disabled,
 }: BaseActionCardProps) {
   return (
     <UnstyledButton
-      onClick={onClick}
-      className={`flex flex-col items-center justify-center p-6 rounded-lg border border-borderPrimary-light dark:border-borderPrimary-dark hover:border-borderAccent-light dark:hover:border-borderAccent-dark hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark transition-all duration-200 cursor-pointer h-40 ${className || ''}`}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={`flex flex-col items-center justify-center p-6 rounded-lg border border-borderPrimary-light dark:border-borderPrimary-dark hover:border-borderAccent-light dark:hover:border-borderAccent-dark hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark transition-all duration-200 cursor-pointer h-40 ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className || ''}`}
       data-testid={testId ? setDataTestId(`datasource-modal-${testId}`) : undefined}
     >
       <Stack align="center" gap={12}>

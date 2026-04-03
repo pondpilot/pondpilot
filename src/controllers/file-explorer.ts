@@ -29,7 +29,8 @@ export const renameFile = async (
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
     dataSource.type === 'iceberg-catalog' ||
-    dataSource.type === 'ducklake-catalog'
+    dataSource.type === 'ducklake-catalog' ||
+    dataSource.type === 'motherduck'
   ) {
     throw new Error(`File source ${fileDataSourceId} not found`);
   }
@@ -148,6 +149,7 @@ export const renameXlsxFile = async (
       ds.type !== 'remote-db' &&
       ds.type !== 'iceberg-catalog' &&
       ds.type !== 'ducklake-catalog' &&
+      ds.type !== 'motherduck' &&
       ds.fileSourceId === localEntryId,
   );
 

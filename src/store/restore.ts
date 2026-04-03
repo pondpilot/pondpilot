@@ -952,7 +952,8 @@ export const restoreAppDataFromIDB = async (
     if (
       ds.type === 'remote-db' ||
       ds.type === 'iceberg-catalog' ||
-      ds.type === 'ducklake-catalog'
+      ds.type === 'ducklake-catalog' ||
+      ds.type === 'motherduck'
     ) {
       validDataSources.add(ds.id);
     }
