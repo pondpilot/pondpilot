@@ -1,6 +1,12 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { DuckLakeCatalog, IcebergCatalog, LocalDB, MotherDuckConnection, RemoteDB } from '@models/data-source';
+import {
+  DuckLakeCatalog,
+  IcebergCatalog,
+  LocalDB,
+  MotherDuckConnection,
+  RemoteDB,
+} from '@models/data-source';
 
 import { DataExplorerNodeMap } from '../model';
 import { useDuckLakeCatalogNodes } from './use-ducklake-catalog-nodes';

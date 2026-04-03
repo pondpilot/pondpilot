@@ -48,8 +48,14 @@ export const DataExplorerContent = ({
   const expandedState = { ...initialExpandedState, ...searchExpandedState };
 
   // Combine remote databases, iceberg catalogs, ducklake catalogs, and MotherDuck into one section
-  const showRemoteSection = showRemoteDbs || showIcebergCatalogs || showDuckLakeCatalogs || showMotherDuck;
-  const remoteDataSourceNodes = [...remoteDbNodes, ...icebergCatalogNodes, ...duckLakeCatalogNodes, ...motherduckNodes];
+  const showRemoteSection =
+    showRemoteDbs || showIcebergCatalogs || showDuckLakeCatalogs || showMotherDuck;
+  const remoteDataSourceNodes = [
+    ...remoteDbNodes,
+    ...icebergCatalogNodes,
+    ...duckLakeCatalogNodes,
+    ...motherduckNodes,
+  ];
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden">

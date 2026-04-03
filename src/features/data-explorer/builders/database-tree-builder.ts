@@ -4,7 +4,13 @@ import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { DuckLakeCatalog, IcebergCatalog, LocalDB, MotherDuckConnection, RemoteDB } from '@models/data-source';
+import {
+  DuckLakeCatalog,
+  IcebergCatalog,
+  LocalDB,
+  MotherDuckConnection,
+  RemoteDB,
+} from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry } from '@models/file-system';

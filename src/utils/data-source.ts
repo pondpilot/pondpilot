@@ -247,7 +247,12 @@ export function parseMotherDuckDbKey(key: string): string | null {
   return key.slice(MD_DB_PREFIX.length);
 }
 
-export type DatabaseDataSource = LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection;
+export type DatabaseDataSource =
+  | LocalDB
+  | RemoteDB
+  | IcebergCatalog
+  | DuckLakeCatalog
+  | MotherDuckConnection;
 
 export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is DatabaseDataSource {
   return (
