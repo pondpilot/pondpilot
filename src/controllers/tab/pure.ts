@@ -2,7 +2,13 @@
 // tab controller logic.
 // By convetion the order should follow CRUD groups!
 
-import { AnyFlatFileDataSource, IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
+import {
+  AnyFlatFileDataSource,
+  DuckLakeCatalog,
+  IcebergCatalog,
+  LocalDB,
+  RemoteDB,
+} from '@models/data-source';
 import { SQLScriptId } from '@models/sql-script';
 import {
   AnyTab,
@@ -27,7 +33,7 @@ import {
 
 export const findTabFromLocalDBObjectImpl = (
   tabs: Map<TabId, AnyTab>,
-  dataSource: LocalDB | RemoteDB | IcebergCatalog,
+  dataSource: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog,
   schemaName: string,
   objectName: string,
 ): LocalDBDataTab | undefined =>

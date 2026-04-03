@@ -257,7 +257,65 @@ export interface RemoteDB {
   s3Endpoint?: string;
 }
 
-export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB | IcebergCatalog;
+/**
+ * DuckLake catalog attached via URL.
+ * Uses the DuckLake extension to attach a remote catalog file.
+ */
+export interface DuckLakeCatalog {
+  readonly type: 'ducklake-catalog';
+
+  /**
+   * Unique identifier for this data source
+   */
+  id: PersistentDataSourceId;
+
+  /**
+   * URL of the DuckLake catalog file (e.g., https://..., s3://...)
+   */
+  url: string;
+
+  /**
+   * Alias used in ATTACH ... AS clause
+   */
+  catalogAlias: string;
+
+  /**
+   * Connection state for handling network issues
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting';
+
+  /**
+   * Error message if connection failed
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this catalog was attached
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description
+   */
+  comment?: string;
+
+  /**
+   * Whether to use CORS proxy when connecting
+   */
+  useCorsProxy?: boolean;
+
+  /**
+   * Whether to attach as read-only
+   */
+  readOnly?: boolean;
+}
+
+export type AnyDataSource =
+  | AnyFlatFileDataSource
+  | LocalDB
+  | RemoteDB
+  | IcebergCatalog
+  | DuckLakeCatalog;
 
 // Special constant for the system database
 export const SYSTEM_DATABASE_ID = 'pondpilot-system-db' as PersistentDataSourceId;

@@ -15,11 +15,12 @@ export function dataSourceToComparisonSource(
   schemaName?: string,
   tableName?: string,
 ): ComparisonSource | null {
-  // Handle database sources (attached, remote, or iceberg catalog)
+  // Handle database sources (attached, remote, iceberg, or ducklake catalog)
   if (
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
-    dataSource.type === 'iceberg-catalog'
+    dataSource.type === 'iceberg-catalog' ||
+    dataSource.type === 'ducklake-catalog'
   ) {
     if (!schemaName || !tableName) {
       console.error(

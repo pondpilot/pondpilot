@@ -1,8 +1,9 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
+import { DuckLakeCatalog, IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
 
 import { DataExplorerNodeMap } from '../model';
+import { useDuckLakeCatalogNodes } from './use-ducklake-catalog-nodes';
 import { useIcebergCatalogNodes } from './use-iceberg-catalog-nodes';
 import { useLocalDbNodes } from './use-local-db-nodes';
 import { useRemoteDbNodes } from './use-remote-db-nodes';
@@ -13,6 +14,7 @@ type UseBuildNodesProps = {
   localDatabases: LocalDB[];
   remoteDatabases: RemoteDB[];
   icebergCatalogs: IcebergCatalog[];
+  duckLakeCatalogs: DuckLakeCatalog[];
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
   conn: AsyncDuckDBConnectionPool;
@@ -35,6 +37,7 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     localDatabases,
     remoteDatabases,
     icebergCatalogs,
+    duckLakeCatalogs,
     nodeMap,
     anyNodeIdToNodeTypeMap,
     conn,
@@ -88,6 +91,19 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     comparisonByTableName,
   });
 
+  // Build DuckLake catalog nodes
+  const duckLakeCatalogNodes = useDuckLakeCatalogNodes({
+    duckLakeCatalogs,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
+  });
+
   // Build system database node
   const { systemDbNode, systemDbNodeForDisplay } = useSystemDbNode({
     systemDatabase,
@@ -107,6 +123,7 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     localDbNodes,
     remoteDatabaseNodes,
     icebergCatalogNodes,
+    duckLakeCatalogNodes,
     systemDbNode,
     systemDbNodeForDisplay,
   };

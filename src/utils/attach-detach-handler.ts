@@ -316,7 +316,8 @@ export async function handleDetachStatements(
       ([, ds]) =>
         (ds.type === 'remote-db' && ds.dbName === dbName) ||
         (ds.type === 'attached-db' && ds.dbName === dbName) ||
-        (ds.type === 'iceberg-catalog' && ds.catalogAlias === dbName),
+        (ds.type === 'iceberg-catalog' && ds.catalogAlias === dbName) ||
+        (ds.type === 'ducklake-catalog' && ds.catalogAlias === dbName),
     );
 
     if (dbToRemove) {

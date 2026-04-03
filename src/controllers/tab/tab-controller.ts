@@ -5,6 +5,7 @@ import { sanitizeChartLabel } from '@features/chart-view/utils/sanitize-label';
 import { ChartConfig, ViewMode } from '@models/chart';
 import {
   AnyFlatFileDataSource,
+  DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
   PersistentDataSourceId,
@@ -234,7 +235,7 @@ export const getOrCreateSchemaBrowserTab = (options: {
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const getOrCreateTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
+  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
   objectType: 'table' | 'view',
@@ -495,7 +496,7 @@ export const findSchemaBrowserTab = (
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const findTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
+  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
 ): LocalDBDataTab | undefined => {
@@ -962,7 +963,8 @@ function updateTabLRUTracking(tabId: TabId): void {
         dataSource &&
         (dataSource.type === 'attached-db' ||
           dataSource.type === 'remote-db' ||
-          dataSource.type === 'iceberg-catalog')
+          dataSource.type === 'iceberg-catalog' ||
+          dataSource.type === 'ducklake-catalog')
       ) {
         const dbIdentifier = getDatabaseIdentifier(dataSource);
         updateTableAccessTime(dbIdentifier, tab.schemaName, tab.objectName);

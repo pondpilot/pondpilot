@@ -32,7 +32,8 @@ export function getSchemaBrowserTabTitle(
       dataSource &&
       dataSource.type !== 'attached-db' &&
       dataSource.type !== 'remote-db' &&
-      dataSource.type !== 'iceberg-catalog'
+      dataSource.type !== 'iceberg-catalog' &&
+      dataSource.type !== 'ducklake-catalog'
     ) {
       return `File: ${(dataSource as AnyFlatFileDataSource).viewName}`;
     }
@@ -41,7 +42,10 @@ export function getSchemaBrowserTabTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
-    if (dataSource && dataSource.type === 'iceberg-catalog') {
+    if (
+      dataSource &&
+      (dataSource.type === 'iceberg-catalog' || dataSource.type === 'ducklake-catalog')
+    ) {
       let tabName = `Catalog: ${dataSource.catalogAlias}`;
       if (tab.schemaName) {
         tabName = `Schema: ${dataSource.catalogAlias}.${tab.schemaName}`;
@@ -118,7 +122,8 @@ export function getSchemaBrowserDisplayTitle(
       dataSource &&
       dataSource.type !== 'attached-db' &&
       dataSource.type !== 'remote-db' &&
-      dataSource.type !== 'iceberg-catalog'
+      dataSource.type !== 'iceberg-catalog' &&
+      dataSource.type !== 'ducklake-catalog'
     ) {
       return {
         prefix: 'File:',
@@ -130,7 +135,10 @@ export function getSchemaBrowserDisplayTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
-    if (dataSource && dataSource.type === 'iceberg-catalog') {
+    if (
+      dataSource &&
+      (dataSource.type === 'iceberg-catalog' || dataSource.type === 'ducklake-catalog')
+    ) {
       const alias = dataSource.catalogAlias;
       if (tab.schemaName) {
         if (tab.objectNames && tab.objectNames.length > 0) {

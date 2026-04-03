@@ -4,12 +4,13 @@ import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
+import { DuckLakeCatalog, IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry } from '@models/file-system';
 import { useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
+import { reconnectDuckLakeCatalog, disconnectDuckLakeCatalog } from '@utils/ducklake-catalog';
 import { disconnectIcebergCatalog } from '@utils/iceberg-catalog';
 import { getLocalDBDataSourceName } from '@utils/navigation';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
@@ -372,6 +373,136 @@ export function buildIcebergCatalogNode(
     contextMenu: [
       {
         children: [...baseContextMenuItems, ...icebergMenuItems],
+      },
+    ],
+    children: sortedSchemas?.map((schema) =>
+      buildSchemaTreeNode({
+        dbId: catalogId,
+        dbName: catalogAlias,
+        schema,
+        context: {
+          nodeMap,
+          anyNodeIdToNodeTypeMap,
+          flatFileSources: context.flatFileSources,
+          comparisonByTableName,
+          comparisonTableNames,
+        },
+        initialExpandedState,
+      }),
+    ),
+  };
+}
+
+/**
+ * Builds a tree node for a DuckLake catalog.
+ * Follows the same pattern as buildIcebergCatalogNode but without credential handling.
+ */
+export function buildDuckLakeCatalogNode(
+  catalog: DuckLakeCatalog,
+  context: DatabaseTreeBuilderContext,
+): TreeNodeData<DataExplorerNodeTypeMap> {
+  const { id: catalogId, catalogAlias } = catalog;
+  const {
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
+  } = context;
+
+  // Build label with connection state indicator
+  const stateIcon =
+    catalog.connectionState === 'connected'
+      ? '\u2713'
+      : catalog.connectionState === 'connecting'
+        ? '\u27F3'
+        : catalog.connectionState === 'error'
+          ? '\u26A0'
+          : '\u2715';
+  const dbLabel = `${catalogAlias} ${stateIcon}`;
+
+  nodeMap.set(catalogId, { db: catalogId, schemaName: null, objectName: null, columnName: null });
+  anyNodeIdToNodeTypeMap.set(catalogId, 'db');
+
+  const metadata = databaseMetadata.get(catalogAlias);
+  const sortedSchemas = metadata
+    ? [...metadata.schemas].sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+
+  const baseContextMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy name',
+      onClick: () => {
+        copyToClipboard(catalogAlias, { showNotification: true });
+      },
+    },
+    {
+      label: 'Show Schema',
+      onClick: () => {
+        const firstSchema = sortedSchemas?.[0];
+        getOrCreateSchemaBrowserTab({
+          sourceId: catalogId,
+          sourceType: 'db',
+          schemaName: firstSchema?.name,
+          setActive: true,
+        });
+      },
+    },
+  ];
+
+  const duckLakeMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy URL',
+      onClick: () => {
+        copyToClipboard(catalog.url, {
+          showNotification: true,
+          notificationTitle: 'URL Copied',
+        });
+      },
+    },
+  ];
+
+  if (catalog.connectionState === 'connected') {
+    duckLakeMenuItems.push({
+      label: 'Refresh',
+      onClick: async () => {
+        await refreshDatabaseMetadata(conn, [catalogAlias]);
+      },
+    });
+    duckLakeMenuItems.push({
+      label: 'Disconnect',
+      onClick: async () => {
+        await disconnectDuckLakeCatalog(conn, catalog);
+      },
+    });
+  }
+
+  if (catalog.connectionState !== 'connected' && catalog.connectionState !== 'connecting') {
+    duckLakeMenuItems.push({
+      label: 'Reconnect',
+      onClick: async () => {
+        await reconnectDuckLakeCatalog(conn, catalog);
+      },
+    });
+  }
+
+  return {
+    nodeType: 'db',
+    value: catalogId,
+    label: dbLabel,
+    iconType: 'db',
+    isDisabled: false,
+    isSelectable: true,
+    onDelete: (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
+      if (node.nodeType === 'db') {
+        deleteDataSources(conn, [node.value]);
+      }
+    },
+    contextMenu: [
+      {
+        children: [...baseContextMenuItems, ...duckLakeMenuItems],
       },
     ],
     children: sortedSchemas?.map((schema) =>

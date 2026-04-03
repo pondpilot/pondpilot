@@ -5,6 +5,7 @@ import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
+  DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
   RemoteDB,
@@ -425,7 +426,8 @@ export function useProtectedViews(): Set<string> {
               (dataSource) =>
                 dataSource.type !== 'attached-db' &&
                 dataSource.type !== 'remote-db' &&
-                dataSource.type !== 'iceberg-catalog',
+                dataSource.type !== 'iceberg-catalog' &&
+                dataSource.type !== 'ducklake-catalog',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
           ...Array.from(state.comparisons.values())
@@ -447,7 +449,8 @@ export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlat
               ([, dataSource]) =>
                 dataSource.type !== 'attached-db' &&
                 dataSource.type !== 'remote-db' &&
-                dataSource.type !== 'iceberg-catalog',
+                dataSource.type !== 'iceberg-catalog' &&
+                dataSource.type !== 'ducklake-catalog',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
@@ -465,7 +468,8 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
               ([, dataSource]) =>
                 dataSource.type !== 'attached-db' &&
                 dataSource.type !== 'remote-db' &&
-                dataSource.type !== 'iceberg-catalog',
+                dataSource.type !== 'iceberg-catalog' &&
+                dataSource.type !== 'ducklake-catalog',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
@@ -490,20 +494,21 @@ export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> 
 
 export function useDatabaseDataSourceMap(): Map<
   PersistentDataSourceId,
-  LocalDB | RemoteDB | IcebergCatalog
+  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog
 > {
   return useAppStore(
     useShallow(
       (state) =>
         new Map(
           Array.from(state.dataSources.entries())
-            // Include local, remote, and iceberg catalog databases
+            // Include local, remote, iceberg, and ducklake catalog databases
             .filter(
               ([, dataSource]) =>
                 dataSource.type === 'attached-db' ||
                 dataSource.type === 'remote-db' ||
-                dataSource.type === 'iceberg-catalog',
-            ) as [PersistentDataSourceId, LocalDB | RemoteDB | IcebergCatalog][],
+                dataSource.type === 'iceberg-catalog' ||
+                dataSource.type === 'ducklake-catalog',
+            ) as [PersistentDataSourceId, LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog][],
         ),
     ),
   );

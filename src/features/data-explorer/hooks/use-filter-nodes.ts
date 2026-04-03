@@ -10,6 +10,7 @@ type UseFilterNodesProps = {
   localDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   remoteDatabaseNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   icebergCatalogNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
+  duckLakeCatalogNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   activeFilter: DataExplorerFilterType;
   fileTypeFilter: FileTypeFilter;
   searchQuery: string;
@@ -21,6 +22,7 @@ export const useFilterNodes = ({
   localDbNodes,
   remoteDatabaseNodes,
   icebergCatalogNodes,
+  duckLakeCatalogNodes,
   activeFilter,
   fileTypeFilter,
   searchQuery,
@@ -49,6 +51,7 @@ export const useFilterNodes = ({
     const showLocalDbs = showAll || activeFilter === 'databases';
     const showRemoteDbs = showAll || activeFilter === 'remote';
     const showIcebergCatalogs = showAll || activeFilter === 'remote';
+    const showDuckLakeCatalogs = showAll || activeFilter === 'remote';
 
     // Create a new expanded state for search
     const expandedState: Record<string, boolean> = {};
@@ -89,6 +92,17 @@ export const useFilterNodes = ({
         )
       : icebergCatalogNodes;
 
+    const filteredDuckLakeCatalogNodes = searchQuery
+      ? filterTreeNodes(
+          duckLakeCatalogNodes,
+          'all',
+          undefined,
+          undefined,
+          searchQuery,
+          expandedState,
+        )
+      : duckLakeCatalogNodes;
+
     return {
       filteredSections: {
         showSystemDb,
@@ -96,10 +110,12 @@ export const useFilterNodes = ({
         showLocalDbs,
         showRemoteDbs,
         showIcebergCatalogs,
+        showDuckLakeCatalogs,
         filteredFileSystemNodes,
         filteredLocalDbNodes,
         filteredRemoteDbNodes,
         filteredIcebergCatalogNodes,
+        filteredDuckLakeCatalogNodes,
       },
       searchExpandedState: searchQuery ? expandedState : {},
     };
@@ -112,6 +128,7 @@ export const useFilterNodes = ({
     localDbNodes,
     remoteDatabaseNodes,
     icebergCatalogNodes,
+    duckLakeCatalogNodes,
   ]);
 
   return { filteredSections, searchExpandedState };

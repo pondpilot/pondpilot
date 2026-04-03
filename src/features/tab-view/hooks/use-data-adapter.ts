@@ -1,7 +1,6 @@
 import { syncFiles } from '@controllers/file-system';
 import { updateTabDataViewStaleDataCache } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 import { PoolTimeoutError } from '@features/duckdb-context/timeout-error';
 import { useAbortController } from '@hooks/use-abort-controller';
 import { useDidUpdate } from '@mantine/hooks';
@@ -12,6 +11,7 @@ import {
   ChartSortOrder,
   ColumnAggregateType,
   DataAdapterApi,
+  DataAdapterStreamReader,
   GetDataTableSliceReturnType,
   RowCountInfo,
 } from '@models/data-adapter';
@@ -189,7 +189,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    */
 
   // Holds the current connection to the database
-  const mainDataReaderRef = useRef<AsyncDuckDBPooledStreamReader<any> | null>(null);
+  const mainDataReaderRef = useRef<DataAdapterStreamReader<any> | null>(null);
 
   // Holds the data read from the data source. We use ref to allow efficient
   // appends instead of re-writing, what can be a huge array every time.
