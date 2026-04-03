@@ -173,7 +173,10 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
         try {
           await detachMotherDuckDatabases(pool);
         } catch (cleanupError) {
-          console.warn('Failed to clean up MotherDuck databases after connection error:', cleanupError);
+          console.warn(
+            'Failed to clean up MotherDuck databases after connection error:',
+            cleanupError,
+          );
         }
 
         if (secretPersisted && iDbConn) {
