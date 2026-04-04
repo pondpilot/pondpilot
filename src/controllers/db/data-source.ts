@@ -357,6 +357,10 @@ export async function createXlsxSheetView(
 /**
  * Create a view for a Google Sheets worksheet.
  *
+ * When the gsheets extension is loaded, uses `read_gsheet()` directly.
+ * For authenticated access, creates a `TYPE GSHEET` DuckDB secret so the
+ * extension can pass the token to Google's API natively.
+ *
  * @param conn - DuckDB connection pool
  * @param spreadsheetRef - Google Sheets URL or spreadsheet ID
  * @param sheetName - Worksheet name to read
@@ -368,10 +372,13 @@ export async function createGSheetSheetView(
   sheetName: string,
   viewName: string,
   accessMode: GSheetAccessMode = 'public',
+  accessToken?: string,
 ) {
   const pooled = await conn.getPooledConnection();
   try {
-    // Keep detection and CREATE VIEW on the same connection.
+    const needsBearerToken = accessMode === 'authorized' || accessMode === 'oauth';
+
+    // Detect whether the gsheets extension's read_gsheet() is available
     const readFunctionInfo = await pooled.query(`
       SELECT function_type
       FROM duckdb_functions()
@@ -382,15 +389,20 @@ export async function createGSheetSheetView(
         .toArray()
         .map((row) => String((row as { function_type?: unknown }).function_type ?? '')),
     );
-    const hasReadGsheetTableFunction = readFunctionTypes.has('table');
+    const hasExtension = readFunctionTypes.has('table');
 
-    // Authorized/OAuth reads always use the macro path so we can bind per-sheet
-    // HTTP bearer secrets in PondPilot (extension secret lookup is global).
-    const needsBearerToken = accessMode === 'authorized' || accessMode === 'oauth';
-    const readFunctionName = needsBearerToken
-      ? 'read_gsheet_authorized'
-      : hasReadGsheetTableFunction
-        ? 'system.main.read_gsheet'
+    // Create a GSHEET secret so the extension can authenticate with Google.
+    // Only attempt this when the extension is loaded (it registers the type).
+    if (hasExtension && needsBearerToken && accessToken) {
+      await pooled.query(
+        `CREATE OR REPLACE SECRET __pondpilot_gsheet_token (TYPE GSHEET, TOKEN ${quote(accessToken, { single: true })})`,
+      );
+    }
+
+    const readFunctionName = hasExtension
+      ? 'system.main.read_gsheet'
+      : needsBearerToken
+        ? 'read_gsheet_authorized'
         : 'read_gsheet_public';
 
     const query = createGSheetSheetViewQuery(spreadsheetRef, sheetName, viewName, readFunctionName);

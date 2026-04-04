@@ -16,11 +16,6 @@ import {
   extractGSheetSpreadsheetId,
   GSHEET_SECRET_LABEL_PREFIX,
 } from '@utils/gsheet';
-import {
-  buildCreateGSheetHttpSecretQuery,
-  buildDropGSheetHttpSecretQuery,
-  buildGSheetHttpSecretName,
-} from '@utils/gsheet-auth';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { useState, useCallback, useRef } from 'react';
@@ -64,6 +59,69 @@ function toFriendlyError(error: unknown): string {
   return 'Unknown error';
 }
 
+/** Discover sheet names via the Google Sheets API (requires bearer token). */
+async function discoverSheetsViaAPI(spreadsheetId: string, accessToken: string): Promise<string[]> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties.title`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Google Sheets API error (${response.status} ${response.statusText})`);
+    }
+    const data = (await response.json()) as {
+      sheets?: { properties?: { title?: string } }[];
+    };
+    return (data.sheets ?? [])
+      .map((s) => s.properties?.title ?? '')
+      .filter((name) => name.length > 0);
+  } catch (fetchError) {
+    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+      throw new Error('Spreadsheet discovery request timed out. Please try again.');
+    }
+    throw fetchError;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/** Discover sheet names by fetching the XLSX export (public sheets only). */
+async function discoverSheetsViaExport(exportUrl: string): Promise<string[]> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(exportUrl, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch spreadsheet export (${response.status} ${response.statusText})`,
+      );
+    }
+    const blob = await response.blob();
+    if (!blob.size) {
+      throw new Error('Spreadsheet export returned an empty file');
+    }
+    const workbookFile = new File([blob], 'spreadsheet.xlsx', {
+      type: blob.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    return await getXlsxSheetNames(workbookFile);
+  } catch (fetchError) {
+    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+      throw new Error('Spreadsheet export request timed out. Please try again.');
+    }
+    if (fetchError instanceof Error && fetchError.message.startsWith('Failed to fetch')) {
+      throw fetchError;
+    }
+    throw new Error(
+      'Unable to fetch spreadsheet export. This is usually a CORS or access-permission issue.',
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -105,41 +163,17 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
       const spreadsheetUrl = buildGSheetSpreadsheetUrl(spreadsheetId);
       const resolvedName = params.connectionName.trim() || `gsheet_${spreadsheetId.slice(0, 8)}`;
 
-      const headers = needsBearerToken
-        ? { Authorization: `Bearer ${resolvedAccessToken}` }
-        : undefined;
+      let sheetNames: string[];
 
-      let response: Response;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-      try {
-        response = await fetch(exportUrl, { headers, signal: controller.signal });
-      } catch (fetchError) {
-        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-          throw new Error('Spreadsheet export request timed out. Please try again.');
-        }
-        throw new Error(
-          'Unable to fetch spreadsheet export. This is usually a CORS or access-permission issue.',
-        );
-      } finally {
-        clearTimeout(timeoutId);
+      if (needsBearerToken) {
+        // Use the Google Sheets API for authenticated discovery.
+        // The docs.google.com export URL doesn't support CORS with Authorization headers.
+        sheetNames = await discoverSheetsViaAPI(spreadsheetId, resolvedAccessToken);
+      } else {
+        // Public sheets: fetch the XLSX export and parse sheet names locally
+        sheetNames = await discoverSheetsViaExport(exportUrl);
       }
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch spreadsheet export (${response.status} ${response.statusText})`,
-        );
-      }
-
-      const blob = await response.blob();
-      if (!blob.size) {
-        throw new Error('Spreadsheet export returned an empty file');
-      }
-
-      const workbookFile = new File([blob], `${spreadsheetId}.xlsx`, {
-        type: blob.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
-      const sheetNames = await getXlsxSheetNames(workbookFile);
       if (!sheetNames.length) {
         throw new Error('No sheets found in this Google Sheet');
       }
@@ -205,7 +239,6 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
       const resolvedAccessToken = params.accessToken.trim();
       let createdViewNames: string[] = [];
       let createdSecretRef: ReturnType<typeof makeSecretId> | undefined;
-      let createdDuckDBSecretName: string | undefined;
       let iDbConnForCleanup = useAppStore.getState()._iDbConn;
 
       try {
@@ -238,15 +271,6 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
             label: `${GSHEET_SECRET_LABEL_PREFIX} ${workbook.resolvedName}`,
             data: { accessToken: resolvedAccessToken },
           });
-
-          createdDuckDBSecretName = buildGSheetHttpSecretName(sourceGroupId);
-          await pool.query(
-            buildCreateGSheetHttpSecretQuery(
-              createdDuckDBSecretName,
-              resolvedAccessToken,
-              workbook.spreadsheetId,
-            ),
-          );
         }
 
         // Compute token expiry timestamp for OAuth connections
@@ -284,6 +308,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
             sheetName,
             dataSource.viewName,
             params.accessMode,
+            resolvedAccessToken || undefined,
           );
           reservedViews.add(dataSource.viewName);
           createdViewNames.push(dataSource.viewName);
@@ -330,13 +355,6 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         }
         createdViewNames = [];
 
-        if (createdDuckDBSecretName) {
-          try {
-            await pool?.query(buildDropGSheetHttpSecretQuery(createdDuckDBSecretName));
-          } catch {
-            // Ignore secret cleanup errors and surface the original failure.
-          }
-        }
         if (createdSecretRef && iDbConnForCleanup) {
           try {
             await deleteSecret(iDbConnForCleanup, createdSecretRef);

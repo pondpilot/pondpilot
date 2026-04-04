@@ -75,11 +75,7 @@ import {
 } from '@utils/file-system';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { buildGSheetSpreadsheetUrl, GSHEET_SECRET_LABEL_PREFIX } from '@utils/gsheet';
-import {
-  buildCreateGSheetHttpSecretQuery,
-  buildGSheetHttpSecretName,
-  resolveGSheetAccessToken,
-} from '@utils/gsheet-auth';
+import { resolveGSheetAccessToken } from '@utils/gsheet-auth';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
 import { getXlsxSheetNames } from '@utils/xlsx';
@@ -958,13 +954,11 @@ export const restoreAppDataFromIDB = async (
   await Promise.all(registerPromises);
 
   // Recreate Google Sheets-backed views that are not associated with local file handles.
-  // Pass 1 (sequential): resolve tokens and create DuckDB HTTP secrets.
-  // Secrets are deduped by secretRef / fileSourceId so each runs at most once.
+  // Pass 1 (sequential): resolve tokens from the encrypted secret store.
   const gsheetDataSources = Array.from(dataSources.values()).filter(
     (ds): ds is GSheetSheetView => ds.type === 'gsheet-sheet',
   );
   const cachedGSheetTokens = new Map<string, string | null>();
-  const configuredGSheetHttpSecrets = new Set<string>();
   const warnedMissingGSheetTokens = new Set<string>();
   for (const dataSource of gsheetDataSources) {
     _reservedViews.add(dataSource.viewName);
@@ -984,23 +978,7 @@ export const restoreAppDataFromIDB = async (
       }
 
       const accessToken = cachedGSheetTokens.get(cacheKey) ?? null;
-      if (accessToken) {
-        const gsheetHttpSecretName = buildGSheetHttpSecretName(dataSource.fileSourceId);
-        if (!configuredGSheetHttpSecrets.has(gsheetHttpSecretName)) {
-          try {
-            await conn.query(
-              buildCreateGSheetHttpSecretQuery(
-                gsheetHttpSecretName,
-                accessToken,
-                dataSource.spreadsheetId,
-              ),
-            );
-            configuredGSheetHttpSecrets.add(gsheetHttpSecretName);
-          } catch (error) {
-            console.warn('Failed to create Google Sheet HTTP secret:', error);
-          }
-        }
-      } else if (!warnedMissingGSheetTokens.has(cacheKey)) {
+      if (!accessToken && !warnedMissingGSheetTokens.has(cacheKey)) {
         warnings.push(
           `Google Sheet ${dataSource.spreadsheetName} is missing its saved token. Reconnect it in the wizard.`,
         );
@@ -1026,12 +1004,16 @@ export const restoreAppDataFromIDB = async (
       try {
         const spreadsheetRef =
           dataSource.spreadsheetUrl || buildGSheetSpreadsheetUrl(dataSource.spreadsheetId);
+        const accessToken = dataSource.secretRef
+          ? (cachedGSheetTokens.get(String(dataSource.secretRef)) ?? undefined)
+          : undefined;
         await createGSheetSheetView(
           conn,
           spreadsheetRef,
           dataSource.sheetName,
           dataSource.viewName,
           dataSource.accessMode,
+          accessToken,
         );
       } catch (error) {
         // Keep persisted Google Sheets data sources on transient restore failures
