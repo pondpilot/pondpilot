@@ -4,9 +4,10 @@ import { Stack, TextInput, Text, Button, Group, Radio, Loader } from '@mantine/c
 import { useInputState } from '@mantine/hooks';
 import type { GSheetAccessMode } from '@models/data-source';
 import { requestGoogleAccessToken } from '@services/google-identity-services';
+import { useAppStore } from '@store/app-store';
 import { IconBrandGoogle, IconCheck } from '@tabler/icons-react';
 import { getGoogleOAuthClientId } from '@utils/google-oauth-config';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 import { useGSheetConnection } from '../hooks/use-gsheet-connection';
 
@@ -21,9 +22,21 @@ export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConf
   const [connectionName, setConnectionName] = useInputState('');
   const [accessToken, setAccessToken] = useInputState('');
   const [accessMode, setAccessMode] = useState<GSheetAccessMode>('public');
-  const [oauthAuthenticated, setOauthAuthenticated] = useState(false);
-  const [oauthExpiresIn, setOauthExpiresIn] = useState<number | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  const cachedToken = useAppStore((s) => s.googleOAuthToken);
+
+  // Consider the cached token valid if it has >60s remaining
+  const hasCachedToken = useMemo(
+    () => cachedToken != null && cachedToken.expiresAt > Date.now() + 60_000,
+    [cachedToken],
+  );
+
+  const oauthAuthenticated = hasCachedToken;
+  const oauthAccessToken = cachedToken?.accessToken ?? '';
+  const oauthExpiresIn = cachedToken
+    ? Math.max(0, Math.floor((cachedToken.expiresAt - Date.now()) / 1000))
+    : undefined;
 
   const { isLoading, isTesting, discoveredSheets, testConnection, addGoogleSheet } =
     useGSheetConnection(pool);
@@ -37,12 +50,14 @@ export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConf
     (accessMode === 'authorized' && !hasAccessToken) ||
     (accessMode === 'oauth' && !oauthAuthenticated);
 
+  const effectiveAccessToken = accessMode === 'oauth' ? oauthAccessToken : accessToken;
+
   const params = {
     sheetRef,
     connectionName,
     accessMode,
-    accessToken,
-    tokenExpiresIn: oauthExpiresIn ?? undefined,
+    accessToken: effectiveAccessToken,
+    tokenExpiresIn: oauthExpiresIn,
   };
 
   const handleTest = () => testConnection(params);
@@ -53,11 +68,17 @@ export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConf
     try {
       const result = await requestGoogleAccessToken(clientId);
       setAccessToken(result.accessToken);
-      setOauthAuthenticated(true);
-      setOauthExpiresIn(result.expiresIn);
+      useAppStore.setState(
+        {
+          googleOAuthToken: {
+            accessToken: result.accessToken,
+            expiresAt: Date.now() + result.expiresIn * 1000,
+          },
+        },
+        false,
+        'GoogleSheetConfig/oauthSignIn',
+      );
     } catch (error) {
-      setOauthAuthenticated(false);
-      setOauthExpiresIn(null);
       showError({
         title: 'Google Sign-In failed',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -102,14 +123,7 @@ export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConf
         <Radio.Group
           label="Access Mode"
           value={accessMode}
-          onChange={(value) => {
-            setAccessMode(value as GSheetAccessMode);
-            // Reset OAuth state when switching modes
-            if (value !== 'oauth') {
-              setOauthAuthenticated(false);
-              setOauthExpiresIn(null);
-            }
-          }}
+          onChange={(value) => setAccessMode(value as GSheetAccessMode)}
         >
           <Group mt="xs">
             <Radio value="public" label="Public" />
