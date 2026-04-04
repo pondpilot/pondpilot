@@ -7,7 +7,6 @@ export const GoogleIntegrationSettings = () => {
   const savedClientId = getGoogleOAuthClientId();
   const [clientId, setClientId] = useState(() => savedClientId);
   const [isEditing, setIsEditing] = useState(() => savedClientId.length === 0);
-  const hasValue = savedClientId.length > 0;
 
   const handleClientIdChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setClientId(event.currentTarget.value);
@@ -65,7 +64,11 @@ export const GoogleIntegrationSettings = () => {
             </li>
             <li>
               Go to{' '}
-              <Anchor href="https://console.cloud.google.com/apis/credentials" target="_blank" c="blue">
+              <Anchor
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                c="blue"
+              >
                 APIs &amp; Services → Credentials
               </Anchor>
             </li>
@@ -100,7 +103,6 @@ export const GoogleIntegrationSettings = () => {
           Authentication happens directly between your browser and Google.
         </Text>
       </Alert>
-
     </Stack>
   );
 };
