@@ -178,6 +178,13 @@ type AppStore = {
    * with the specified format pre-selected once the tab's data adapter is ready.
    */
   pendingConvert: { tabId: TabId; format: ExportFormat } | null;
+
+  /**
+   * Cached Google OAuth access token from the most recent sign-in.
+   * Transient — not persisted. Allows reusing a single sign-in
+   * across multiple Google Sheets connections within the same session.
+   */
+  googleOAuthToken: { accessToken: string; expiresAt: number } | null;
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -202,6 +209,7 @@ const initialState: AppStore = {
   icebergReconnectCatalogId: null,
   motherduckReconnectConnectionId: null,
   pendingConvert: null,
+  googleOAuthToken: null,
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,

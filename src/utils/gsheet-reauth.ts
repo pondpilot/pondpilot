@@ -47,8 +47,15 @@ export async function reauthGSheetOAuth(
       console.warn('GSheet OAuth source missing secretRef; cannot update encrypted token.');
     }
 
-    // Update tokenExpiresAt on all data sources from same connection
+    // Cache the fresh token at app level so the wizard can reuse it
     const newExpiresAt = Date.now() + result.expiresIn * 1000;
+    useAppStore.setState(
+      { googleOAuthToken: { accessToken: result.accessToken, expiresAt: newExpiresAt } },
+      false,
+      'GSheetReauth/cacheToken',
+    );
+
+    // Update tokenExpiresAt on all data sources from same connection
     const updatedSources: GSheetSheetView[] = [];
     const newDataSources = new Map(dataSources);
 
