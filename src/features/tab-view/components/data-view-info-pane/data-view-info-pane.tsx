@@ -231,7 +231,7 @@ export const DataViewInfoPane = ({
           type: 'table' as const,
           tableName: tab.objectName,
           schemaName: tab.schemaName,
-          databaseName: getDatabaseIdentifier(dataSource),
+          databaseName: tab.databaseName ?? getDatabaseIdentifier(dataSource),
         };
       } else {
         showWarningWithAction({
