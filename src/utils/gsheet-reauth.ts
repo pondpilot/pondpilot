@@ -1,20 +1,20 @@
 import { showError, showWarningWithAction } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
+import { createGSheetSheetView } from '@controllers/db/data-source';
 import type { GSheetSheetView, PersistentDataSourceId } from '@models/data-source';
 import { requestGoogleAccessToken } from '@services/google-identity-services';
 import { putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { getGoogleOAuthClientId } from '@utils/google-oauth-config';
-import { GSHEET_SECRET_LABEL_PREFIX } from '@utils/gsheet';
-import { buildCreateGSheetHttpSecretQuery, buildGSheetHttpSecretName } from '@utils/gsheet-auth';
+import { buildGSheetSpreadsheetUrl, GSHEET_SECRET_LABEL_PREFIX } from '@utils/gsheet';
 
 /**
  * Trigger a re-authorization flow for an OAuth Google Sheet connection.
  *
  * Opens the Google Sign-In popup, obtains a fresh token, and updates
- * both the encrypted secret store and the DuckDB HTTP secret in-place.
+ * both the encrypted secret store and the DuckDB views in-place.
  *
- * @param pool - DuckDB connection pool for updating HTTP secrets
+ * @param pool - DuckDB connection pool for recreating views
  * @param dataSource - Any GSheetSheetView from the connection group
  */
 export async function reauthGSheetOAuth(
@@ -47,12 +47,6 @@ export async function reauthGSheetOAuth(
       console.warn('GSheet OAuth source missing secretRef; cannot update encrypted token.');
     }
 
-    // Recreate DuckDB HTTP secret (CREATE OR REPLACE)
-    const secretName = buildGSheetHttpSecretName(dataSource.fileSourceId);
-    await pool.query(
-      buildCreateGSheetHttpSecretQuery(secretName, result.accessToken, dataSource.spreadsheetId),
-    );
-
     // Update tokenExpiresAt on all data sources from same connection
     const newExpiresAt = Date.now() + result.expiresIn * 1000;
     const updatedSources: GSheetSheetView[] = [];
@@ -77,6 +71,24 @@ export async function reauthGSheetOAuth(
 
     if (updatedSources.length > 0) {
       await persistPutDataSources(_iDbConn, updatedSources);
+    }
+
+    // Recreate views with the fresh token embedded in the URL
+    for (const source of updatedSources) {
+      try {
+        const spreadsheetRef =
+          source.spreadsheetUrl || buildGSheetSpreadsheetUrl(source.spreadsheetId);
+        await createGSheetSheetView(
+          pool as Parameters<typeof createGSheetSheetView>[0],
+          spreadsheetRef,
+          source.sheetName,
+          source.viewName,
+          source.accessMode,
+          result.accessToken,
+        );
+      } catch (viewError) {
+        console.warn(`Failed to recreate view ${source.viewName} after re-auth:`, viewError);
+      }
     }
 
     return true;

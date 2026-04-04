@@ -1,120 +1,63 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import {
-  loadGISScript,
-  requestGoogleAccessToken,
-  _resetGISLoader,
-} from '@services/google-identity-services';
+import { requestGoogleAccessToken } from '@services/google-identity-services';
 
-// Store references to script callbacks
-let lastScript: { src: string; async: boolean; onload: () => void; onerror: () => void } | null =
-  null;
-let originalDocument: typeof globalThis.document;
-let originalGoogle: any;
+let mockPopup: { closed: boolean; close: jest.Mock };
+let originalWindowOpen: typeof window.open;
+let originalCrypto: typeof globalThis.crypto;
+let originalAddEventListener: typeof window.addEventListener;
+let originalRemoveEventListener: typeof window.removeEventListener;
+let broadcastChannelInstances: Array<{
+  name: string;
+  onmessage: ((event: MessageEvent) => void) | null;
+  postMessage: (data: unknown) => void;
+  close: jest.Mock;
+}>;
 
 beforeEach(() => {
-  _resetGISLoader();
-  lastScript = null;
+  jest.useFakeTimers();
 
-  // Save originals so we can restore them without side-effects on other test suites
-  originalDocument = (global as any).document;
-  originalGoogle = (global as any).google;
+  mockPopup = { closed: false, close: jest.fn() };
+  originalWindowOpen = window.open;
+  originalCrypto = globalThis.crypto;
+  originalAddEventListener = window.addEventListener;
+  originalRemoveEventListener = window.removeEventListener;
 
-  // Reset the global google namespace
-  (global as any).google = undefined;
+  window.open = jest.fn(() => mockPopup as unknown as Window) as unknown as typeof window.open;
+  window.addEventListener = jest.fn() as unknown as typeof window.addEventListener;
+  window.removeEventListener = jest.fn() as unknown as typeof window.removeEventListener;
 
-  // Mock document.createElement / document.head.appendChild
-  (global as any).document = {
-    createElement: (tag: string) => {
-      if (tag === 'script') {
-        const script = { src: '', async: false, onload: () => {}, onerror: () => {} };
-        lastScript = script;
-        return script;
-      }
-      return {};
-    },
-    head: {
-      appendChild: () => {},
-    },
+  // Mock crypto.randomUUID
+  (globalThis as unknown as Record<string, unknown>).crypto = {
+    randomUUID: () => 'test-state-uuid',
+  };
+
+  broadcastChannelInstances = [];
+  (globalThis as unknown as Record<string, unknown>).BroadcastChannel = class MockBC {
+    name: string;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    close = jest.fn();
+
+    constructor(name: string) {
+      this.name = name;
+      broadcastChannelInstances.push(this as unknown as (typeof broadcastChannelInstances)[number]);
+    }
+
+    postMessage(_data: unknown) {
+      // Not used by the service (only by the callback page)
+    }
   };
 });
 
 afterEach(() => {
-  (global as any).google = originalGoogle;
-  (global as any).document = originalDocument;
-});
-
-describe('loadGISScript', () => {
-  it('should create a script element with the GIS URL', async () => {
-    const promise = loadGISScript();
-    expect(lastScript).not.toBeNull();
-    expect(lastScript!.src).toBe('https://accounts.google.com/gsi/client');
-    expect(lastScript!.async).toBe(true);
-
-    // Simulate script load
-    lastScript!.onload();
-    await promise;
-  });
-
-  it('should resolve immediately if GIS is already present', async () => {
-    (global as any).google = { accounts: { oauth2: {} } };
-    await loadGISScript();
-    // No script element should have been created
-    expect(lastScript).toBeNull();
-  });
-
-  it('should deduplicate concurrent calls', async () => {
-    const p1 = loadGISScript();
-    const p2 = loadGISScript();
-
-    // Only one script element created
-    expect(lastScript).not.toBeNull();
-    lastScript!.onload();
-
-    await p1;
-    await p2;
-  });
-
-  it('should reject when the script fails to load', async () => {
-    const promise = loadGISScript();
-    lastScript!.onerror();
-
-    await expect(promise).rejects.toThrow('Failed to load Google Identity Services script');
-  });
-
-  it('should allow retry after a load failure', async () => {
-    const p1 = loadGISScript();
-    lastScript!.onerror();
-    await expect(p1).rejects.toThrow();
-
-    // Second attempt should create a new script element
-    const p2 = loadGISScript();
-    expect(lastScript).not.toBeNull();
-    lastScript!.onload();
-    await p2;
-  });
+  jest.useRealTimers();
+  window.open = originalWindowOpen;
+  window.addEventListener = originalAddEventListener;
+  window.removeEventListener = originalRemoveEventListener;
+  (globalThis as unknown as Record<string, unknown>).crypto = originalCrypto;
+  jest.restoreAllMocks();
 });
 
 describe('requestGoogleAccessToken', () => {
-  let mockRequestAccessToken: jest.Mock;
-
-  beforeEach(() => {
-    mockRequestAccessToken = jest.fn();
-
-    (global as any).google = {
-      accounts: {
-        oauth2: {
-          initTokenClient: (config: any) => {
-            // Store the callback so we can invoke it from tests
-            (global as any).__gisCallback = config.callback;
-            (global as any).__gisErrorCallback = config.error_callback;
-            (global as any).__gisConfig = config;
-            return { requestAccessToken: mockRequestAccessToken };
-          },
-        },
-      },
-    };
-  });
-
   it('should reject if client ID is empty', async () => {
     await expect(requestGoogleAccessToken('')).rejects.toThrow(
       'Google OAuth Client ID is required',
@@ -127,48 +70,114 @@ describe('requestGoogleAccessToken', () => {
     );
   });
 
-  it('should initialize token client with correct params', async () => {
+  it('should reject if popup is blocked', async () => {
+    window.open = jest.fn(() => null) as unknown as typeof window.open;
+
+    await expect(requestGoogleAccessToken('test-client-id')).rejects.toThrow('Popup blocked');
+  });
+
+  it('should open popup with correct URL parameters', () => {
     const clientId = '123456.apps.googleusercontent.com';
+    requestGoogleAccessToken(clientId).catch(() => {});
 
-    // Make requestAccessToken trigger the stored callback immediately
-    mockRequestAccessToken.mockImplementation(() => {
-      (global as any).__gisCallback({
-        access_token: 'ya29.test-token',
-        expires_in: 3600,
-        scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
-        token_type: 'Bearer',
-      });
-    });
-
-    const result = await requestGoogleAccessToken(clientId);
-
-    expect(mockRequestAccessToken).toHaveBeenCalled();
-    expect((global as any).__gisConfig.client_id).toBe(clientId);
-    expect((global as any).__gisConfig.scope).toBe(
-      'https://www.googleapis.com/auth/spreadsheets.readonly',
+    expect(window.open).toHaveBeenCalledWith(
+      expect.stringContaining('google-oauth-callback.html'),
+      'google-oauth',
+      expect.any(String),
     );
+
+    const url = (window.open as jest.Mock).mock.calls[0][0] as string;
+    expect(url).toContain(`client_id=${encodeURIComponent(clientId)}`);
+    expect(url).toContain('scope=');
+    expect(url).toContain('state=test-state-uuid');
+  });
+
+  it('should resolve when BroadcastChannel receives a valid token', async () => {
+    const clientId = '123456.apps.googleusercontent.com';
+    const promise = requestGoogleAccessToken(clientId);
+
+    const bc = broadcastChannelInstances[0];
+    expect(bc).toBeDefined();
+    expect(bc.name).toBe('pondpilot-google-oauth');
+
+    bc.onmessage!(
+      new MessageEvent('message', {
+        data: {
+          type: 'google-oauth-result',
+          state: 'test-state-uuid',
+          accessToken: 'ya29.test-token',
+          expiresIn: 3600,
+          scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        },
+      }),
+    );
+
+    const result = await promise;
     expect(result).toEqual({
       accessToken: 'ya29.test-token',
       expiresIn: 3600,
       scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
     });
+    expect(bc.close).toHaveBeenCalled();
   });
 
-  it('should reject when error_callback fires', async () => {
-    mockRequestAccessToken.mockImplementation(() => {
-      (global as any).__gisErrorCallback({ type: 'popup_closed', message: 'User closed popup' });
-    });
+  it('should ignore messages with wrong state', async () => {
+    const clientId = 'test-client-id';
+    const promise = requestGoogleAccessToken(clientId);
 
-    await expect(requestGoogleAccessToken('test-client-id')).rejects.toThrow('User closed popup');
-  });
+    const bc = broadcastChannelInstances[0];
 
-  it('should reject with default message when error has no message', async () => {
-    mockRequestAccessToken.mockImplementation(() => {
-      (global as any).__gisErrorCallback({ type: 'unknown' });
-    });
-
-    await expect(requestGoogleAccessToken('test-client-id')).rejects.toThrow(
-      'Google sign-in was cancelled or failed',
+    bc.onmessage!(
+      new MessageEvent('message', {
+        data: {
+          type: 'google-oauth-result',
+          state: 'wrong-state',
+          accessToken: 'ya29.wrong',
+          expiresIn: 3600,
+          scope: '',
+        },
+      }),
     );
+
+    bc.onmessage!(
+      new MessageEvent('message', {
+        data: {
+          type: 'google-oauth-result',
+          state: 'test-state-uuid',
+          accessToken: 'ya29.correct',
+          expiresIn: 7200,
+          scope: '',
+        },
+      }),
+    );
+
+    const result = await promise;
+    expect(result.accessToken).toBe('ya29.correct');
+  });
+
+  it('should reject when BroadcastChannel receives an error', async () => {
+    const promise = requestGoogleAccessToken('test-client-id');
+
+    const bc = broadcastChannelInstances[0];
+    bc.onmessage!(
+      new MessageEvent('message', {
+        data: {
+          type: 'google-oauth-error',
+          state: 'test-state-uuid',
+          error: 'access_denied',
+        },
+      }),
+    );
+
+    await expect(promise).rejects.toThrow('Google auth error: access_denied');
+  });
+
+  it('should reject on timeout', async () => {
+    const promise = requestGoogleAccessToken('test-client-id');
+
+    // Advance past the 5-minute timeout
+    jest.advanceTimersByTime(5 * 60 * 1000 + 1);
+
+    await expect(promise).rejects.toThrow('Google sign-in timed out');
   });
 });

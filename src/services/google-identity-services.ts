@@ -1,39 +1,16 @@
-/// <reference path="../types/google-identity-services.d.ts" />
-
-const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client';
+/**
+ * Google OAuth via a same-origin popup relay.
+ *
+ * COOP `same-origin` (required for SharedArrayBuffer / MotherDuck) prevents
+ * cross-origin popups from communicating back to the opener.  Instead of using
+ * the Google Identity Services popup, we open a same-origin relay page
+ * (`/google-oauth-callback.html`) that redirects to Google OAuth and, on
+ * return, sends the token back via BroadcastChannel.
+ */
 
 const GOOGLE_SHEETS_READONLY_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
-
-/** Deduplication guard: set once the first load starts. */
-let loadPromise: Promise<void> | null = null;
-
-/**
- * Dynamically load the Google Identity Services script.
- * Idempotent — if already loaded or loading, returns the existing promise.
- */
-export function loadGISScript(): Promise<void> {
-  if (loadPromise) return loadPromise;
-
-  // Script may already be present (e.g., inserted by another integration)
-  if (typeof google !== 'undefined' && google?.accounts?.oauth2) {
-    loadPromise = Promise.resolve();
-    return loadPromise;
-  }
-
-  loadPromise = new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = GIS_SCRIPT_URL;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => {
-      loadPromise = null; // Allow retry on failure
-      reject(new Error('Failed to load Google Identity Services script'));
-    };
-    document.head.appendChild(script);
-  });
-
-  return loadPromise;
-}
+const CHANNEL_NAME = 'pondpilot-google-oauth';
+const POPUP_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export interface GoogleAccessTokenResult {
   accessToken: string;
@@ -42,46 +19,98 @@ export interface GoogleAccessTokenResult {
 }
 
 /**
- * Request a Google access token via the GIS popup flow.
+ * Request a Google access token via a same-origin popup relay.
  *
- * Loads the GIS script if not yet loaded, then opens the Google consent popup.
  * Must be called from a user gesture (click handler) to avoid popup blockers.
  */
-export async function requestGoogleAccessToken(clientId: string): Promise<GoogleAccessTokenResult> {
+export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccessTokenResult> {
   if (!clientId.trim()) {
-    throw new Error('Google OAuth Client ID is required. Configure it in Settings.');
+    return Promise.reject(
+      new Error('Google OAuth Client ID is required. Configure it in Settings.'),
+    );
   }
 
-  await loadGISScript();
+  const state = crypto.randomUUID();
+  const callbackPath = `${window.location.origin}/google-oauth-callback.html`;
+  const popupUrl = `${callbackPath}?client_id=${encodeURIComponent(clientId)}&scope=${encodeURIComponent(GOOGLE_SHEETS_READONLY_SCOPE)}&state=${encodeURIComponent(state)}`;
+
+  const popup = window.open(popupUrl, 'google-oauth', 'width=500,height=600,menubar=no,toolbar=no');
+  if (!popup) {
+    return Promise.reject(
+      new Error('Popup blocked. Please allow popups for this site and try again.'),
+    );
+  }
 
   return new Promise<GoogleAccessTokenResult>((resolve, reject) => {
-    const tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: GOOGLE_SHEETS_READONLY_SCOPE,
-      callback: (response) => {
-        if (response.error) {
-          reject(new Error(`Google auth error: ${response.error}`));
-          return;
-        }
+    const bc = new BroadcastChannel(CHANNEL_NAME);
+    let settled = false;
+
+    const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      bc.close();
+      clearTimeout(timeoutTimer);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+
+    bc.onmessage = (event: MessageEvent) => {
+      const { data } = event;
+      if (data?.state !== state) return;
+
+      if (data.type === 'google-oauth-result' && data.accessToken) {
+        cleanup();
         resolve({
-          accessToken: response.access_token,
-          expiresIn: response.expires_in,
-          scope: response.scope,
+          accessToken: data.accessToken,
+          expiresIn: data.expiresIn,
+          scope: data.scope,
         });
-      },
-      error_callback: (error) => {
-        // Fires when the popup is closed or a non-OAuth error occurs
-        reject(new Error(error.message || 'Google sign-in was cancelled or failed'));
-      },
-    });
+      } else if (data.type === 'google-oauth-error') {
+        cleanup();
+        reject(new Error(`Google auth error: ${data.error || 'unknown'}`));
+      }
+    };
 
-    tokenClient.requestAccessToken();
+    // Detect popup closure: when the main window regains focus and keeps it
+    // for a few seconds without receiving a token, assume the popup was closed.
+    let focusTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleFocus = () => {
+      if (settled) return;
+      focusTimer = setTimeout(() => {
+        if (!settled) {
+          cleanup();
+          reject(new Error('Google sign-in was cancelled'));
+        }
+      }, 3000);
+    };
+
+    const handleBlur = () => {
+      if (focusTimer) {
+        clearTimeout(focusTimer);
+        focusTimer = null;
+      }
+    };
+
+    // Delay monitoring focus so the initial popup opening doesn't trigger it
+    setTimeout(() => {
+      if (!settled) {
+        window.addEventListener('focus', handleFocus);
+        window.addEventListener('blur', handleBlur);
+      }
+    }, 2000);
+
+    // Hard timeout fallback
+    const timeoutTimer = setTimeout(() => {
+      if (!settled) {
+        cleanup();
+        try {
+          popup.close();
+        } catch {
+          // Popup may already be closed or cross-origin
+        }
+        reject(new Error('Google sign-in timed out'));
+      }
+    }, POPUP_TIMEOUT_MS);
   });
-}
-
-/**
- * Reset the GIS script loader state. Intended for testing only.
- */
-export function _resetGISLoader(): void {
-  loadPromise = null;
 }
