@@ -197,6 +197,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // appends instead of re-writing, what can be a huge array every time.
   const actualData = useRef<DataTable>([]);
   const terminalSchemaErrorRef = useRef<string | null>(null);
+  const resetRef = useRef<((newSortParams: ColumnSortSpecList | null) => Promise<void>) | null>(
+    null,
+  );
 
   // We need a non-reactive ref to be able to handle multiple
   // parallel fetch calls, such that to the end user it seems that
@@ -453,7 +456,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             isRecoverableSchemaError(error)
           ) {
             await syncFiles(pool);
-            await reset(newSortParams);
+            await resetRef.current?.(newSortParams);
             await getNewReader(newSortParams, { retry_with_file_sync: false });
           } else {
             reportTerminalSchemaError(error);
@@ -572,6 +575,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     },
     [actualDataSchema, cancelAllDataOperations, getNewReader, staleData, setLastSortSafe, sort],
   );
+
+  resetRef.current = reset;
 
   /**
    * -------------------------------------------------------------

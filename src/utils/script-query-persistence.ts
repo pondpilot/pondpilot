@@ -1,5 +1,5 @@
-import { DataBaseModel } from '@models/db';
 import { SYSTEM_DATABASE_NAME } from '@models/data-source';
+import { DataBaseModel } from '@models/db';
 
 const escapedSystemDatabaseName = SYSTEM_DATABASE_NAME.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const systemDatabaseReferencePattern = new RegExp(

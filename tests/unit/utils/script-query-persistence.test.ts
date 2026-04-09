@@ -37,10 +37,7 @@ describe('script-query-persistence', () => {
     const metadata = buildMetadata(['store_purchases']);
 
     expect(
-      shouldResetRestoredScriptQuery(
-        'SELECT * FROM pondpilot.main.store_purchases',
-        metadata,
-      ),
+      shouldResetRestoredScriptQuery('SELECT * FROM pondpilot.main.store_purchases', metadata),
     ).toBe(false);
   });
 
