@@ -19,16 +19,65 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Deploy to Cloudflare Pages main site on push to main or workflow_dispatch
-  test-and-build-prod:
+  # Lightweight check + build on main (full test suite runs in PRs)
+  lint-and-build-prod:
     if: github.repository == 'pondpilot/pondpilot' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    uses: ./.github/workflows/build-and-test.yml
+    runs-on: ubuntu-latest
+    name: Lint & Build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack
+        run: |
+          corepack enable
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+
+      - name: Cache Yarn Dependencies
+        uses: actions/cache@v4
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Type check
+        run: yarn typecheck
+
+      - name: Lint JS/TS
+        run: yarn lint
+
+      - name: Check for formatting issues
+        run: yarn prettier
+
+      - name: Build for production
+        run: yarn build
+        env:
+          VITE_BUG_REPORT_PROXY_URL: ${{ vars.VITE_BUG_REPORT_PROXY_URL }}
+
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: dist
 
   deploy-prod:
     if: github.repository == 'pondpilot/pondpilot' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     name: Deploy
-    needs: test-and-build-prod
+    needs: lint-and-build-prod
     permissions:
       contents: read
       deployments: write

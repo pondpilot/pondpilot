@@ -25,7 +25,7 @@ import {
   isTheSameSortSpec,
   toggleMultiColumnSort,
 } from '@utils/db';
-import { isSchemaError } from '@utils/schema-error-detection';
+import { isRecoverableSchemaError, isSchemaError } from '@utils/schema-error-detection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useDataAdapterQueries } from './use-data-adapter-queries';
@@ -52,6 +52,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    * Hooks
    */
   const queries = useDataAdapterQueries({ tab, sourceVersion });
+  const canAutoRecoverSchemaMismatch =
+    tab.type === 'script' || (tab.type === 'data-source' && tab.dataSourceType === 'file');
 
   // We use a couple of abort controllers to cancel various queries that this
   // hook may run.
@@ -428,7 +430,11 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             setAppendDataSourceReadError('Data source have been moved or deleted.');
           }
         } else if (isSchemaError(error)) {
-          if (options.retry_with_file_sync) {
+          if (
+            options.retry_with_file_sync &&
+            canAutoRecoverSchemaMismatch &&
+            isRecoverableSchemaError(error)
+          ) {
             await syncFiles(pool);
             await reset(newSortParams);
             await getNewReader(newSortParams, { retry_with_file_sync: false });
@@ -459,6 +465,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     },
     [
       fetchRowCount,
+      canAutoRecoverSchemaMismatch,
       getDataFetchAbortSignal,
       pool,
       queries,
@@ -654,7 +661,11 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             setAppendDataSourceReadError('Data source have been moved or deleted.');
           }
         } else if (isSchemaError(error)) {
-          if (options.retry_with_file_sync) {
+          if (
+            options.retry_with_file_sync &&
+            canAutoRecoverSchemaMismatch &&
+            isRecoverableSchemaError(error)
+          ) {
             // Schema mismatch detected - sync files and recreate views
             await syncFiles(pool);
             // Do a full reset to the same sort. This will put the current batch
@@ -725,6 +736,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       pool,
       reset,
       sort,
+      canAutoRecoverSchemaMismatch,
       setAppendDataSourceReadError,
       tab.id,
       setRealRowCount,
