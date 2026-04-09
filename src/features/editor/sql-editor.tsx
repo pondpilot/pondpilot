@@ -36,6 +36,7 @@ import {
   CancelledError,
   getFlowScopeClient,
   getCompletionClient,
+  getInteractiveFlowScopeClient,
   terminateFlowScopeClients,
 } from '../../workers/flowscope-client';
 import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
@@ -229,6 +230,11 @@ type AnalysisCache = {
   sql: string;
   result: import('@pondpilot/flowscope-core').AnalyzeResult | null;
   promise: Promise<import('@pondpilot/flowscope-core').AnalyzeResult> | null;
+};
+
+type StatementAnalysisCacheEntry = {
+  result: AnalysisCache['result'];
+  promise: Promise<AnalysisCache['result']> | null;
 };
 
 type CompletionItem = CompletionItemsResult['items'][number];
@@ -562,7 +568,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       spans: Span[];
       promise: Promise<Span[]> | null;
     }>({ sql: '', spans: [], promise: null });
-    const statementAnalysisCacheRef = useRef(new Map<string, AnalysisCache['result']>());
+    const statementAnalysisCacheRef = useRef(new Map<string, StatementAnalysisCacheEntry>());
     const cursorOffsetRef = useRef(0);
     const mountedRef = useRef(true);
     const [assistantVisible, setAssistantVisible] = useState(false);
@@ -858,27 +864,58 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
         const cacheKey = `${schemaCacheKey}:${context.sql}`;
         const cache = statementAnalysisCacheRef.current;
-        if (cache.has(cacheKey)) {
+        const cached = cache.get(cacheKey);
+        if (cached?.result) {
           return {
-            analysis: cache.get(cacheKey) ?? null,
+            analysis: cached.result,
+            span: context.span,
+          };
+        }
+        if (cached?.promise) {
+          return {
+            analysis: await cached.promise,
             span: context.span,
           };
         }
 
-        const client = getFlowScopeClient();
-        const analysis = await client.analyze(context.sql, schema);
-        cache.set(cacheKey, analysis);
-        if (cache.size > 100) {
-          cache.clear();
-          cache.set(cacheKey, analysis);
-        }
+        const client = getInteractiveFlowScopeClient();
+        const pendingAnalysis = client
+          .analyze(context.sql, schema, 'duckdb', lintConfig, {
+            cancelPrevious: true,
+            requestKey: 'interactiveAnalyze',
+          })
+          .then((analysis) => {
+            cache.set(cacheKey, {
+              result: analysis,
+              promise: null,
+            });
+            if (cache.size > 100) {
+              cache.clear();
+              cache.set(cacheKey, {
+                result: analysis,
+                promise: null,
+              });
+            }
+            return analysis;
+          })
+          .catch((error) => {
+            cache.delete(cacheKey);
+            throw error;
+          });
+
+        cache.set(cacheKey, {
+          result: null,
+          promise: pendingAnalysis,
+        });
+
+        const analysis = await pendingAnalysis;
 
         return {
           analysis,
           span: context.span,
         };
       },
-      [getStatementContext, schema, schemaCacheKey],
+      [getStatementContext, lintConfig, schema, schemaCacheKey],
     );
 
     const updateStatementHighlight = useCallback(
@@ -1478,8 +1515,14 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       });
 
       const hoverProvider = monacoInstance.languages.registerHoverProvider('sql', {
-        provideHover: async (hoverModel: monaco.editor.ITextModel, position: monaco.Position) => {
+        provideHover: async (
+          hoverModel: monaco.editor.ITextModel,
+          position: monaco.Position,
+          token: monaco.CancellationToken,
+        ) => {
           try {
+            if (token.isCancellationRequested) return null;
+
             const word = hoverModel.getWordAtPosition(position);
             if (!word) return null;
 
@@ -1507,6 +1550,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) return null;
             const cursorOffset = hoverModel.getOffsetAt(position);
             const statementResult = await getStatementAnalysis(sqlText, cursorOffset);
+            if (token.isCancellationRequested) return null;
             if (!statementResult?.analysis) return null;
 
             const [statement] = statementResult.analysis.statements;
@@ -1959,14 +2003,20 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
       // Code lens provider: show reference counts above CTE definitions
       const codeLensProvider = monacoInstance.languages.registerCodeLensProvider('sql', {
-        provideCodeLenses: async (model) => {
+        provideCodeLenses: async (model, token) => {
           try {
+            if (token.isCancellationRequested) {
+              return { lenses: [], dispose: () => {} };
+            }
             const sqlText = model.getValue();
             // Skip full analysis for large documents to avoid blocking the worker
             if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) {
               return { lenses: [], dispose: () => {} };
             }
             const analysis = await getFlowScopeAnalysis(sqlText);
+            if (token.isCancellationRequested) {
+              return { lenses: [], dispose: () => {} };
+            }
             if (!analysis) return { lenses: [], dispose: () => {} };
 
             const lenses: monaco.languages.CodeLens[] = [];
@@ -2039,8 +2089,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       const linkedEditingProvider = monacoInstance.languages.registerLinkedEditingRangeProvider(
         'sql',
         {
-          provideLinkedEditingRanges: async (model, position) => {
+          provideLinkedEditingRanges: async (model, position, token) => {
             try {
+              if (token.isCancellationRequested) return null;
               const sqlText = model.getValue();
               // Skip full analysis for large documents to avoid blocking the worker
               if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) return null;
@@ -2048,6 +2099,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               if (!word) return null;
 
               const analysis = await getFlowScopeAnalysis(sqlText);
+              if (token.isCancellationRequested) return null;
               if (!analysis) return null;
 
               const targetLabel = word.word.toLowerCase();

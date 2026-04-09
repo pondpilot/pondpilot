@@ -36,6 +36,8 @@ type PendingRequest<T> = {
   timeoutId?: ReturnType<typeof setTimeout>;
 };
 
+type RequestKey = FlowScopeRequestType | 'interactiveAnalyze';
+
 // Default timeout for worker requests (30 seconds)
 const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 
@@ -43,7 +45,29 @@ class FlowScopeClient {
   private worker: Worker | null = null;
   private requestId = 0;
   private pendingRequests = new Map<number, PendingRequest<unknown>>();
-  private latestRequestByType = new Map<FlowScopeRequestType, number>();
+  private latestRequestByKey = new Map<RequestKey, number>();
+
+  private rejectPendingRequests(error: Error): void {
+    for (const pending of this.pendingRequests.values()) {
+      if (pending.timeoutId) {
+        clearTimeout(pending.timeoutId);
+      }
+      pending.reject(error);
+    }
+    this.pendingRequests.clear();
+    this.latestRequestByKey.clear();
+  }
+
+  private recycleWorker(error: Error): void {
+    const activeWorker = this.worker;
+    this.worker = null;
+
+    if (activeWorker) {
+      activeWorker.terminate();
+    }
+
+    this.rejectPendingRequests(error);
+  }
 
   private getWorker(): Worker {
     if (!this.worker) {
@@ -76,14 +100,12 @@ class FlowScopeClient {
 
       this.worker.onerror = (error) => {
         console.error('FlowScope worker error:', error);
-        // Reject all pending requests and clear their timeouts
-        for (const pending of this.pendingRequests.values()) {
-          if (pending.timeoutId) {
-            clearTimeout(pending.timeoutId);
-          }
-          pending.reject(new Error('Worker error'));
-        }
-        this.pendingRequests.clear();
+        this.recycleWorker(new Error('Worker error'));
+      };
+
+      this.worker.onmessageerror = (error) => {
+        console.error('FlowScope worker message error:', error);
+        this.recycleWorker(new Error('Worker message error'));
       };
     }
 
@@ -91,7 +113,7 @@ class FlowScopeClient {
   }
 
   private sendRequest<T>(
-    type: FlowScopeRequestType,
+    requestKey: RequestKey,
     request: Record<string, unknown>,
     cancelPrevious: boolean = false,
   ): Promise<T> {
@@ -101,7 +123,7 @@ class FlowScopeClient {
     // Only cancel previous request if explicitly requested
     // (useful for autocomplete where only the latest result matters)
     if (cancelPrevious) {
-      const previousId = this.latestRequestByType.get(type);
+      const previousId = this.latestRequestByKey.get(requestKey);
       if (previousId !== undefined) {
         const previous = this.pendingRequests.get(previousId);
         if (previous) {
@@ -116,15 +138,16 @@ class FlowScopeClient {
       }
     }
 
-    this.latestRequestByType.set(type, id);
+    this.latestRequestByKey.set(requestKey, id);
 
     return new Promise((resolve, reject) => {
       // Set up timeout to prevent memory leaks if worker hangs
       const timeoutId = setTimeout(() => {
         const pending = this.pendingRequests.get(id);
         if (pending) {
-          this.pendingRequests.delete(id);
-          reject(new Error(`Worker request timed out after ${DEFAULT_REQUEST_TIMEOUT_MS}ms`));
+          this.recycleWorker(
+            new Error(`Worker request timed out after ${DEFAULT_REQUEST_TIMEOUT_MS}ms`),
+          );
         }
       }, DEFAULT_REQUEST_TIMEOUT_MS);
 
@@ -144,8 +167,8 @@ class FlowScopeClient {
    * Check if a request ID is still the latest for its type.
    * Used to skip processing stale results.
    */
-  isRequestCurrent(type: FlowScopeRequestType, id: number): boolean {
-    return this.latestRequestByType.get(type) === id;
+  isRequestCurrent(type: RequestKey, id: number): boolean {
+    return this.latestRequestByKey.get(type) === id;
   }
 
   /**
@@ -156,14 +179,22 @@ class FlowScopeClient {
     schema?: SchemaMetadata,
     dialect: string = 'duckdb',
     lint?: LintConfig,
+    options?: {
+      cancelPrevious?: boolean;
+      requestKey?: RequestKey;
+    },
   ): Promise<AnalyzeResult> {
-    return this.sendRequest<AnalyzeResult>('analyze', {
-      type: 'analyze',
-      sql,
-      dialect,
-      schema,
-      lint,
-    });
+    return this.sendRequest<AnalyzeResult>(
+      options?.requestKey ?? 'analyze',
+      {
+        type: 'analyze',
+        sql,
+        dialect,
+        schema,
+        lint,
+      },
+      options?.cancelPrevious ?? false,
+    );
   }
 
   /**
@@ -209,20 +240,12 @@ class FlowScopeClient {
    * Terminate the worker. Call when the editor is unmounted.
    */
   terminate(): void {
-    // Reject all pending requests and clear their timeouts
-    for (const pending of this.pendingRequests.values()) {
-      if (pending.timeoutId) {
-        clearTimeout(pending.timeoutId);
-      }
-      pending.reject(new Error('Worker terminated'));
-    }
-    this.pendingRequests.clear();
-    this.latestRequestByType.clear();
-
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;
     }
+
+    this.rejectPendingRequests(new Error('Worker terminated'));
   }
 }
 
@@ -233,6 +256,10 @@ let clientInstance: FlowScopeClient | null = null;
 // Completions run on a dedicated worker so they are never blocked
 // by long-running split/analyze operations on the main worker.
 let completionClientInstance: FlowScopeClient | null = null;
+
+// Separate singleton for interactive statement analysis requests (hover, etc.).
+// These requests are bursty and should not clog the main analysis worker.
+let interactiveClientInstance: FlowScopeClient | null = null;
 
 export function getFlowScopeClient(): FlowScopeClient {
   if (!clientInstance) {
@@ -253,6 +280,13 @@ export function getCompletionClient(): FlowScopeClient {
   return completionClientInstance;
 }
 
+export function getInteractiveFlowScopeClient(): FlowScopeClient {
+  if (!interactiveClientInstance) {
+    interactiveClientInstance = new FlowScopeClient();
+  }
+  return interactiveClientInstance;
+}
+
 export function terminateFlowScopeClients(): void {
   if (clientInstance) {
     clientInstance.terminate();
@@ -261,6 +295,10 @@ export function terminateFlowScopeClients(): void {
   if (completionClientInstance) {
     completionClientInstance.terminate();
     completionClientInstance = null;
+  }
+  if (interactiveClientInstance) {
+    interactiveClientInstance.terminate();
+    interactiveClientInstance = null;
   }
 }
 

@@ -19,6 +19,7 @@ export class CancelledError extends Error {
 
 let clientInstance: MockFlowScopeClient | null = null;
 let completionClientInstance: MockFlowScopeClient | null = null;
+let interactiveClientInstance: MockFlowScopeClient | null = null;
 
 export function getFlowScopeClient(): MockFlowScopeClient {
   if (!clientInstance) {
@@ -34,9 +35,17 @@ export function getCompletionClient(): MockFlowScopeClient {
   return completionClientInstance;
 }
 
+export function getInteractiveFlowScopeClient(): MockFlowScopeClient {
+  if (!interactiveClientInstance) {
+    interactiveClientInstance = createMockFlowScopeClient();
+  }
+  return interactiveClientInstance;
+}
+
 export function terminateFlowScopeClients(): void {
   clientInstance = null;
   completionClientInstance = null;
+  interactiveClientInstance = null;
 }
 
 export type FlowScopeClient = MockFlowScopeClient;
