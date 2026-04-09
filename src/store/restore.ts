@@ -68,6 +68,7 @@ import {
 import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import { shouldResetRestoredScriptQuery } from '@utils/script-query-persistence';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
 
@@ -1102,6 +1103,43 @@ export const restoreAppDataFromIDB = async (
         },
       ],
     });
+  }
+
+  let restoredSystemDbScriptQueriesCleared = 0;
+  newTabs = new Map(
+    Array.from(newTabs.entries()).map(([tabId, tab]) => {
+      if (tab.type !== 'script') {
+        return [tabId, tab];
+      }
+
+      if (!shouldResetRestoredScriptQuery(tab.lastExecutedQuery, databaseMetadata)) {
+        return [tabId, tab];
+      }
+
+      restoredSystemDbScriptQueriesCleared += 1;
+
+      return [
+        tabId,
+        {
+          ...tab,
+          lastExecutedQuery: null,
+          dataViewStateCache: tab.dataViewStateCache
+            ? {
+                ...tab.dataViewStateCache,
+                staleData: null,
+                sort: null,
+                dataViewPage: 0,
+              }
+            : null,
+        },
+      ];
+    }),
+  );
+
+  if (restoredSystemDbScriptQueriesCleared > 0) {
+    warnings.push(
+      `Reset ${restoredSystemDbScriptQueriesCleared} restored query tab(s) that referenced ${SYSTEM_DATABASE_NAME}.main objects because the system database was empty after reload.`,
+    );
   }
 
   // Clean up orphaned data sources if browser doesn't support persistent file handles

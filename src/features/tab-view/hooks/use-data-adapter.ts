@@ -196,6 +196,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // Holds the data read from the data source. We use ref to allow efficient
   // appends instead of re-writing, what can be a huge array every time.
   const actualData = useRef<DataTable>([]);
+  const terminalSchemaErrorRef = useRef<string | null>(null);
 
   // We need a non-reactive ref to be able to handle multiple
   // parallel fetch calls, such that to the end user it seems that
@@ -346,6 +347,21 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     abortBackgroundTasks();
   }, [abortBackgroundTasks, abortDataFetch, abortUserTasks]);
 
+  const reportTerminalSchemaError = useCallback(
+    (error: Error) => {
+      const errorKey = error.message || 'unknown-schema-error';
+
+      if (terminalSchemaErrorRef.current === errorKey) {
+        return;
+      }
+
+      terminalSchemaErrorRef.current = errorKey;
+      console.error('Schema mismatch detected:', error);
+      setAppendDataSourceReadError('Data source schema has changed. Please refresh the tab.');
+    },
+    [setAppendDataSourceReadError],
+  );
+
   /**
    * -------------------------------------------------------------
    * Effects & functions related to data source / prop changes
@@ -407,6 +423,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
           // Reader will be null if load was aborted, so check it first
           if (newReader !== null) {
+            terminalSchemaErrorRef.current = null;
             mainDataReaderRef.current = newReader;
             setDataSourceVersion((prev) => prev + 1);
 
@@ -439,8 +456,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             await reset(newSortParams);
             await getNewReader(newSortParams, { retry_with_file_sync: false });
           } else {
-            console.error('Schema mismatch detected:', error);
-            setAppendDataSourceReadError('Data source schema has changed. Please refresh the tab.');
+            reportTerminalSchemaError(error);
           }
         } else if (error.message?.includes('NotFoundError')) {
           console.error('Data source have been moved or deleted:', error);
@@ -469,6 +485,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       getDataFetchAbortSignal,
       pool,
       queries,
+      reportTerminalSchemaError,
       rowCountInfo.realRowCount,
       setAppendDataSourceReadError,
     ],
@@ -519,6 +536,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // As we will read from the start, we reset this flag
       setDataSourceExhausted(false);
       // And any error
+      terminalSchemaErrorRef.current = null;
       setDataSourceReadError([]);
       // Fetch to target is reset to 0
       fetchTo.current = 0;
@@ -680,8 +698,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             afterRetry = true;
           } else {
             // We got an unrecoverable schema mismatch error
-            console.error('Schema mismatch detected:', error);
-            setAppendDataSourceReadError('Data source schema has changed. Please refresh the tab.');
+            reportTerminalSchemaError(error);
           }
         } else if (!abortSignal.aborted) {
           // Fetch was not cancelled we got an actual error
@@ -737,6 +754,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       reset,
       sort,
       canAutoRecoverSchemaMismatch,
+      reportTerminalSchemaError,
       setAppendDataSourceReadError,
       tab.id,
       setRealRowCount,
