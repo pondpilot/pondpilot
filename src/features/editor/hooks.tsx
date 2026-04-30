@@ -103,8 +103,8 @@ export const useEditorTheme = (colorSchemeDark: boolean) => {
       ].filter(Boolean),
       colors: {
         'editor.background': normalizeThemeColor(
-          colorSchemeDark ? colors['brandBlue_neon-50'][0] : colors['grey-50'][0],
-          colorSchemeDark ? '#111111' : '#fdfdfd',
+          colorSchemeDark ? colors['blue-grey-800'][0] : colors['grey-50'][0],
+          colorSchemeDark ? '#242B35' : '#fdfdfd',
         ),
         'editor.foreground': normalizeThemeColor(
           colors['text-primary'][0],

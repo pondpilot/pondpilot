@@ -2,7 +2,6 @@
 import { IconType, NamedIcon } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { ColumnMeta } from '@components/table/model';
-import { Text } from '@mantine/core';
 import { ColumnSortSpec, DataRow } from '@models/db';
 import { IconTriangleInvertedFilled } from '@tabler/icons-react';
 import { Header, Table as TableType } from '@tanstack/react-table';
@@ -61,9 +60,7 @@ const THeadTitle = ({
           <NamedIcon iconType={iconType} size={16} />
         </div>
       )}
-      <Text truncate="end" fw={500}>
-        {header.isPlaceholder ? null : columnName}
-      </Text>
+      <span className="truncate font-medium">{header.isPlaceholder ? null : columnName}</span>
       {!isIndex && (
         <div
           className={cn(
@@ -152,7 +149,7 @@ export const TableHeadCell = memo(
       <div
         data-testid={setDataTestId(`data-table-header-cell-container-${header.column.id}`)}
         className={cn(
-          'relative z-10 flex items-center justify-between gap-1 px-4 py-[11px] h-[40px] text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark whitespace-nowrap select-none border-transparent',
+          'relative z-10 flex items-center justify-between gap-1 pl-2 pr-4 py-[11px] h-[40px] text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark whitespace-nowrap select-none border-transparent',
           'border-borderLight-light dark:border-borderLight-dark border-r',
           index === 0 && 'rounded-tl-xl border-l-0',
           index === totalHeaders - 1 && 'rounded-tr-xl border-r-0',
