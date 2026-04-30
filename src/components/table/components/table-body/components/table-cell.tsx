@@ -68,8 +68,10 @@ export const TableRegularCell = memo(
           ref={cellRef}
           data-testid={setDataTestId(`data-table-cell-value-${cell.column.id}-${cell.row.index}`)}
           className={cn(
-            'text-sm p-2 overflow-hidden text-ellipsis whitespace-nowrap',
-            isNumberType(columnValueSqlType) && 'justify-end font-mono flex w-full',
+            'text-sm overflow-hidden text-ellipsis whitespace-nowrap',
+            isNumberType(columnValueSqlType)
+              ? 'justify-end font-mono flex w-full py-2 pl-2 pr-7'
+              : 'p-2',
             fValueType !== 'regular' &&
               'italic text-textSecondary-light dark:text-textSecondary-dark',
           )}

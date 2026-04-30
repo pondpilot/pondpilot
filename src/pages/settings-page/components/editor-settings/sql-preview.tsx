@@ -89,9 +89,6 @@ export const SqlPreview = ({ fontSize, fontWeight = 'regular' }: SqlPreviewProps
       style={{
         width: '205px',
         height: '213px',
-        boxShadow: isDark
-          ? 'inset -16px 0px 9px rgba(56, 66, 82, 0.6)'
-          : 'inset -16px 0px 9px rgba(242, 244, 248, 0.7)',
       }}
     >
       <Box
