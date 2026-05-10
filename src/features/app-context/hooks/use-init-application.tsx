@@ -7,6 +7,7 @@ import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
+import type { GSheetSheetView } from '@models/data-source';
 import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
@@ -21,6 +22,7 @@ import {
   attachAndVerifyDuckLakeCatalog,
   updateDuckLakeConnectionState,
 } from '@utils/ducklake-catalog';
+import { notifyGSheetTokenExpired } from '@utils/gsheet-reauth';
 import {
   attachAndVerifyIcebergCatalog,
   resolveIcebergCredentials,
@@ -235,6 +237,20 @@ export function useAppInitialization({
   const connectDuckDb = useDuckDBInitializer();
 
   const initAppData = async (resolvedConn: AsyncDuckDBConnectionPool) => {
+    // Install CORS + Google Sheets helper macros before restore so persisted
+    // authorized Google Sheet views can be recreated immediately.
+    try {
+      await installCorsProxyMacros(resolvedConn);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('Failed to install CORS proxy macros:', message);
+      showWarning({
+        title: 'CORS Proxy Initialization Warning',
+        message:
+          'CORS proxy macros could not be installed. Remote databases may require manual configuration.',
+      });
+    }
+
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
     try {
@@ -244,19 +260,6 @@ export function useAppInitialization({
 
       // Load DuckDB functions into the store
       await loadDuckDBFunctions(resolvedConn);
-
-      // Install CORS proxy macros
-      try {
-        await installCorsProxyMacros(resolvedConn);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn('Failed to install CORS proxy macros:', message);
-        showWarning({
-          title: 'CORS Proxy Initialization Warning',
-          message:
-            'CORS proxy macros could not be installed. Remote databases may require manual configuration.',
-        });
-      }
 
       // Reconnect to remote databases
       await reconnectRemoteDatabases(resolvedConn);
@@ -314,6 +317,25 @@ export function useAppInitialization({
       });
     }
 
+    // Notify about expired OAuth Google Sheet tokens after restore
+    if (resolvedConn) {
+      const { dataSources } = useAppStore.getState();
+      const now = Date.now();
+      const notifiedConnections = new Set<string>();
+      for (const ds of dataSources.values()) {
+        if (ds.type !== 'gsheet-sheet' || ds.accessMode !== 'oauth') continue;
+        const gsheetDs = ds as GSheetSheetView;
+        const expiresAt = gsheetDs.tokenExpiresAt;
+        if (expiresAt && expiresAt < now) {
+          const groupKey = String(gsheetDs.fileSourceId);
+          if (!notifiedConnections.has(groupKey)) {
+            notifiedConnections.add(groupKey);
+            notifyGSheetTokenExpired(resolvedConn, gsheetDs);
+          }
+        }
+      }
+    }
+
     // Report we are ready
     setAppLoadState('ready');
   };
@@ -337,5 +359,9 @@ export function useAppInitialization({
       setAppLoadState('init');
       connectDuckDb();
     }
+    // initAppData and connectDuckDb are defined fresh each render; adding them
+    // would re-trigger initialization. The remaining props are stable booleans
+    // that don't change after mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conn, isTabBlocked]);
 }

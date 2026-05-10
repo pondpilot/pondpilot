@@ -325,6 +325,9 @@ export const DuckDBPersistenceProvider: React.FC<{
     return () => {
       clearInterval(interval);
     };
+    // updatePersistenceState is not memoized; adding it would reset
+    // the polling interval on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controller]);
 
   const exportDatabase = async (): Promise<void> => {

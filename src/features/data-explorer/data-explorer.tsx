@@ -2,11 +2,17 @@ import { TreeNodeData } from '@components/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { createComparisonWithSources } from '@controllers/tab/comparison-tab-controller';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
+import { buildGSheetWorkbookNode } from '@features/data-explorer/builders';
 import { IcebergReconnectModal } from '@features/datasource-wizard/components/iceberg-reconnect-modal';
 import { MotherDuckReconnectModal } from '@features/datasource-wizard/components/motherduck-reconnect-modal';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { ComparisonSource } from '@models/comparison';
-import { AnyFlatFileDataSource, IcebergCatalog, MotherDuckConnection } from '@models/data-source';
+import {
+  AnyFlatFileDataSource,
+  GSheetSheetView,
+  IcebergCatalog,
+  MotherDuckConnection,
+} from '@models/data-source';
 import {
   LocalEntryId,
   SUPPORTED_DATA_SOURCE_FILE_EXTS,
@@ -102,29 +108,6 @@ export const DataExplorer = memo(() => {
     return fileTypes;
   }, [localEntriesValues]);
 
-  // Detect available data source types
-  const availableDataSourceTypes = useMemo(() => {
-    const hasFiles = fileSystemNodes.length > 0;
-    const hasLocalDbs = localDatabases.length > 0;
-    const hasRemoteDbs = remoteDatabases.length > 0;
-    const hasIcebergCatalogs = icebergCatalogs.length > 0;
-    const hasDuckLakeCatalogs = duckLakeCatalogs.length > 0;
-    const hasMotherDuck = motherduckConnections.length > 0;
-
-    return {
-      files: hasFiles,
-      databases: hasLocalDbs,
-      remote: hasRemoteDbs || hasIcebergCatalogs || hasDuckLakeCatalogs || hasMotherDuck,
-    };
-  }, [
-    fileSystemNodes.length,
-    localDatabases.length,
-    remoteDatabases.length,
-    icebergCatalogs.length,
-    duckLakeCatalogs.length,
-    motherduckConnections.length,
-  ]);
-
   // Build database nodes
   const {
     localDbNodes,
@@ -153,12 +136,74 @@ export const DataExplorer = memo(() => {
     comparisonByTableName,
   });
 
+  const gsheetWorkbookNodes = useMemo(() => {
+    const groupedSources = new Map<LocalEntryId, GSheetSheetView[]>();
+
+    flatFileSourcesValues.forEach((source) => {
+      if (source.type !== 'gsheet-sheet') {
+        return;
+      }
+      const current = groupedSources.get(source.fileSourceId) || [];
+      current.push(source);
+      groupedSources.set(source.fileSourceId, current);
+    });
+
+    return Array.from(groupedSources.entries())
+      .sort(([, aSheets], [, bSheets]) => {
+        const aName = aSheets[0]?.spreadsheetName || '';
+        const bName = bSheets[0]?.spreadsheetName || '';
+        return aName.localeCompare(bName);
+      })
+      .map(([sourceGroupId, sheets]) =>
+        buildGSheetWorkbookNode(sourceGroupId, sheets, {
+          nodeMap,
+          anyNodeIdToNodeTypeMap,
+          conn,
+        }),
+      );
+  }, [flatFileSourcesValues, nodeMap, anyNodeIdToNodeTypeMap, conn]);
+
+  const remoteNodesWithSheets = useMemo(
+    () => [...remoteDatabaseNodes, ...gsheetWorkbookNodes],
+    [remoteDatabaseNodes, gsheetWorkbookNodes],
+  );
+
+  // Detect available data source types
+  const availableDataSourceTypes = useMemo(() => {
+    const hasFiles = fileSystemNodes.length > 0;
+    const hasLocalDbs = localDatabases.length > 0;
+    const hasRemoteDbs = remoteDatabases.length > 0;
+    const hasIcebergCatalogs = icebergCatalogs.length > 0;
+    const hasDuckLakeCatalogs = duckLakeCatalogs.length > 0;
+    const hasMotherDuck = motherduckConnections.length > 0;
+    const hasGoogleSheets = gsheetWorkbookNodes.length > 0;
+
+    return {
+      files: hasFiles,
+      databases: hasLocalDbs,
+      remote:
+        hasRemoteDbs ||
+        hasIcebergCatalogs ||
+        hasDuckLakeCatalogs ||
+        hasMotherDuck ||
+        hasGoogleSheets,
+    };
+  }, [
+    fileSystemNodes.length,
+    localDatabases.length,
+    remoteDatabases.length,
+    icebergCatalogs.length,
+    duckLakeCatalogs.length,
+    motherduckConnections.length,
+    gsheetWorkbookNodes.length,
+  ]);
+
   // Create unified tree for context
   const unifiedTree = [
     ...(systemDbNode ? [systemDbNode] : []),
     ...fileSystemNodes,
     ...localDbNodes,
-    ...remoteDatabaseNodes,
+    ...remoteNodesWithSheets,
     ...icebergCatalogNodes,
     ...duckLakeCatalogNodes,
     ...motherduckConnectionNodes,
@@ -177,7 +222,7 @@ export const DataExplorer = memo(() => {
   const flatFileSourceByEntryId = useMemo(() => {
     const map = new Map<LocalEntryId, AnyFlatFileDataSource>();
     flatFileSourcesValues.forEach((source) => {
-      if (source.type !== 'xlsx-sheet') {
+      if (source.type !== 'xlsx-sheet' && source.type !== 'gsheet-sheet') {
         map.set(source.fileSourceId, source);
       }
     });
@@ -187,7 +232,7 @@ export const DataExplorer = memo(() => {
   const sheetSourceByKey = useMemo(() => {
     const map = new Map<string, AnyFlatFileDataSource>();
     flatFileSourcesValues.forEach((source) => {
-      if (source.type === 'xlsx-sheet') {
+      if (source.type === 'xlsx-sheet' || source.type === 'gsheet-sheet') {
         map.set(`${source.fileSourceId}::${source.sheetName}`, source);
       }
     });
@@ -318,7 +363,7 @@ export const DataExplorer = memo(() => {
   const { filteredSections, searchExpandedState } = useFilterNodes({
     fileSystemNodes,
     localDbNodes,
-    remoteDatabaseNodes,
+    remoteDatabaseNodes: remoteNodesWithSheets,
     icebergCatalogNodes,
     duckLakeCatalogNodes,
     motherduckConnectionNodes,

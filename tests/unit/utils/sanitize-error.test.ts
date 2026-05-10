@@ -95,4 +95,19 @@ describe('sanitizeErrorMessage', () => {
     expect(result).toContain('failed at line 1');
     expect(result).not.toContain('leaked');
   });
+
+  it('should redact Bearer tokens from HTTP Authorization headers', () => {
+    const msg = 'Request failed with Authorization: Bearer eyJhbGciOiJSUzI1NiJ9.payload.sig';
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('eyJhbGciOiJSUzI1NiJ9');
+    expect(result).toContain('Bearer [REDACTED]');
+  });
+
+  it('should redact multiple Bearer tokens in the same message', () => {
+    const msg = 'Bearer abc123 and also Bearer xyz789';
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('abc123');
+    expect(result).not.toContain('xyz789');
+    expect(result).toBe('Bearer [REDACTED] and also Bearer [REDACTED]');
+  });
 });

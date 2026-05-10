@@ -391,6 +391,8 @@ export const SpotlightMenu = () => {
     }
 
     return sortActionsByLRU(dataSourceActions);
+    // Access times are used indirectly via getDataSourceAccessTime/getTableAccessTime in action metadata
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dataSources,
     databaseMetadata,
@@ -399,6 +401,7 @@ export const SpotlightMenu = () => {
     comparisonSourceSelectionCallback,
     dataSourceAccessTimes,
     tableAccessTimes,
+    ensureHome,
   ]);
 
   const sortedScriptActions = useMemo(() => {
@@ -415,7 +418,9 @@ export const SpotlightMenu = () => {
     }));
 
     return sortActionsByLRU(scriptActions);
-  }, [sqlScripts, scriptAccessTimes]);
+    // scriptAccessTimes is used indirectly via getScriptAccessTime in action metadata
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sqlScripts, scriptAccessTimes, ensureHome]);
 
   const comparisonActions: Action[] = Array.from(comparisonsMap.values()).map((comparison) => ({
     id: `open-comparison-${comparison.id}`,

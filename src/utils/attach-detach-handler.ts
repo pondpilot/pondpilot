@@ -321,7 +321,7 @@ export async function handleDetachStatements(
     );
 
     if (dbToRemove) {
-      const [dbId, ds] = dbToRemove;
+      const [dbId, _ds] = dbToRemove;
       context.updatedDataSources.delete(dbId);
       context.updatedMetadata.delete(dbName);
 

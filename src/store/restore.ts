@@ -4,6 +4,7 @@ import {
   registerFileHandle,
   registerFileSourceAndCreateView,
   createXlsxSheetView,
+  createGSheetSheetView,
   dropViewAndUnregisterFile,
 } from '@controllers/db/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
@@ -18,6 +19,7 @@ import {
   IcebergCatalog,
   PersistentDataSourceId,
   XlsxSheetView,
+  GSheetSheetView,
   LocalDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
@@ -49,7 +51,13 @@ import {
 } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ComparisonTab, TabId } from '@models/tab';
-import { makeSecretId, putSecret } from '@services/secret-store';
+import {
+  deleteSecret,
+  getSecret,
+  listSecrets,
+  makeSecretId,
+  putSecret,
+} from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';
 import {
@@ -66,6 +74,8 @@ import {
   requestFileHandlePersmissions,
 } from '@utils/file-system';
 import { fileSystemService } from '@utils/file-system-adapter';
+import { buildGSheetSpreadsheetUrl, GSHEET_SECRET_LABEL_PREFIX } from '@utils/gsheet';
+import { resolveGSheetAccessToken } from '@utils/gsheet-auth';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
 import { shouldResetRestoredScriptQuery } from '@utils/script-query-persistence';
@@ -944,6 +954,104 @@ export const restoreAppDataFromIDB = async (
 
   await Promise.all(registerPromises);
 
+  // Recreate Google Sheets-backed views that are not associated with local file handles.
+  // Pass 1 (sequential): resolve tokens from the encrypted secret store.
+  const gsheetDataSources = Array.from(dataSources.values()).filter(
+    (ds): ds is GSheetSheetView => ds.type === 'gsheet-sheet',
+  );
+  const cachedGSheetTokens = new Map<string, string | null>();
+  const warnedMissingGSheetTokens = new Set<string>();
+  for (const dataSource of gsheetDataSources) {
+    _reservedViews.add(dataSource.viewName);
+
+    const needsBearerToken =
+      dataSource.accessMode === 'authorized' || dataSource.accessMode === 'oauth';
+    if (needsBearerToken && dataSource.secretRef) {
+      const cacheKey = String(dataSource.secretRef);
+      if (!cachedGSheetTokens.has(cacheKey)) {
+        try {
+          const payload = await getSecret(iDbConn, dataSource.secretRef);
+          cachedGSheetTokens.set(cacheKey, resolveGSheetAccessToken(payload?.data) ?? null);
+        } catch (error) {
+          cachedGSheetTokens.set(cacheKey, null);
+          console.warn('Failed to read Google Sheet secret:', error);
+        }
+      }
+
+      const accessToken = cachedGSheetTokens.get(cacheKey) ?? null;
+      if (!accessToken && !warnedMissingGSheetTokens.has(cacheKey)) {
+        warnings.push(
+          `Google Sheet ${dataSource.spreadsheetName} is missing its saved token. Reconnect it in the wizard.`,
+        );
+        warnedMissingGSheetTokens.add(cacheKey);
+      }
+    }
+
+    // Warn about expired OAuth tokens (queries will fail until re-auth)
+    if (
+      dataSource.accessMode === 'oauth' &&
+      dataSource.tokenExpiresAt &&
+      dataSource.tokenExpiresAt < Date.now()
+    ) {
+      console.warn(
+        `Google Sheet ${dataSource.spreadsheetName}: OAuth token expired. Re-authorization required.`,
+      );
+    }
+  }
+
+  // Pass 2 (parallel): create views for each sheet concurrently.
+  await Promise.allSettled(
+    gsheetDataSources.map(async (dataSource) => {
+      try {
+        const spreadsheetRef =
+          dataSource.spreadsheetUrl || buildGSheetSpreadsheetUrl(dataSource.spreadsheetId);
+        const accessToken = dataSource.secretRef
+          ? (cachedGSheetTokens.get(String(dataSource.secretRef)) ?? undefined)
+          : undefined;
+        await createGSheetSheetView(
+          conn,
+          spreadsheetRef,
+          dataSource.sheetName,
+          dataSource.viewName,
+          dataSource.accessMode,
+          accessToken,
+        );
+      } catch (error) {
+        // Keep persisted Google Sheets data sources on transient restore failures
+        // (offline/expired token/API hiccups) so users can reconnect later.
+        warnings.push(
+          `Google Sheet ${dataSource.spreadsheetName}::${dataSource.sheetName} could not be restored. It will remain saved and can be retried later.`,
+        );
+        console.warn('Failed to restore Google Sheet view:', error);
+      }
+      validDataSources.add(dataSource.id);
+    }),
+  );
+
+  // Prune orphaned gsheet secrets: remove any secret referenced by a gsheet data
+  // source that no longer exists (e.g. partial add/delete failures in prior sessions).
+  const activeSecretIds = new Set(
+    gsheetDataSources
+      .map((ds) => ds.secretRef)
+      .filter((ref): ref is NonNullable<typeof ref> => ref != null)
+      .map(String),
+  );
+  try {
+    const allSecrets = await listSecrets(iDbConn);
+    for (const secret of allSecrets) {
+      const id = String(secret.id);
+      if (secret.label.startsWith(GSHEET_SECRET_LABEL_PREFIX) && !activeSecretIds.has(id)) {
+        try {
+          await deleteSecret(iDbConn, secret.id);
+        } catch (err) {
+          console.warn(`Failed to delete orphaned GSheet secret ${id}:`, err);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to list secrets for orphan cleanup:', err);
+  }
+
   // Handle remote databases and iceberg catalogs - they need to be re-attached.
   // We don't re-attach them here because:
   // 1. They will be re-attached in reconnectRemoteDatabases() after app init
@@ -1150,6 +1258,10 @@ export const restoreAppDataFromIDB = async (
     // Find all file-based data sources that don't have corresponding local entries
     for (const [dataSourceId, dataSource] of dataSources) {
       if (isDatabaseDataSource(dataSource)) {
+        continue;
+      }
+
+      if (dataSource.type === 'gsheet-sheet') {
         continue;
       }
 

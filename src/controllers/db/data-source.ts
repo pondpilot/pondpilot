@@ -1,9 +1,11 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import type { GSheetAccessMode } from '@models/data-source';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { ReadStatViewType, supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { createGSheetSheetViewQuery } from '@utils/gsheet';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
@@ -350,6 +352,64 @@ export async function createXlsxSheetView(
   // Create the view for the specified sheet
   const query = createXlsxSheetViewQuery(fileName, sheetName, viewName);
   await conn.query(query);
+}
+
+/**
+ * Create a view for a Google Sheets worksheet.
+ *
+ * When the gsheets extension is loaded, uses `read_gsheet()` directly.
+ * For authenticated access, creates a `TYPE GSHEET` DuckDB secret so the
+ * extension can pass the token to Google's API natively.
+ *
+ * @param conn - DuckDB connection pool
+ * @param spreadsheetRef - Google Sheets URL or spreadsheet ID
+ * @param sheetName - Worksheet name to read
+ * @param viewName - A valid, unique identifier of the view to create.
+ */
+export async function createGSheetSheetView(
+  conn: AsyncDuckDBConnectionPool,
+  spreadsheetRef: string,
+  sheetName: string,
+  viewName: string,
+  accessMode: GSheetAccessMode = 'public',
+  accessToken?: string,
+) {
+  const pooled = await conn.getPooledConnection();
+  try {
+    const needsBearerToken = accessMode === 'authorized' || accessMode === 'oauth';
+
+    // Detect whether the gsheets extension's read_gsheet() is available
+    const readFunctionInfo = await pooled.query(`
+      SELECT function_type
+      FROM duckdb_functions()
+      WHERE function_name='read_gsheet'
+    `);
+    const readFunctionTypes = new Set(
+      readFunctionInfo
+        .toArray()
+        .map((row) => String((row as { function_type?: unknown }).function_type ?? '')),
+    );
+    const hasExtension = readFunctionTypes.has('table');
+
+    // Create a GSHEET secret so the extension can authenticate with Google.
+    // Only attempt this when the extension is loaded (it registers the type).
+    if (hasExtension && needsBearerToken && accessToken) {
+      await pooled.query(
+        `CREATE OR REPLACE SECRET __pondpilot_gsheet_token (TYPE GSHEET, TOKEN ${quote(accessToken, { single: true })})`,
+      );
+    }
+
+    const readFunctionName = hasExtension
+      ? 'system.main.read_gsheet'
+      : needsBearerToken
+        ? 'read_gsheet_authorized'
+        : 'read_gsheet_public';
+
+    const query = createGSheetSheetViewQuery(spreadsheetRef, sheetName, viewName, readFunctionName);
+    await pooled.query(query);
+  } finally {
+    await pooled.close();
+  }
 }
 
 /**

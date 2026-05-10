@@ -219,7 +219,7 @@ export const ComparisonViewer = ({
   lastRunAt,
   onReconfigure,
   onRefresh,
-  onResultsLoaded,
+  onResultsLoaded: _onResultsLoaded,
 }: ComparisonViewerProps) => {
   const theme = useMantineTheme();
   const colorScheme = useAppTheme();
@@ -405,6 +405,8 @@ export const ComparisonViewer = ({
       });
       return changed ? next : prev;
     });
+    // Using config.joinColumns instead of config to avoid unnecessary recalculation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results, config.joinColumns]);
 
   useEffect(() => {
@@ -431,15 +433,13 @@ export const ComparisonViewer = ({
 
   const RESULTS_ROW_LIMIT = 100;
 
-  const statusTotals = results?.statusTotals ?? {
-    total: 0,
-    added: 0,
-    removed: 0,
-    modified: 0,
-    same: 0,
-  };
+  const defaultStatusTotals = useMemo(
+    () => ({ total: 0, added: 0, removed: 0, modified: 0, same: 0 }),
+    [],
+  );
+  const statusTotals = results?.statusTotals ?? defaultStatusTotals;
 
-  const statusFilteredRows = results?.rows ?? [];
+  const statusFilteredRows = useMemo(() => results?.rows ?? [], [results?.rows]);
   const filteredRows = useMemo(() => {
     const activeFilters = Object.entries(columnFilters).filter(
       ([, value]) => value.trim().length > 0,
@@ -887,6 +887,8 @@ export const ComparisonViewer = ({
         message,
       });
     }
+    // Using config.joinColumns instead of config to avoid unnecessary recalculation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     results,
     tableConfig,
@@ -924,6 +926,8 @@ export const ComparisonViewer = ({
 
       getOrCreateTabFromLocalDBObject(dataSource, schemaName, sourceA.tableName, objectType, true);
     }
+    // Using config.sourceA instead of config to avoid unnecessary recalculation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.sourceA, dataSources, databaseMetadata]);
 
   // Handle clicking on source B badge - opens the table/view in a new tab
@@ -948,6 +952,8 @@ export const ComparisonViewer = ({
 
       getOrCreateTabFromLocalDBObject(dataSource, schemaName, sourceB.tableName, objectType, true);
     }
+    // Using config.sourceB instead of config to avoid unnecessary recalculation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.sourceB, dataSources, databaseMetadata]);
 
   const handleOpenTableView = useCallback(() => {

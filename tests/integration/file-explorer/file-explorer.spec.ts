@@ -43,12 +43,10 @@ test('File should be deselected after creating script from it', async ({
   await addFile();
 
   // Wait for the file to appear in the explorer
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 5000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 5000 });
 
   // Verify the file was added
   await assertFileExplorerItems(['test_selection']);
@@ -139,6 +137,7 @@ test('Should create file tree structure and verify persistence after reload', as
   await setupFileSystem(FILE_SYSTEM_TREE);
 
   // Wait for all files and directories to appear
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- waiting for file system setup to complete
   await page.waitForTimeout(2000);
 
   // 5. Check the file tree structure

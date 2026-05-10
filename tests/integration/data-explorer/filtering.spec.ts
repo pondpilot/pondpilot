@@ -75,10 +75,12 @@ test.describe('Data Explorer Filtering', () => {
     await addFile();
 
     // Wait for files to appear in the explorer
-    await page.waitForSelector(
-      '[data-testid="data-explorer-fs"] [data-testid*="tree-node-"][data-testid$="-container"]',
-      { state: 'visible', timeout: 10000 },
-    );
+    await page
+      .locator(
+        '[data-testid="data-explorer-fs"] [data-testid*="tree-node-"][data-testid$="-container"]',
+      )
+      .first()
+      .waitFor({ state: 'visible', timeout: 10000 });
 
     await waitForFilesToBeProcessed();
 
@@ -126,10 +128,12 @@ test.describe('Data Explorer Filtering', () => {
     await addFile();
 
     // Wait for files to appear in the explorer
-    await page.waitForSelector(
-      '[data-testid="data-explorer-fs"] [data-testid*="tree-node-"][data-testid$="-container"]',
-      { state: 'visible', timeout: 10000 },
-    );
+    await page
+      .locator(
+        '[data-testid="data-explorer-fs"] [data-testid*="tree-node-"][data-testid$="-container"]',
+      )
+      .first()
+      .waitFor({ state: 'visible', timeout: 10000 });
 
     await waitForFilesToBeProcessed();
 
