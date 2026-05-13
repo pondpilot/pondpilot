@@ -8,6 +8,7 @@ import {
   IcebergCatalog,
   LocalDB,
   MotherDuckConnection,
+  QuackConnection,
   RemoteDB,
 } from '@models/data-source';
 import { SQLScriptId } from '@models/sql-script';
@@ -34,7 +35,13 @@ import {
 
 export const findTabFromLocalDBObjectImpl = (
   tabs: Map<TabId, AnyTab>,
-  dataSource: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection,
+  dataSource:
+    | LocalDB
+    | RemoteDB
+    | IcebergCatalog
+    | DuckLakeCatalog
+    | QuackConnection
+    | MotherDuckConnection,
   schemaName: string,
   objectName: string,
   databaseName?: string,

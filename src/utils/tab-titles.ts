@@ -37,6 +37,7 @@ export function getSchemaBrowserTabTitle(
       dataSource.type !== 'remote-db' &&
       dataSource.type !== 'iceberg-catalog' &&
       dataSource.type !== 'ducklake-catalog' &&
+      dataSource.type !== 'quack' &&
       dataSource.type !== 'motherduck'
     ) {
       return `File: ${(dataSource as AnyFlatFileDataSource).viewName}`;
@@ -46,6 +47,9 @@ export function getSchemaBrowserTabTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
+    if (dataSource && dataSource.type === 'quack') {
+      return `Quack: ${dataSource.dbName}`;
+    }
     if (dataSource && dataSource.type === 'motherduck') {
       return tab.databaseName ? `Cloud: ${tab.databaseName}` : 'MotherDuck';
     }
@@ -146,6 +150,9 @@ export function getSchemaBrowserDisplayTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
+    if (dataSource && dataSource.type === 'quack') {
+      return { prefix: 'Quack:', title: dataSource.dbName };
+    }
     if (dataSource && dataSource.type === 'motherduck') {
       const title = tab.databaseName ?? 'MotherDuck';
       return { prefix: 'Cloud:', title };

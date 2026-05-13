@@ -139,6 +139,7 @@ tests/test-tmp
 
 # Local module cahce
 .module-cache
+.local-bin/
 
 *.local.*
 

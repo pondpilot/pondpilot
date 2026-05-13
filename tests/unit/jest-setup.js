@@ -5,6 +5,7 @@ global.import = {
       DEV: false,
       PROD: true,
       VITE_CORS_PROXY_URL: undefined,
+      VITE_QUACK_WASM_EXTENSION_URL: undefined,
     },
   },
 };

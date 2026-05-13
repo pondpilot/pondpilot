@@ -287,7 +287,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
   return (
     <Stack gap={16}>
       <Text size="sm" c="text-secondary" className="pl-4">
-        Connect to a remote database using a URL
+        Remote database files and URLs
       </Text>
 
       <Alert
@@ -296,7 +296,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         className="text-sm"
         classNames={{ icon: 'mr-1' }}
       >
-        Supported protocols: HTTPS, S3, GCS (Google Cloud Storage), Azure Blob Storage
+        Supported storage: S3 compatible services (S3, GCS, Azure Blob Storage) and HTTPS
       </Alert>
 
       <Stack gap={12}>

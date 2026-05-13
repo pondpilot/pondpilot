@@ -20,7 +20,7 @@ export function useBeforeUnloadProtection() {
       // Check if there are any file entries or file-based data sources
       const hasFiles = localEntries.size > 0;
       const hasFileDataSources = Array.from(dataSources.values()).some(
-        (ds) => ds.type !== 'attached-db' && ds.type !== 'remote-db',
+        (ds) => ds.type !== 'attached-db' && ds.type !== 'remote-db' && ds.type !== 'quack',
       );
 
       if (hasFiles || hasFileDataSources) {

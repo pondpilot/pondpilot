@@ -4,6 +4,7 @@ import {
   IcebergCatalog,
   LocalDB,
   MotherDuckConnection,
+  QuackConnection,
   RemoteDB,
   PersistentDataSourceId,
 } from '@models/data-source';
@@ -25,7 +26,7 @@ export async function processDbSource(
   pool: AsyncDuckDBConnectionPool,
   dbSources: Map<
     PersistentDataSourceId,
-    LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection
+    LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection
   >,
   dbMetadata: Map<string, DataBaseModel>,
   abortSignal: AbortSignal,

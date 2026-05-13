@@ -8,6 +8,12 @@ export const test = base.extend<{ forEachTest: void }>({
   forEachTest: [
     async ({ context }, use, testInfo) => {
       const isDebugMode = !!process.env.PLAYWRIGHT_DEBUG_TESTS;
+      const duckDbOverrideHosts = getHostsFromUrls([
+        process.env.VITE_DUCKDB_WASM_MAIN_MODULE,
+        process.env.VITE_DUCKDB_WASM_MAIN_WORKER,
+        process.env.VITE_DUCKDB_WASM_PTHREAD_WORKER,
+        process.env.VITE_QUACK_WASM_EXTENSION_URL,
+      ]);
 
       // Catch-all route to mock any other external requests
       await context.route(/^https?:\/\/(?!localhost|127\.0\.0\.1).*/, async (route) => {
@@ -23,6 +29,9 @@ export const test = base.extend<{ forEachTest: void }>({
         if (
           host === 'cdn.jsdelivr.net' ||
           host === 'extensions.duckdb.org' ||
+          host === 'community-extensions.duckdb.org' ||
+          host === 'nightly-extensions.duckdb.org' ||
+          duckDbOverrideHosts.has(host) ||
           host === 'cdn.sheetjs.com' ||
           host === 'fonts.gstatic.com' ||
           host === 'fonts.googleapis.com'
@@ -121,17 +130,22 @@ export const test = base.extend<{ forEachTest: void }>({
 
           // Extract the path from the URL
           const urlPath = url.pathname;
-          // Get the filename from the path
+          // Get the filename from the path for content-type inference, and use a URL-derived
+          // cache key so artifacts with the same basename from different DuckDB versions do not
+          // collide (for example v1.4.0 and v1.5.2 extension WASM files).
           const fileName = path.basename(urlPath);
+          const cacheFileName = encodeURIComponent(`${url.host}${url.pathname}`);
 
           // Check if the file exists in .module-cache
-          const staticFilePath = path.resolve(process.cwd(), '.module-cache', fileName);
+          const staticFilePath = path.resolve(process.cwd(), '.module-cache', cacheFileName);
 
           if (fs.existsSync(staticFilePath)) {
             // If the file exists locally, serve it and cache it in memory
             if (isDebugMode) {
               // eslint-disable-next-line no-console
-              console.debug(`📁 [${testInfo.title}] Serving cached file: ${fileName} from cache`);
+              console.debug(
+                `📁 [${testInfo.title}] Serving cached file: ${cacheFileName} from cache`,
+              );
             }
             const fileContent = await fs.promises.readFile(staticFilePath);
             // Determine content type based on file extension
@@ -169,7 +183,7 @@ export const test = base.extend<{ forEachTest: void }>({
               if (!fs.existsSync(cachePath)) {
                 fs.mkdirSync(cachePath, { recursive: true });
               }
-              await fs.promises.writeFile(path.join(cachePath, fileName), body);
+              await fs.promises.writeFile(path.join(cachePath, cacheFileName), body);
               if (isDebugMode) {
                 // eslint-disable-next-line no-console
                 console.debug(`✅ [${testInfo.title}] Successfully cached ${fileName}`);
@@ -223,6 +237,19 @@ function getContentTypeFromFileName(fileName: string): string {
     default:
       return 'application/octet-stream';
   }
+}
+
+function getHostsFromUrls(urls: Array<string | undefined>): Set<string> {
+  return new Set(
+    urls.flatMap((url) => {
+      if (!url) return [];
+      try {
+        return [new URL(url).host];
+      } catch {
+        return [];
+      }
+    }),
+  );
 }
 
 type RouteFulfillInput = Parameters<Route['fulfill']>[0];

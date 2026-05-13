@@ -91,8 +91,36 @@ export const DuckDBConnectionPoolProvider = ({
   // Get persistence state from context
   const { persistenceState, updatePersistenceState } = useDuckDBPersistence();
 
-  // Use static cdn hosted bundles
-  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+  // Use static cdn hosted bundles by default. Allow tests/preview builds to
+  // point at newer DuckDB-WASM artifacts before an npm package is published.
+  const JSDELIVR_BUNDLES = (() => {
+    const defaultBundles = duckdb.getJsDelivrBundles();
+    const mainModule = import.meta.env.VITE_DUCKDB_WASM_MAIN_MODULE;
+    const mainWorker = import.meta.env.VITE_DUCKDB_WASM_MAIN_WORKER;
+    const pthreadWorker = import.meta.env.VITE_DUCKDB_WASM_PTHREAD_WORKER;
+    const forceMvp = import.meta.env.VITE_DUCKDB_WASM_FORCE_MVP === 'true';
+
+    if (mainModule || mainWorker || pthreadWorker || forceMvp) {
+      const overriddenBundles: duckdb.DuckDBBundles = {
+        mvp: {
+          mainModule: mainModule || defaultBundles.mvp.mainModule,
+          mainWorker: mainWorker || defaultBundles.mvp.mainWorker,
+        },
+        ...(forceMvp
+          ? {}
+          : {
+              eh: {
+                mainModule: mainModule || defaultBundles.eh!.mainModule,
+                mainWorker: mainWorker || defaultBundles.eh!.mainWorker,
+                ...(pthreadWorker ? { pthreadWorker } : {}),
+              },
+            }),
+      };
+      return overriddenBundles;
+    }
+
+    return defaultBundles;
+  })();
 
   // create a logger
   const logger = new duckdb.ConsoleLogger(

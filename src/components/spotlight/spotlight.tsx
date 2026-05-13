@@ -46,6 +46,7 @@ import {
   isIcebergCatalog,
   isLocalDatabase,
   isMotherDuckConnection,
+  isQuackConnection,
   isRemoteDatabase,
 } from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
@@ -303,7 +304,11 @@ export const SpotlightMenu = () => {
         continue;
       }
 
-      if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
+      if (
+        isLocalDatabase(dataSource) ||
+        isRemoteDatabase(dataSource) ||
+        isQuackConnection(dataSource)
+      ) {
         // For databases we need to read all tables and views from metadata
         const dbMetadata = databaseMetadata.get(dataSource.dbName);
         const isSystemDatabase =

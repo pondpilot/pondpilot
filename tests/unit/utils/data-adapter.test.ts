@@ -1,7 +1,7 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { describe, expect, it, jest } from '@jest/globals';
 import { DataAdapterStreamReader } from '@models/data-adapter';
-import { DuckLakeCatalog, PersistentDataSourceId } from '@models/data-source';
+import { DuckLakeCatalog, PersistentDataSourceId, QuackConnection } from '@models/data-source';
 import { LocalDBDataTab, TabReactiveState } from '@models/tab';
 import { getFileDataAdapterQueries } from '@utils/data-adapter';
 
@@ -133,5 +133,60 @@ describe('getFileDataAdapterQueries DuckLake reader', () => {
       expect.any(AbortSignal),
       true,
     );
+  });
+});
+
+describe('getFileDataAdapterQueries Quack connection state', () => {
+  it('reports a Quack-specific internal error when the tab source type is wrong', () => {
+    const quack: QuackConnection = {
+      type: 'quack',
+      id: 'quack-id' as PersistentDataSourceId,
+      uri: 'quack:localhost:9494',
+      dbName: 'quack_remote',
+      connectionState: 'connected',
+      attachedAt: Date.now(),
+    };
+
+    const result = getFileDataAdapterQueries({
+      pool: {} as AsyncDuckDBConnectionPool,
+      dataSource: quack,
+      tab: {
+        ...makeTab(),
+        dataSourceId: quack.id,
+        dataSourceType: 'file',
+      },
+      sourceFile: undefined,
+    });
+
+    expect(result.adapter).toBeNull();
+    expect(result.userErrors).toEqual([]);
+    expect(result.internalErrors).toEqual([
+      'Tried creating a Quack server data adapter from a tab with different source type: file',
+    ]);
+  });
+
+  it('reports a Quack-specific message when the connection is disconnected', () => {
+    const quack: QuackConnection = {
+      type: 'quack',
+      id: 'quack-id' as PersistentDataSourceId,
+      uri: 'quack:localhost:9494',
+      dbName: 'quack_remote',
+      connectionState: 'disconnected',
+      attachedAt: Date.now(),
+    };
+
+    const result = getFileDataAdapterQueries({
+      pool: {} as AsyncDuckDBConnectionPool,
+      dataSource: quack,
+      tab: {
+        ...makeTab(),
+        dataSourceId: quack.id,
+      },
+      sourceFile: undefined,
+    });
+
+    expect(result.adapter).toBeNull();
+    expect(result.userErrors).toEqual(["Quack server 'quack_remote' is not connected"]);
+    expect(result.internalErrors).toEqual([]);
   });
 });

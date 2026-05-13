@@ -134,6 +134,34 @@ describe('attach-detach-handler', () => {
       expect(mockPersistPut).toHaveBeenCalledTimes(1);
     });
 
+    it('should not create a remote-db duplicate for an existing Quack alias', async () => {
+      const quackId = 'existing-quack-id' as PersistentDataSourceId;
+      const existing = new Map<PersistentDataSourceId, AnyDataSource>([
+        [
+          quackId,
+          {
+            type: 'quack',
+            id: quackId,
+            uri: 'quack:localhost:9494',
+            dbName: 'remote_db',
+            disableSsl: true,
+            connectionState: 'connected',
+            attachedAt: 1000,
+          },
+        ],
+      ]);
+      const statements = [
+        makeStatement("ATTACH 'https://example.com/db.duckdb' AS remote_db", SQLStatement.ATTACH),
+      ];
+      const ctx = makeContext(existing);
+
+      await handleAttachStatements(statements, ctx);
+
+      expect(ctx.updatedDataSources.size).toBe(1);
+      expect(Array.from(ctx.updatedDataSources.values())[0]).toMatchObject({ type: 'quack' });
+      expect(mockPersistPut).not.toHaveBeenCalled();
+    });
+
     it('should not duplicate an Iceberg catalog with the same alias', async () => {
       const existingId = 'existing-ice-id' as PersistentDataSourceId;
       const existing = new Map<PersistentDataSourceId, AnyDataSource>([
@@ -558,6 +586,31 @@ describe('attach-detach-handler', () => {
         ],
       ]);
       const statements = [makeStatement('DETACH remote_db', SQLStatement.DETACH)];
+      const ctx = makeContext(existing);
+
+      await handleDetachStatements(statements, ctx);
+
+      expect(ctx.updatedDataSources.size).toBe(0);
+      expect(mockPersistDelete).toHaveBeenCalledTimes(1);
+    });
+
+    it('should remove a quack data source by dbName', async () => {
+      const quackId = 'quack-id' as PersistentDataSourceId;
+      const existing = new Map<PersistentDataSourceId, AnyDataSource>([
+        [
+          quackId,
+          {
+            type: 'quack',
+            id: quackId,
+            uri: 'quack:localhost:9494',
+            dbName: 'quack_remote',
+            disableSsl: true,
+            connectionState: 'connected',
+            attachedAt: 1000,
+          },
+        ],
+      ]);
+      const statements = [makeStatement('DETACH quack_remote', SQLStatement.DETACH)];
       const ctx = makeContext(existing);
 
       await handleDetachStatements(statements, ctx);

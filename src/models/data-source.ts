@@ -311,10 +311,53 @@ export interface DuckLakeCatalog {
 }
 
 /**
- * MotherDuck cloud database connection.
- * Account-level: a single token grants access to all user databases.
- * Databases are auto-discovered via DuckDB's catalog after connecting.
+ * Quack protocol connection to a live DuckDB server.
  */
+export interface QuackConnection {
+  readonly type: 'quack';
+  id: PersistentDataSourceId;
+
+  /**
+   * Quack endpoint URI, e.g. quack:localhost or quack:example.com:9494.
+   */
+  uri: string;
+
+  /**
+   * Database alias used in ATTACH ... AS.
+   */
+  dbName: string;
+
+  /**
+   * Connection state for handling network/auth issues.
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting' | 'credentials-required';
+
+  /**
+   * Error message if connection failed.
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this connection was established.
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description.
+   */
+  comment?: string;
+
+  /**
+   * Reference to encrypted secret-store entry holding the Quack token.
+   */
+  secretRef?: SecretId;
+
+  /**
+   * Disable SSL for non-local endpoints. Intended for local/dev servers only.
+   */
+  disableSsl?: boolean;
+}
+
 export interface MotherDuckConnection {
   readonly type: 'motherduck';
   id: PersistentDataSourceId;
@@ -351,6 +394,7 @@ export type AnyDataSource =
   | RemoteDB
   | IcebergCatalog
   | DuckLakeCatalog
+  | QuackConnection
   | MotherDuckConnection;
 
 // Special constant for the system database

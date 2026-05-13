@@ -262,11 +262,13 @@ export async function handleAttachStatements(
           Array.from(context.updatedDataSources.values()).find(
             (ds) =>
               (ds.type === 'remote-db' && ds.dbName === dbName) ||
+              (ds.type === 'quack' && ds.dbName === dbName) ||
               (ds.type === 'attached-db' && ds.dbName === dbName),
           ) ??
           Array.from(context.dataSources.values()).find(
             (ds) =>
               (ds.type === 'remote-db' && ds.dbName === dbName) ||
+              (ds.type === 'quack' && ds.dbName === dbName) ||
               (ds.type === 'attached-db' && ds.dbName === dbName),
           );
 
@@ -315,13 +317,14 @@ export async function handleDetachStatements(
     const dbToRemove = Array.from(context.updatedDataSources.entries()).find(
       ([, ds]) =>
         (ds.type === 'remote-db' && ds.dbName === dbName) ||
+        (ds.type === 'quack' && ds.dbName === dbName) ||
         (ds.type === 'attached-db' && ds.dbName === dbName) ||
         (ds.type === 'iceberg-catalog' && ds.catalogAlias === dbName) ||
         (ds.type === 'ducklake-catalog' && ds.catalogAlias === dbName),
     );
 
     if (dbToRemove) {
-      const [dbId, ds] = dbToRemove;
+      const [dbId] = dbToRemove;
       context.updatedDataSources.delete(dbId);
       context.updatedMetadata.delete(dbName);
 

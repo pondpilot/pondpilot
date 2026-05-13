@@ -910,11 +910,16 @@ export const ComparisonViewer = ({
     // Find the data source by database name
     const dataSource = Array.from(dataSources.values()).find(
       (ds) =>
-        (ds.type === 'remote-db' || ds.type === 'attached-db') &&
+        (ds.type === 'remote-db' || ds.type === 'attached-db' || ds.type === 'quack') &&
         ds.dbName === sourceA.databaseName,
     );
 
-    if (dataSource && (dataSource.type === 'remote-db' || dataSource.type === 'attached-db')) {
+    if (
+      dataSource &&
+      (dataSource.type === 'remote-db' ||
+        dataSource.type === 'attached-db' ||
+        dataSource.type === 'quack')
+    ) {
       // Look up the object type from database metadata
       const dbMetadata = databaseMetadata.get(dataSource.dbName);
       const schemaName = sourceA.schemaName || 'main';
@@ -934,11 +939,16 @@ export const ComparisonViewer = ({
     // Find the data source by database name
     const dataSource = Array.from(dataSources.values()).find(
       (ds) =>
-        (ds.type === 'remote-db' || ds.type === 'attached-db') &&
+        (ds.type === 'remote-db' || ds.type === 'attached-db' || ds.type === 'quack') &&
         ds.dbName === sourceB.databaseName,
     );
 
-    if (dataSource && (dataSource.type === 'remote-db' || dataSource.type === 'attached-db')) {
+    if (
+      dataSource &&
+      (dataSource.type === 'remote-db' ||
+        dataSource.type === 'attached-db' ||
+        dataSource.type === 'quack')
+    ) {
       // Look up the object type from database metadata
       const dbMetadata = databaseMetadata.get(dataSource.dbName);
       const schemaName = sourceB.schemaName || 'main';

@@ -49,6 +49,7 @@ export function getTabName(
       dataSource.type !== 'remote-db' &&
       dataSource.type !== 'iceberg-catalog' &&
       dataSource.type !== 'ducklake-catalog' &&
+      dataSource.type !== 'quack' &&
       dataSource.type !== 'motherduck'
     ) {
       return 'Unknown data source';
@@ -67,6 +68,7 @@ export function getTabName(
     dataSource.type === 'remote-db' ||
     dataSource.type === 'iceberg-catalog' ||
     dataSource.type === 'ducklake-catalog' ||
+    dataSource.type === 'quack' ||
     dataSource.type === 'motherduck'
   ) {
     return 'Unknown data source';
@@ -102,6 +104,7 @@ export function getTabIcon(
       dataSource.type === 'remote-db' ||
       dataSource.type === 'iceberg-catalog' ||
       dataSource.type === 'ducklake-catalog' ||
+      dataSource.type === 'quack' ||
       dataSource.type === 'motherduck'
     ) {
       return 'error';

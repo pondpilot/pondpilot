@@ -25,8 +25,8 @@ test.describe('Datasource Wizard', () => {
     );
     await remoteDatabaseCard.click();
 
-    // Should show remote database config
-    await expect(page.getByText('Connect to a remote database using a URL')).toBeVisible();
+    // Should show remote server config
+    await expect(page.getByText('Files & URLs')).toBeVisible();
 
     // Click back button
     await page.getByTestId('back-to-selection').click();

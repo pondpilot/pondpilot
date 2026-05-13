@@ -21,6 +21,7 @@ export function dataSourceToComparisonSource(
     dataSource.type === 'remote-db' ||
     dataSource.type === 'iceberg-catalog' ||
     dataSource.type === 'ducklake-catalog' ||
+    dataSource.type === 'quack' ||
     dataSource.type === 'motherduck'
   ) {
     if (!schemaName || !tableName) {
