@@ -9,6 +9,7 @@ import {
   IcebergCatalog,
   LocalDB,
   MotherDuckConnection,
+  QuackConnection,
   RemoteDB,
   PersistentDataSourceId,
 } from '@models/data-source';
@@ -436,6 +437,7 @@ export function useProtectedViews(): Set<string> {
                 dataSource.type !== 'remote-db' &&
                 dataSource.type !== 'iceberg-catalog' &&
                 dataSource.type !== 'ducklake-catalog' &&
+                dataSource.type !== 'quack' &&
                 dataSource.type !== 'motherduck',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
@@ -460,6 +462,7 @@ export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlat
                 dataSource.type !== 'remote-db' &&
                 dataSource.type !== 'iceberg-catalog' &&
                 dataSource.type !== 'ducklake-catalog' &&
+                dataSource.type !== 'quack' &&
                 dataSource.type !== 'motherduck',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
@@ -480,6 +483,7 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
                 dataSource.type !== 'remote-db' &&
                 dataSource.type !== 'iceberg-catalog' &&
                 dataSource.type !== 'ducklake-catalog' &&
+                dataSource.type !== 'quack' &&
                 dataSource.type !== 'motherduck',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
@@ -505,24 +509,32 @@ export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> 
 
 export function useDatabaseDataSourceMap(): Map<
   PersistentDataSourceId,
-  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection
+  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection
 > {
   return useAppStore(
     useShallow(
       (state) =>
         new Map(
           Array.from(state.dataSources.entries())
-            // Include local, remote, iceberg, ducklake catalog, and MotherDuck databases
+            // Include local, remote, iceberg, ducklake catalog, Quack, and MotherDuck databases
             .filter(
               ([, dataSource]) =>
                 dataSource.type === 'attached-db' ||
                 dataSource.type === 'remote-db' ||
                 dataSource.type === 'iceberg-catalog' ||
                 dataSource.type === 'ducklake-catalog' ||
+                dataSource.type === 'quack' ||
                 dataSource.type === 'motherduck',
             ) as [
             PersistentDataSourceId,
-            LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection,
+            (
+              | LocalDB
+              | RemoteDB
+              | IcebergCatalog
+              | DuckLakeCatalog
+              | QuackConnection
+              | MotherDuckConnection
+            ),
           ][],
         ),
     ),

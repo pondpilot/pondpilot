@@ -14,6 +14,7 @@ import {
   IcebergCatalog,
   LocalDB,
   MotherDuckConnection,
+  QuackConnection,
   RemoteDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
@@ -371,7 +372,13 @@ function getFlatFileDataAdapterQueries(
 // for database operations (both have dbName and dbType fields)
 function getDatabaseDataAdapterApi(
   pool: AsyncDuckDBConnectionPool,
-  dataSource: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection,
+  dataSource:
+    | LocalDB
+    | RemoteDB
+    | IcebergCatalog
+    | DuckLakeCatalog
+    | QuackConnection
+    | MotherDuckConnection,
   tab: TabReactiveState<LocalDBDataTab>,
   options: {
     usePagedReader?: boolean;
@@ -469,13 +476,15 @@ export function getFileDataAdapterQueries({
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 
-  if (dataSource.type === 'remote-db') {
+  if (dataSource.type === 'remote-db' || dataSource.type === 'quack') {
+    const label = dataSource.type === 'quack' ? 'Quack server' : 'Remote database';
+
     if (tab.dataSourceType !== 'db') {
       return {
         adapter: null,
         userErrors: [],
         internalErrors: [
-          `Tried creating a remote db object data adapter from a tab with different source type: ${tab.dataSourceType}`,
+          `Tried creating a ${label} data adapter from a tab with different source type: ${tab.dataSourceType}`,
         ],
       };
     }
@@ -484,12 +493,12 @@ export function getFileDataAdapterQueries({
     if (dataSource.connectionState !== 'connected') {
       return {
         adapter: null,
-        userErrors: [`Remote database '${dataSource.dbName}' is not connected`],
+        userErrors: [`${label} '${dataSource.dbName}' is not connected`],
         internalErrors: [],
       };
     }
 
-    // Remote databases use the same logic as local databases
+    // Remote databases and Quack connections use the same logic as local databases
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 

@@ -21,7 +21,8 @@ import { ClipboardImportConfig } from './components/clipboard-import-config';
 import { DuckLakeCatalogConfig } from './components/ducklake-catalog-config';
 import { IcebergCatalogConfig } from './components/iceberg-catalog-config';
 import { MotherDuckConfig } from './components/motherduck-config';
-import { RemoteDatabaseConfig } from './components/remote-database-config';
+import { QuackConfig } from './components/quack-config';
+import { RemoteServerConfig } from './components/remote-server-config';
 import { validateJSON, validateCSV } from './utils/clipboard-import';
 
 interface DatasourceWizardModalProps {
@@ -38,19 +39,22 @@ export type WizardStep =
   | 'iceberg-config'
   | 'ducklake-config'
   | 'motherduck-config'
+  | 'quack-config'
   | 'clipboard-csv'
   | 'clipboard-json';
 
 const getStepTitle = (step: WizardStep): string => {
   switch (step) {
     case 'remote-config':
-      return 'REMOTE DATABASE';
+      return 'REMOTE SERVER';
     case 'iceberg-config':
       return 'ICEBERG CATALOG';
     case 'ducklake-config':
       return 'DUCKLAKE CATALOG';
     case 'motherduck-config':
       return 'MOTHERDUCK';
+    case 'quack-config':
+      return 'QUACK SERVER';
     case 'clipboard-csv':
       return 'IMPORT CSV FROM CLIPBOARD';
     case 'clipboard-json':
@@ -374,8 +378,8 @@ export function DatasourceWizardModal({
           stroke={1.5}
         />
       ),
-      title: 'Remote Database',
-      description: 'S3, GCS, Azure, HTTPS',
+      title: 'Remote Server',
+      description: 'S3, HTTPS, Quack',
       testId: 'add-remote-database-card',
     },
     {
@@ -495,7 +499,7 @@ export function DatasourceWizardModal({
       )}
 
       {step === 'remote-config' && (
-        <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+        <RemoteServerConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
 
       {step === 'iceberg-config' && (
@@ -509,6 +513,8 @@ export function DatasourceWizardModal({
       {step === 'motherduck-config' && (
         <MotherDuckConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
+
+      {step === 'quack-config' && <QuackConfig onBack={handleBack} onClose={onClose} pool={pool} />}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (
         <ClipboardImportConfig

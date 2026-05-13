@@ -1,3 +1,4 @@
+import { showError } from '@components/app-notifications';
 import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
@@ -9,6 +10,7 @@ import {
   IcebergCatalog,
   LocalDB,
   MotherDuckConnection,
+  QuackConnection,
   RemoteDB,
 } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
@@ -25,6 +27,7 @@ import {
   listMotherDuckDatabases,
 } from '@utils/motherduck';
 import { getLocalDBDataSourceName } from '@utils/navigation';
+import { disconnectQuackConnection, refreshQuackMetadata } from '@utils/quack';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
@@ -72,12 +75,12 @@ interface DatabaseTreeBuilderContext {
  * @returns TreeNodeData configured as a complete database node with all children
  */
 export function buildDatabaseNode(
-  dataSource: LocalDB | RemoteDB,
+  dataSource: LocalDB | RemoteDB | QuackConnection,
   isSystemDb: boolean,
   context: DatabaseTreeBuilderContext,
 ): TreeNodeData<DataExplorerNodeTypeMap> {
   const { id: dbId, dbName } = dataSource;
-  const isRemoteDb = dataSource.type === 'remote-db';
+  const isRemoteDb = dataSource.type === 'remote-db' || dataSource.type === 'quack';
   const {
     nodeMap,
     anyNodeIdToNodeTypeMap,
@@ -107,7 +110,7 @@ export function buildDatabaseNode(
 
   // For remote databases, append connection state indicator
   if (isRemoteDb) {
-    const remoteDb = dataSource as RemoteDB;
+    const remoteDb = dataSource as RemoteDB | QuackConnection;
     const stateIcon =
       remoteDb.connectionState === 'connected'
         ? '✓'
@@ -168,30 +171,49 @@ export function buildDatabaseNode(
         {
           label: 'Copy URL',
           onClick: () => {
-            copyToClipboard((dataSource as RemoteDB).url, {
-              showNotification: true,
-              notificationTitle: 'URL Copied',
-            });
+            copyToClipboard(
+              dataSource.type === 'quack' ? dataSource.uri : (dataSource as RemoteDB).url,
+              {
+                showNotification: true,
+                notificationTitle: 'URL Copied',
+              },
+            );
           },
         },
         {
-          label: (dataSource as RemoteDB).connectionState === 'connected' ? 'Refresh' : 'Reconnect',
+          label:
+            (dataSource as RemoteDB | QuackConnection).connectionState === 'connected'
+              ? 'Refresh'
+              : 'Reconnect',
           onClick: async () => {
-            if ((dataSource as RemoteDB).connectionState === 'connected') {
+            if ((dataSource as RemoteDB | QuackConnection).connectionState === 'connected') {
               // Refresh metadata
-              await refreshDatabaseMetadata(conn, [dbName]);
+              if (dataSource.type === 'quack') {
+                await refreshQuackMetadata(conn, dataSource);
+              } else {
+                await refreshDatabaseMetadata(conn, [dbName]);
+              }
+            } else if (dataSource.type === 'quack') {
+              showError({
+                title: 'Reconnect unavailable',
+                message: 'Reload PondPilot or add the Quack server again to reconnect.',
+              });
             } else {
               // Attempt reconnection
               await reconnectRemoteDatabase(conn, dataSource as RemoteDB);
             }
           },
         },
-        ...((dataSource as RemoteDB).connectionState === 'connected'
+        ...((dataSource as RemoteDB | QuackConnection).connectionState === 'connected'
           ? [
               {
                 label: 'Disconnect',
                 onClick: async () => {
-                  await disconnectRemoteDatabase(conn, dataSource as RemoteDB);
+                  if (dataSource.type === 'quack') {
+                    await disconnectQuackConnection(conn, dataSource);
+                  } else {
+                    await disconnectRemoteDatabase(conn, dataSource as RemoteDB);
+                  }
                 },
               },
             ]

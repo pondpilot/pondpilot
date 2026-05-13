@@ -10,6 +10,7 @@ import {
   LocalDB,
   MotherDuckConnection,
   PersistentDataSourceId,
+  QuackConnection,
   RemoteDB,
 } from '@models/data-source';
 import { ColumnSortSpecList } from '@models/db';
@@ -250,6 +251,7 @@ export const getOrCreateTabFromLocalDBObject = (
     | RemoteDB
     | IcebergCatalog
     | DuckLakeCatalog
+    | QuackConnection
     | MotherDuckConnection
     | PersistentDataSourceId,
   schemaName: string,
@@ -527,6 +529,7 @@ export const findTabFromLocalDBObject = (
     | RemoteDB
     | IcebergCatalog
     | DuckLakeCatalog
+    | QuackConnection
     | MotherDuckConnection
     | PersistentDataSourceId,
   schemaName: string,
@@ -998,6 +1001,7 @@ function updateTabLRUTracking(tabId: TabId): void {
           dataSource.type === 'remote-db' ||
           dataSource.type === 'iceberg-catalog' ||
           dataSource.type === 'ducklake-catalog' ||
+          dataSource.type === 'quack' ||
           dataSource.type === 'motherduck')
       ) {
         // For MotherDuck, use per-database identifier instead of the bare prefix,

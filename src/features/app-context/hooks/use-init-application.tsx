@@ -7,6 +7,7 @@ import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
+import { AnyDataSource } from '@models/data-source';
 import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
@@ -16,6 +17,7 @@ import {
   isIcebergCatalog,
   isDuckLakeCatalog,
   isMotherDuckConnection,
+  isQuackConnection,
 } from '@utils/data-source';
 import {
   attachAndVerifyDuckLakeCatalog,
@@ -31,6 +33,11 @@ import {
   reconnectMotherDuck,
   updateMotherDuckConnectionState,
 } from '@utils/motherduck';
+import {
+  resolveQuackToken,
+  reconnectQuackConnection,
+  updateQuackConnectionState,
+} from '@utils/quack';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
@@ -43,7 +50,20 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
   const { dataSources, _iDbConn } = useAppStore.getState();
   const connectedDatabases: string[] = [];
 
-  for (const [id, dataSource] of dataSources) {
+  // MotherDuck must initialize before Quack when both are restored on startup.
+  // The current DuckDB-WASM/MotherDuck extension can fail with
+  // "InMemory not implemented yet" if Quack has already been loaded in the
+  // same engine instance. Preserve normal insertion order otherwise.
+  const getReconnectPriority = (dataSource: AnyDataSource): number => {
+    if (isMotherDuckConnection(dataSource)) return 0;
+    if (isQuackConnection(dataSource)) return 2;
+    return 1;
+  };
+  const orderedDataSources = Array.from(dataSources).sort(
+    ([, left], [, right]) => getReconnectPriority(left) - getReconnectPriority(right),
+  );
+
+  for (const [id, dataSource] of orderedDataSources) {
     if (isIcebergCatalog(dataSource)) {
       // Resolve credentials from secret store (or inline fallback)
       const credentials = _iDbConn ? await resolveIcebergCredentials(_iDbConn, dataSource) : null;
@@ -120,6 +140,25 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
         const sanitized = sanitizeErrorMessage(errorMessage);
         console.warn(`Failed to reconnect DuckLake catalog ${dataSource.catalogAlias}:`, sanitized);
         updateDuckLakeConnectionState(id, 'error', sanitized);
+      }
+      continue;
+    }
+
+    if (isQuackConnection(dataSource)) {
+      const token = _iDbConn ? await resolveQuackToken(_iDbConn, dataSource) : null;
+
+      if (!token) {
+        updateQuackConnectionState(id, 'credentials-required');
+        continue;
+      }
+
+      try {
+        await reconnectQuackConnection(conn, dataSource, token);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const sanitized = sanitizeErrorMessage(errorMessage);
+        console.warn(`Failed to reconnect Quack database ${dataSource.dbName}:`, sanitized);
+        updateQuackConnectionState(id, 'error', sanitized);
       }
       continue;
     }
