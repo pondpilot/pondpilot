@@ -137,7 +137,8 @@ jobs:
         with:
           script: |
             const releaseId = parseInt("${{ steps.get_draft.outputs.release_id }}", 10);
-            const dryRun = context.payload.inputs.dry_run;
+            // workflow_dispatch boolean inputs arrive as strings — coerce explicitly so "false" doesn't read as truthy
+            const dryRun = context.payload.inputs.dry_run === 'true';
             const version = context.payload.inputs.version;
 
             if (dryRun) {
