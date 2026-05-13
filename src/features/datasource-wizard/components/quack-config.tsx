@@ -15,6 +15,7 @@ import { notifications } from '@mantine/notifications';
 import { deleteSecret, makeSecretId, putSecret, SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { IconAlertCircle } from '@tabler/icons-react';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import {
   attachQuackConnection,
   getQuackDatabaseModel,
@@ -65,25 +66,43 @@ export function QuackConfig({ pool, onBack, onClose }: QuackConfigProps) {
     if (!validateForm()) return;
 
     setIsTesting(true);
+    const trimmedDbName = dbName.trim();
+    let testAttached = false;
     try {
       await attachQuackConnection({
         pool,
         uri: uri.trim(),
-        dbName: dbName.trim(),
+        dbName: trimmedDbName,
         token,
         disableSsl,
       });
-      await pool.query(`DETACH DATABASE IF EXISTS "${dbName.trim().replace(/"/g, '""')}"`);
-      showSuccess({ title: 'Connection successful', message: 'Quack connection test passed' });
+      testAttached = true;
     } catch (error) {
       showError({
         title: 'Connection failed',
         message: error instanceof Error ? error.message : String(error),
         autoClose: false,
       });
-    } finally {
-      setIsTesting(false);
     }
+
+    if (testAttached) {
+      // Wait for the temporary DETACH before declaring success — otherwise the
+      // alias stays attached and a subsequent Add with the same alias fails
+      // with "database is already attached".
+      try {
+        await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(trimmedDbName)}`);
+        showSuccess({ title: 'Connection successful', message: 'Quack connection test passed' });
+      } catch (detachError) {
+        const message = detachError instanceof Error ? detachError.message : String(detachError);
+        console.warn('Failed to detach Quack database after test:', detachError);
+        showError({
+          title: 'Connection test cleanup failed',
+          message: `Test attach succeeded but cleanup failed: ${message}. Reload the page before retrying.`,
+          autoClose: false,
+        });
+      }
+    }
+    setIsTesting(false);
   };
 
   const handleAdd = async () => {
@@ -95,6 +114,10 @@ export function QuackConfig({ pool, onBack, onClose }: QuackConfigProps) {
 
     let secretRef: SecretId | null = null;
     let secretPersisted = false;
+    let quackAttached = false;
+    let attachedDbName: string | null = null;
+    let insertedDataSourceId: ReturnType<typeof makeQuackConnection>['id'] | null = null;
+    let insertedMetadataKeys: string[] = [];
 
     setIsLoading(true);
     try {
@@ -122,6 +145,8 @@ export function QuackConfig({ pool, onBack, onClose }: QuackConfigProps) {
         token,
         disableSsl: quack.disableSsl,
       });
+      quackAttached = true;
+      attachedDbName = quack.dbName;
 
       const connected = { ...quack, connectionState: 'connected' as const };
       const newDataSources = new Map(dataSources);
@@ -136,12 +161,37 @@ export function QuackConfig({ pool, onBack, onClose }: QuackConfigProps) {
         false,
         'DatasourceWizard/addQuack',
       );
+      insertedDataSourceId = connected.id;
+      insertedMetadataKeys = Array.from(remoteMetadata.keys());
+
       await persistQuackConnection(connected);
 
       showSuccess({ title: 'Quack server added', message: `Connected to '${connected.dbName}'` });
       onClose();
     } catch (error) {
       const { _iDbConn } = useAppStore.getState();
+      if (quackAttached && attachedDbName) {
+        try {
+          await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(attachedDbName)}`);
+        } catch (detachError) {
+          console.warn('Failed to detach Quack database after add failure:', detachError);
+        }
+      }
+      // Surgical rollback: remove only the entries this handler inserted, so a
+      // concurrent store mutation between setState and the catch isn't reverted.
+      if (insertedDataSourceId || insertedMetadataKeys.length > 0) {
+        const { dataSources: currentDataSources, databaseMetadata: currentMetadata } =
+          useAppStore.getState();
+        const nextDataSources = new Map(currentDataSources);
+        if (insertedDataSourceId) nextDataSources.delete(insertedDataSourceId);
+        const nextMetadata = new Map(currentMetadata);
+        for (const key of insertedMetadataKeys) nextMetadata.delete(key);
+        useAppStore.setState(
+          { dataSources: nextDataSources, databaseMetadata: nextMetadata },
+          false,
+          'DatasourceWizard/rollbackQuackAdd',
+        );
+      }
       if (secretPersisted && secretRef && _iDbConn) {
         try {
           await deleteSecret(_iDbConn, secretRef);

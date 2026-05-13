@@ -1,4 +1,3 @@
-import { showError } from '@components/app-notifications';
 import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
@@ -27,7 +26,11 @@ import {
   listMotherDuckDatabases,
 } from '@utils/motherduck';
 import { getLocalDBDataSourceName } from '@utils/navigation';
-import { disconnectQuackConnection, refreshQuackMetadata } from '@utils/quack';
+import {
+  disconnectQuackConnection,
+  reconnectQuackDataSource,
+  refreshQuackMetadata,
+} from '@utils/quack';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
@@ -194,10 +197,7 @@ export function buildDatabaseNode(
                 await refreshDatabaseMetadata(conn, [dbName]);
               }
             } else if (dataSource.type === 'quack') {
-              showError({
-                title: 'Reconnect unavailable',
-                message: 'Reload PondPilot or add the Quack server again to reconnect.',
-              });
+              await reconnectQuackDataSource(conn, dataSource);
             } else {
               // Attempt reconnection
               await reconnectRemoteDatabase(conn, dataSource as RemoteDB);

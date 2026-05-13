@@ -40,14 +40,6 @@ export function buildQuackSecretName(dbName: string): string {
   return `pondpilot_quack_${dbName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
 }
 
-export function buildCreateQuackSecretQuery(
-  uri: string,
-  token: string,
-  secretName: string,
-): string {
-  return `CREATE OR REPLACE TEMPORARY SECRET ${toDuckDBIdentifier(secretName)} (TYPE quack, TOKEN '${escapeSqlStringValue(token)}', SCOPE '${escapeSqlStringValue(uri)}')`;
-}
-
 export function buildAttachQuackQuery(
   uri: string,
   dbName: string,
@@ -75,6 +67,14 @@ async function queryQuackWithTimeout<T>(query: Promise<T>, operation: string): P
         ),
       );
     }, QUACK_QUERY_TIMEOUT_MS);
+  });
+
+  // The loser of Promise.race keeps running. When the timeout wins, attach a
+  // catch to the underlying query so its eventual rejection doesn't surface as
+  // an unhandled promise rejection — but log it so the underlying cause isn't
+  // entirely swallowed.
+  query.catch((error) => {
+    console.warn(`Quack query lost race with timeout (${operation}):`, error);
   });
 
   try {
@@ -105,7 +105,7 @@ async function tryLoadQuackFromPinnedWasm(
   for (const url of getQuackWasmExtensionUrls()) {
     try {
       await queryQuackWithTimeout(
-        pool.query(`LOAD '${url}'`),
+        pool.query(`LOAD '${escapeSqlStringValue(url)}'`),
         'Loading the pinned Quack WASM extension',
       );
       return { loaded: true };
@@ -277,6 +277,11 @@ export async function getQuackDatabaseModel(
   pool: AsyncDuckDBConnectionPool,
   dbName: string,
 ): Promise<Map<string, DataBaseModel>> {
+  // Scope the metadata query to the remote server's default (current) database
+  // so a server with multiple attached databases doesn't collapse same-named
+  // schemas into one local DataBaseModel. As a consequence, additional user
+  // databases exposed by the same Quack server are intentionally not surfaced
+  // here — only the default DB's schemas appear in the explorer.
   const remoteMetadataSql = `
     SELECT
       dt.table_oid IS NOT NULL AS is_table,
@@ -293,7 +298,7 @@ export async function getQuackDatabaseModel(
      AND dc.table_name = dt.table_name
      AND dc.table_oid = dt.table_oid
     WHERE NOT dc.internal
-      AND dc.database_name NOT IN ('system', 'temp')
+      AND dc.database_name = current_database()
       AND dc.schema_name NOT IN ('information_schema', 'pg_catalog')
     ORDER BY dc.schema_name, dc.table_name, dc.column_index
   `;
@@ -332,6 +337,14 @@ export async function getQuackDatabaseModel(
       isNullable === undefined ||
       isNullable === null
     ) {
+      console.warn('Skipping Quack metadata row with missing values:', {
+        schemaName,
+        tableName,
+        columnName,
+        columnIndex,
+        dataType,
+        isNullable,
+      });
       continue;
     }
 
@@ -377,6 +390,44 @@ export async function refreshQuackMetadata(
   useAppStore.setState({ databaseMetadata: newMetadata }, false, 'Quack/loadMetadata');
 }
 
+/**
+ * Reconnect a Quack data source from the data explorer or other UI entry
+ * points: resolves the stored token, surfaces user-facing errors via
+ * notifications, and delegates the actual reconnect to
+ * reconnectQuackConnection. Returns true on success.
+ */
+export async function reconnectQuackDataSource(
+  pool: AsyncDuckDBConnectionPool,
+  connection: QuackConnection,
+): Promise<boolean> {
+  const { _iDbConn } = useAppStore.getState();
+  if (!_iDbConn) {
+    showError({
+      title: 'Reconnect unavailable',
+      message: 'Encrypted secret store is not available.',
+    });
+    return false;
+  }
+  const token = await resolveQuackToken(_iDbConn, connection);
+  if (!token) {
+    showError({
+      title: 'Reconnect unavailable',
+      message: 'No stored credentials for this Quack server. Add it again to reconnect.',
+    });
+    return false;
+  }
+  try {
+    await reconnectQuackConnection(pool, connection, token);
+    return true;
+  } catch (error) {
+    showError({
+      title: 'Reconnect failed',
+      message: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+    });
+    return false;
+  }
+}
+
 export async function reconnectQuackConnection(
   pool: AsyncDuckDBConnectionPool,
   connection: QuackConnection,
@@ -412,6 +463,11 @@ export async function disconnectQuackConnection(
     newMetadata.delete(connection.dbName);
     useAppStore.setState({ databaseMetadata: newMetadata }, false, 'Quack/disconnect');
     updateQuackConnectionState(connection.id, 'disconnected');
+
+    // Tabs that reference this Quack source are intentionally left open so a
+    // subsequent reconnect restores their working context. They will error
+    // gracefully while the connection is detached.
+
     showSuccess({ title: 'Quack disconnected', message: `${connection.dbName} disconnected` });
   } catch (error) {
     const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
