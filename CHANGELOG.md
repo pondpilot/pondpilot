@@ -8,6 +8,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- next-header -->
 ## ✨ Highlights
 
+This release adds four things: **MotherDuck**, **DuckLake**, **Quack**, and **SQL Linting**.
+
+- **☁️ MotherDuck**: Connect to MotherDuck cloud databases with a service token. The extension loads dynamically — no special build needed. The token is stored in the encrypted secret store and auto-reconnects on reload. COOP/COEP headers are now enabled in production so  is available for the extension.
+
+- **🌊 DuckLake Catalogs**: New DuckLake Catalog data source for browsing remote  catalogs. Paste a URL, the alias auto-derives from the path, and tables appear in the sidebar with schema browsing, spotlight search, and reconnection on reload. Comes with a DuckDB-WASM upgrade to DuckDB v1.5.1, which also fixes the storage version compatibility issue with newer DuckDB files.
+
+- **🦆 Quack Protocol**: Quack Server is now a first-class data source. The token is stored encrypted, databases attach and reconnect on reload, and they work in queries, the data explorer, and comparison flows like a local source.
+
+- **🔍 SQL Linting**: Built-in SQL linting in the editor via FlowScope. A new SQL Linting settings panel lets you toggle rules and filter by severity. In the editor you can disable a rule via the context menu and apply Fix or Fix All through code actions.
+
+## 🎯 What's Next
+
+- More cloud and remote data source integrations
+- Expanded lint rule coverage
+- Performance work for large remote catalogs
+
+## 📋 Changelog
+
+### 🚀 New
+
+- Add Quack protocol integration [#287](https://github.com/pondpilot/pondpilot/pull/287)
+- feat: Add MotherDuck cloud database integration [#278](https://github.com/pondpilot/pondpilot/pull/278)
+- Add DuckLake catalog support and upgrade DuckDB-WASM [#284](https://github.com/pondpilot/pondpilot/pull/284)
+- Add SQL linting with configurable rules, severity filtering, and autofix [#281](https://github.com/pondpilot/pondpilot/pull/281)
+
+### 🐛 Fixed
+
+- fix: Improve table alignment and theme consistency in UI [#286](https://github.com/pondpilot/pondpilot/pull/286)
+
+**Full Changelog**: [v0.8.0...v0.9.0](https://github.com/pondpilot/pondpilot/compare/v0.8.0...v0.9.0)
+
+
+## ✨ Highlights
+
 This is the largest PondPilot release to date, with 15 new features and 6 bug fixes. The main additions are interactive chart visualization, a built-in AI assistant, migration to the Monaco code editor, and script version history.
 
 - **📊 Chart View**: Data tabs now include a chart view alongside the table view. Choose from multiple chart types, configure axes and grouping, use small multiples to compare subsets, and export charts as PNG. Useful for getting a quick visual overview before diving into deeper analysis.
