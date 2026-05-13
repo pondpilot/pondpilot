@@ -28,11 +28,19 @@ export async function getFreePort(): Promise<number> {
   });
 }
 
+function sleepSync(ms: number): void {
+  // Portable synchronous sleep: Atomics.wait on a SharedArrayBuffer blocks the
+  // main thread for `ms` without relying on platform-specific shell utilities.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function waitForDuckDBInstall(lockDir: string, timeoutMs = 60_000): void {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!existsSync(lockDir) && existsSync(DUCKDB_BINARY)) return;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+    // Synchronous sleep so this helper can be used from the synchronous
+    // ensureDuckDBBinary() bootstrap path.
+    sleepSync(250);
   }
   throw new Error(`Timed out waiting for DuckDB CLI installation lock: ${lockDir}`);
 }

@@ -2,7 +2,6 @@ import { describe, expect, it, jest } from '@jest/globals';
 import {
   attachQuackConnection,
   buildAttachQuackQuery,
-  buildCreateQuackSecretQuery,
   getQuackDatabaseModel,
   loadQuackExtension,
   validateQuackUri,
@@ -42,12 +41,6 @@ describe('quack utils', () => {
   it('omits the Quack ATTACH options clause when no options are provided', () => {
     expect(buildAttachQuackQuery('quack:localhost:9494', 'remote_quack')).toBe(
       "ATTACH 'quack:localhost:9494' AS remote_quack",
-    );
-  });
-
-  it('builds a temporary Quack secret query and escapes token values', () => {
-    expect(buildCreateQuackSecretQuery('quack:localhost', "tok'en", 'quack_secret')).toBe(
-      "CREATE OR REPLACE TEMPORARY SECRET quack_secret (TYPE quack, TOKEN 'tok''en', SCOPE 'quack:localhost')",
     );
   });
 

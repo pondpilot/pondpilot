@@ -101,6 +101,14 @@ export const DuckDBConnectionPoolProvider = ({
     const forceMvp = import.meta.env.VITE_DUCKDB_WASM_FORCE_MVP === 'true';
 
     if (mainModule || mainWorker || pthreadWorker || forceMvp) {
+      const ehModuleFallback = !mainModule && !defaultBundles.eh?.mainModule;
+      const ehWorkerFallback = !mainWorker && !defaultBundles.eh?.mainWorker;
+      if (!forceMvp && (ehModuleFallback || ehWorkerFallback)) {
+        console.warn(
+          'DuckDB-WASM exception-handling (EH) bundle unavailable; falling back to MVP build. ' +
+            'EH-only features will be disabled.',
+        );
+      }
       const overriddenBundles: duckdb.DuckDBBundles = {
         mvp: {
           mainModule: mainModule || defaultBundles.mvp.mainModule,
@@ -110,8 +118,10 @@ export const DuckDBConnectionPoolProvider = ({
           ? {}
           : {
               eh: {
-                mainModule: mainModule || defaultBundles.eh!.mainModule,
-                mainWorker: mainWorker || defaultBundles.eh!.mainWorker,
+                mainModule:
+                  mainModule || defaultBundles.eh?.mainModule || defaultBundles.mvp.mainModule,
+                mainWorker:
+                  mainWorker || defaultBundles.eh?.mainWorker || defaultBundles.mvp.mainWorker,
                 ...(pthreadWorker ? { pthreadWorker } : {}),
               },
             }),

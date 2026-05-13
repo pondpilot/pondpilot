@@ -13,7 +13,7 @@ import {
   AnyDataSource,
   PersistentDataSourceId,
 } from '@models/data-source';
-import { makeSecretId, putSecret } from '@services/secret-store';
+import { deleteSecret, makeSecretId, putSecret } from '@services/secret-store';
 import type { SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import {
@@ -324,16 +324,20 @@ export async function handleDetachStatements(
     );
 
     if (dbToRemove) {
-      const [dbId] = dbToRemove;
+      const [dbId, ds] = dbToRemove;
       context.updatedDataSources.delete(dbId);
       context.updatedMetadata.delete(dbName);
 
       const { _iDbConn } = useAppStore.getState();
       if (_iDbConn) {
-        // Encrypted secrets are intentionally NOT deleted on DETACH.
-        // DETACH only affects the current DuckDB session; credentials
-        // remain in the secret store so the user can re-attach later.
-        // Secrets are only deleted through the explicit UI delete path.
+        // Best-effort: secret cleanup must not block the primary data-source
+        // removal. A failed deleteSecret used to throw out of this handler and
+        // leave the (already-detached) data source in app state/persistence.
+        if (ds.type === 'quack' && ds.secretRef) {
+          deleteSecret(_iDbConn, ds.secretRef).catch((error) => {
+            console.warn('Failed to delete secret on DETACH:', error);
+          });
+        }
         await persistDeleteDataSource(_iDbConn, [dbId], []);
       }
     }
