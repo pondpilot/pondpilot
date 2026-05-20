@@ -30,7 +30,7 @@ import {
   handleCreateSecretStatements,
   handleDetachStatements,
 } from '@utils/attach-detach-handler';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { buildUseStatement } from '@utils/duckdb/identifier';
 import {
   splitSQLByStats,
   classifySQLStatements,
@@ -235,22 +235,20 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         const [catalog, schema] = parts;
         if (!catalog || !schema) return false;
 
-        await conn.query(`USE ${toDuckDBIdentifier(catalog.replace(/^"|"$/g, ''))}`);
-        await conn.query(`USE ${toDuckDBIdentifier(schema.replace(/^"|"$/g, ''))}`);
+        const qualified = buildUseStatement(
+          catalog.replace(/^"|"$/g, ''),
+          schema.replace(/^"|"$/g, ''),
+        );
+        if (!qualified) return false;
+        await conn.query(qualified);
         return true;
       };
 
       try {
+        // Catalog/schema session state is replayed by the pool's
+        // onBeforeTabConnectionUse hook during pinForTab. clearTransient
+        // stays here so the UI badge clears at the start of every run.
         clearTransient(tab.sqlScriptId);
-        const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
-        if (session?.currentCatalog && session.currentSchema) {
-          await conn.query(`USE ${toDuckDBIdentifier(session.currentCatalog)}`);
-          await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
-        } else if (session?.currentSchema) {
-          await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
-        } else if (session?.currentCatalog) {
-          await conn.query(`USE ${toDuckDBIdentifier(session.currentCatalog)}`);
-        }
 
         // No need transaction if there is only one statement. USE statements are
         // executed outside the transaction, but transactional statements after

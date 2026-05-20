@@ -5,7 +5,7 @@ import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { clearTransient, markTransient, setAppLoadState, useAppStore } from '@store/app-store';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { buildUseStatement } from '@utils/duckdb/identifier';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { v4 } from 'uuid';
@@ -442,13 +442,9 @@ export const DuckDBConnectionPoolProvider = ({
                 if (tab?.type !== 'script') return;
 
                 const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
-                if (session?.currentCatalog && session.currentSchema) {
-                  await conn.query(`USE ${toDuckDBIdentifier(session.currentCatalog)}`);
-                  await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
-                } else if (session?.currentSchema) {
-                  await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
-                } else if (session?.currentCatalog) {
-                  await conn.query(`USE ${toDuckDBIdentifier(session.currentCatalog)}`);
+                const useStmt = buildUseStatement(session?.currentCatalog, session?.currentSchema);
+                if (useStmt) {
+                  await conn.query(useStmt);
                 }
 
                 if (session?.isTransient) {

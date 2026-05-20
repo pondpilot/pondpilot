@@ -1180,12 +1180,8 @@ export const deleteTab = async (tabIds: TabId[]) => {
 
     const pool = getCurrentDuckDBConnectionPool();
     if (pool) {
-      for (const tabId of tabIds) {
-        const tab = tabs.get(tabId);
-        if (tab?.type === 'script') {
-          await pool.unpinTab(tabId);
-        }
-      }
+      const scriptTabIds = tabIds.filter((id) => tabs.get(id)?.type === 'script');
+      await Promise.all(scriptTabIds.map((id) => pool.unpinTab(id)));
     }
 
     let persistencePayload: {

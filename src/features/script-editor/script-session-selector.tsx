@@ -54,6 +54,14 @@ export const ScriptSessionSelector = ({ scriptId }: ScriptSessionSelectorProps) 
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [dataSources, databaseMetadata]);
 
+  // Drop schema cache whenever the attached-catalog set changes so that
+  // ATTACH/DETACH/CREATE SCHEMA/DROP SCHEMA in another tab can't leave stale
+  // entries lying around when the user re-opens the popover.
+  useEffect(() => {
+    setSchemaCache(new Map());
+    setSchemaLoadErrors(new Map());
+  }, [databaseMetadata, dataSources]);
+
   const currentCatalog = session?.currentCatalog ?? PERSISTENT_DB_NAME;
   const currentSchema = session?.currentSchema ?? null;
   const focusedCatalog = previewCatalog ?? currentCatalog;

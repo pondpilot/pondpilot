@@ -198,9 +198,7 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
   if (tabsToDelete.length > 0) {
     const pool = getCurrentDuckDBConnectionPool();
     if (pool) {
-      for (const tabId of tabsToDelete) {
-        await pool.unpinTab(tabId);
-      }
+      await Promise.all(tabsToDelete.map((tabId) => pool.unpinTab(tabId)));
     }
 
     const result = deleteTabImpl({

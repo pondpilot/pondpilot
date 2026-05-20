@@ -8,6 +8,8 @@ import { TabId } from '@models/tab';
 class FakeConnection {
   public readonly calls: string[] = [];
   public closed = false;
+  /** Optional hook fired when cancelSent runs — used to simulate query termination releasing the slot. */
+  public onCancel?: () => void;
 
   constructor(public readonly id: number) {}
 
@@ -18,6 +20,7 @@ class FakeConnection {
 
   async cancelSent() {
     this.calls.push('cancelSent');
+    this.onCancel?.();
     return false;
   }
 
@@ -81,9 +84,9 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
     expect(connections[1].calls).toEqual([
       'cancelSent',
       'cancelSent',
+      'ROLLBACK;',
       'USE memory;',
       'SET search_path TO main;',
-      'ROLLBACK;',
     ]);
   });
 
@@ -147,6 +150,79 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
     expect((pool as any)._pinnedTabs.size).toBe(1);
     expect(Array.from((pool as any)._pinnedTabs.values())).toEqual([1]);
     expect(connections).toHaveLength(2);
+  });
+
+  it('does not leak a pinned slot when a tab is closed while pin is in flight', async () => {
+    const connections: FakeConnection[] = [];
+    let releaseFirstConnect: (() => void) | undefined;
+    let connectCallCount = 0;
+
+    const bindings = {
+      connect: jest.fn(async () => {
+        connectCallCount += 1;
+        // Stall the first connect() so we can call unpinTab while the pin is in flight.
+        if (connectCallCount === 2) {
+          await new Promise<void>((resolve) => {
+            releaseFirstConnect = resolve;
+          });
+        }
+        const conn = new FakeConnection(connections.length);
+        connections.push(conn);
+        return conn;
+      }),
+    };
+
+    const pool = new AsyncDuckDBConnectionPool(
+      bindings as any,
+      4,
+      undefined,
+      undefined,
+      undefined,
+      { backgroundReservation: 1 },
+    );
+
+    const pinPromise = pool.pinForTab(tabId('tab-a'));
+    // Give the pinForTab async chain a tick to enter the in-flight state.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect((pool as any)._pinPromises.has(tabId('tab-a'))).toBe(true);
+
+    const unpinPromise = pool.unpinTab(tabId('tab-a'));
+    // Release the stalled connect so the pin completes.
+    releaseFirstConnect?.();
+
+    const pinned = await pinPromise;
+    await pinned.close();
+    await unpinPromise;
+
+    expect((pool as any)._pinnedTabs.size).toBe(0);
+    expect((pool as any)._pinPromises.size).toBe(0);
+  });
+
+  it('cancels an in-flight query when the LRU pinned slot is evicted', async () => {
+    const evicted: TabId[] = [];
+    const { pool, connections } = makePool(3, 1, { onTabEvicted: (id) => evicted.push(id) });
+
+    const a = await pool.pinForTab(tabId('tab-a'));
+    await a.close();
+    const b = await pool.pinForTab(tabId('tab-b'));
+    await b.close();
+
+    // Simulate tab-a's connection still in-flight: mark as in-use and wire up
+    // cancelSent to release the slot, mirroring what a real query's
+    // onFinalize would do once it sees the cancel propagate through.
+    const indexA = (pool as any)._pinnedTabs.get(tabId('tab-a'));
+    (pool as any)._inUse.add(indexA);
+    connections[indexA].onCancel = () => {
+      (pool as any)._inUse.delete(indexA);
+    };
+
+    // Eviction would previously wait for GET_CONNECTION_TIMEOUT; with the fix
+    // it cancels the busy connection and reclaims the slot immediately.
+    const c = await pool.pinForTab(tabId('tab-c'));
+    await c.close();
+
+    expect(evicted).toEqual([tabId('tab-a')]);
+    expect(connections[indexA].calls).toContain('cancelSent');
   });
 
   it('runs the tab hydration callback before pinned tab queries', async () => {

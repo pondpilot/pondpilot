@@ -61,3 +61,27 @@ export function toDuckDBIdentifier(str: string): string {
 export function isReservedDuckDBKeyword(str: string): boolean {
   return DUCKDB_RESERVED_KEYWORDS.has(str.toLowerCase());
 }
+
+/**
+ * Builds a single DuckDB `USE` statement for the given catalog/schema. When
+ * both are present the fully-qualified form `USE "catalog"."schema"` is
+ * emitted in one statement so the schema is resolved unambiguously against
+ * the named catalog (rather than DuckDB's current default).
+ *
+ * Returns `null` if neither catalog nor schema is supplied.
+ */
+export function buildUseStatement(
+  catalog: string | null | undefined,
+  schema: string | null | undefined,
+): string | null {
+  if (catalog && schema) {
+    return `USE ${toDuckDBIdentifier(catalog)}.${toDuckDBIdentifier(schema)}`;
+  }
+  if (catalog) {
+    return `USE ${toDuckDBIdentifier(catalog)}`;
+  }
+  if (schema) {
+    return `USE ${toDuckDBIdentifier(schema)}`;
+  }
+  return null;
+}

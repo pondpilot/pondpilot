@@ -91,6 +91,12 @@ export class AsyncDuckDBConnectionPool {
     conn: AsyncDuckDBConnection,
   ) => Promise<void>;
   private readonly _pinPromises: Map<TabId, Promise<void>> = new Map();
+  /**
+   * Active streaming readers issued for pinned tabs. Tracked so that reclaiming
+   * the slot (unpin/eviction) can drain the reader and release the underlying
+   * connection without waiting for the pool timeout.
+   */
+  private readonly _pinnedReaders: Map<TabId, AsyncDuckDBPooledStreamReader<any>> = new Map();
 
   // State for checkpoint throttling
   private _lastCheckpointTime: number = 0;
@@ -207,12 +213,43 @@ export class AsyncDuckDBConnectionPool {
     throw new PoolTimeoutError();
   }
 
+  /**
+   * Release whatever is currently holding a pinned tab's connection slot so
+   * the slot can be reclaimed. Closes any tracked streaming reader (which
+   * fires its onClose → releases the connection) and otherwise cancels any
+   * in-flight query.
+   *
+   * Without this, reclaim paths (unpin/eviction) would poll `_claimPinnedTab`
+   * until `GET_CONNECTION_TIMEOUT` while the previous holder sits idle on an
+   * unfinished reader or a long-running query.
+   */
+  private async _drainPinnedTabSlot(tabId: TabId, index: number): Promise<void> {
+    const reader = this._pinnedReaders.get(tabId);
+    if (reader) {
+      try {
+        await reader.close();
+      } catch (error) {
+        console.warn('Failed to close pinned reader during tab reclaim:', error);
+      }
+    }
+
+    if (this._inUse.has(index)) {
+      try {
+        await this._connections[index].cancelSent();
+      } catch (error) {
+        console.warn('Failed to cancel in-flight query during tab reclaim:', error);
+      }
+    }
+  }
+
   private async _evictLeastRecentlyUsedPinnedTab(): Promise<void> {
     const tabId = this._pinnedLruOrder.shift();
     if (!tabId) return;
 
     const index = this._pinnedTabs.get(tabId);
     if (index === undefined) return;
+
+    await this._drainPinnedTabSlot(tabId, index);
 
     await this._claimPinnedTab(tabId);
     try {
@@ -229,17 +266,20 @@ export class AsyncDuckDBConnectionPool {
 
   private async _resetConnectionState(conn: AsyncDuckDBConnection): Promise<void> {
     await conn.cancelSent();
+    // ROLLBACK must run before USE: DuckDB rejects catalog changes inside an
+    // active transaction, so if the previous holder left one open, USE memory
+    // would silently fail and leave the connection in an inconsistent state.
+    try {
+      await conn.query('ROLLBACK;');
+    } catch {
+      // No active transaction: DuckDB reports an error, but reset should remain best-effort.
+    }
     try {
       await conn.query('USE memory;');
     } catch (error) {
       console.warn('Failed to reset DuckDB connection catalog to memory:', error);
     }
     await conn.query('SET search_path TO main;');
-    try {
-      await conn.query('ROLLBACK;');
-    } catch {
-      // No active transaction: DuckDB reports an error, but reset should remain best-effort.
-    }
   }
 
   private async _replaceConnection(index: number): Promise<void> {
@@ -608,12 +648,22 @@ export class AsyncDuckDBConnectionPool {
   }
 
   public async unpinTab(tabId: TabId): Promise<void> {
+    // If a pin is currently in flight, wait for it to settle so we observe
+    // the final pinned state. Without this, a close-during-pin races the
+    // pending pin promise and leaks the pinned slot until pool close.
+    const pendingPin = this._pinPromises.get(tabId);
+    if (pendingPin) {
+      try {
+        await pendingPin;
+      } catch {
+        // Pin failed; nothing pinned to unpin.
+      }
+    }
+
     const index = this._pinnedTabs.get(tabId);
     if (index === undefined) return;
 
-    if (this._inUse.has(index)) {
-      await this._connections[index].cancelSent();
-    }
+    await this._drainPinnedTabSlot(tabId, index);
 
     await this._claimPinnedTab(tabId);
     try {
@@ -697,13 +747,18 @@ export class AsyncDuckDBConnectionPool {
         return null;
       }
 
-      return new AsyncDuckDBPooledStreamReader<T>({
+      const pooledReader: AsyncDuckDBPooledStreamReader<T> = new AsyncDuckDBPooledStreamReader<T>({
         reader: result.value,
         onClose: async () => {
+          if (this._pinnedReaders.get(tabId) === pooledReader) {
+            this._pinnedReaders.delete(tabId);
+          }
           await conn.cancelSent();
           await this._releaseConnection(index);
         },
       });
+      this._pinnedReaders.set(tabId, pooledReader);
+      return pooledReader;
     } catch (error) {
       await this._releaseConnection(index);
       throw error;
