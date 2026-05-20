@@ -211,17 +211,20 @@ test('Should copy columns with selection modifiers', async ({
   // Get the data table
   const dataTable = await waitForDataTable();
 
+  // Column copy reads the data source asynchronously (through the tab's pinned
+  // connection), so the clipboard write lands a moment after the keypress.
+  // Poll the clipboard until the copy completes rather than reading once.
+
   // PART 1: Copy single column
   // Get the header cell for the second column (col2)
   const col2HeaderCell = getHeaderCell(dataTable, getTableColumnId('col2', 1));
   await col2HeaderCell.click();
   await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
-  // Read and verify the clipboard content for the second column
-  let clipboardContent = await getClipboardContent(page);
-
   // For column copy, we should get the column header followed by values vertically
-  expect(clipboardContent).toBe('col2\nrow1 val2\nrow2 val2\nrow3 val2\n');
+  await expect
+    .poll(() => getClipboardContent(page), { timeout: 30000 })
+    .toBe('col2\nrow1 val2\nrow2 val2\nrow3 val2\n');
 
   // PART 2: Test multi-select of columns with shift key
   // Click the first column header
@@ -237,9 +240,6 @@ test('Should copy columns with selection modifiers', async ({
   // Copy the selected columns
   await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
-  // Read and verify the clipboard content for all columns
-  clipboardContent = await getClipboardContent(page);
-
   // The clipboard should contain all columns with their data
   // Columns are typically copied with headers in the first row,
   // followed by data rows, with values separated by tabs
@@ -254,7 +254,9 @@ test('Should copy columns with selection modifiers', async ({
     '\t',
   );
 
-  expect(clipboardContent).toBe(expectedContentAllColumns);
+  await expect
+    .poll(() => getClipboardContent(page), { timeout: 30000 })
+    .toBe(expectedContentAllColumns);
 
   // PART 3: Test selective multi-select of columns with Meta key
   await page.keyboard.press('Escape');
@@ -270,9 +272,6 @@ test('Should copy columns with selection modifiers', async ({
   // Copy the selected columns
   await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
-  // Read and verify the clipboard content for columns 1 and 3 (not 2)
-  clipboardContent = await getClipboardContent(page);
-
   // The clipboard should contain columns 1 and 3 with their headers, but not 2
   const expectedSelectiveColumnsContent = formatTableData(
     [
@@ -285,7 +284,9 @@ test('Should copy columns with selection modifiers', async ({
     '\t',
   );
 
-  expect(clipboardContent).toBe(expectedSelectiveColumnsContent);
+  await expect
+    .poll(() => getClipboardContent(page), { timeout: 30000 })
+    .toBe(expectedSelectiveColumnsContent);
 });
 
 test('Should copy column selection from large table', async ({
@@ -328,10 +329,11 @@ test('Should copy column selection from large table', async ({
   await col2HeaderCell.click();
   await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
-  // Read and verify the clipboard content for the second column
-  const clipboardContent = await getClipboardContent(page);
-
-  // The clipboard should contain all column data
+  // The clipboard should contain all column data. Copying a full column from a
+  // large (virtualized) table queries the data source asynchronously through
+  // the tab's pinned connection, so the write lands a moment after the
+  // keypress. Poll the clipboard until the copy completes rather than reading
+  // once immediately.
   const expectedContentAllColumns = formatTableData(
     [
       ['col2'],
@@ -340,7 +342,9 @@ test('Should copy column selection from large table', async ({
     '\t',
   );
 
-  expect(clipboardContent).toBe(expectedContentAllColumns);
+  await expect
+    .poll(() => getClipboardContent(page), { timeout: 30000 })
+    .toBe(expectedContentAllColumns);
 });
 
 test('Should copy from editor when editor has focus, even if table cell is selected', async ({

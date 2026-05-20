@@ -1,3 +1,4 @@
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { expect, mergeTests } from '@playwright/test';
 
 import { test as dataViewTest } from '../fixtures/data-view';
@@ -124,11 +125,23 @@ test('restored script tab can run while previous result reader is still open', a
 
 test('evicted script sessions show a transient badge', async ({
   page,
+  reloadPage,
   createScriptAndSwitchToItsTab,
   fillScript,
   switchToTab,
 }, testInfo) => {
   testInfo.setTimeout(120000);
+
+  // Shrink the connection pool so eviction triggers after only a few pinned
+  // tabs. With the default pool size (30) eviction needs 26 tabs, and keeping
+  // that many live DuckDB-WASM connections exhausts resources before eviction
+  // can ever happen. Pool size 8 → 5 reserved background connections → 3
+  // pinnable slots, so the fourth pinned tab evicts the least-recently-used.
+  await page.context().addInitScript(({ key, value }) => window.localStorage.setItem(key, value), {
+    key: LOCAL_STORAGE_KEYS.MAX_CONNECTION_POOL_SIZE,
+    value: JSON.stringify(8),
+  });
+  await reloadPage();
 
   const runActiveScript = async () => {
     const activeEditor = page.locator('[data-testid="query-editor"][data-active-editor="true"]');
@@ -141,7 +154,12 @@ test('evicted script sessions show a transient badge', async ({
   await fillScript('USE memory; CREATE TEMP TABLE evicted_t AS SELECT 42 AS answer; SELECT 1;');
   await runActiveScript();
 
-  for (let index = 0; index < 25; index += 1) {
+  // Open three more script tabs. With 3 pinnable slots the first three tabs
+  // (the temp-table tab plus two) fill them; the third iteration here is the
+  // fourth pinned tab, which evicts the least-recently-used pin (the first
+  // tab). Eviction happens on the final iteration so the "evicted" notification
+  // is still on screen for the assertion below.
+  for (let index = 0; index < 3; index += 1) {
     await createScriptAndSwitchToItsTab();
     await fillScript(`SELECT ${index};`);
     await runActiveScript();
@@ -149,7 +167,10 @@ test('evicted script sessions show a transient badge', async ({
 
   await expect(page.getByText('Script session evicted')).toBeVisible({ timeout: 30000 });
 
+  // Scope the selector trigger to the active tab's editor — every open script
+  // tab renders its own trigger, so an unscoped lookup matches them all.
   await switchToTab('query');
-  await page.getByTestId('script-session-selector-trigger').click();
+  const activeEditor = page.locator('[data-testid="query-editor"][data-active-editor="true"]');
+  await activeEditor.getByTestId('script-session-selector-trigger').click();
   await expect(page.getByText('Transient', { exact: true })).toBeVisible();
 });
