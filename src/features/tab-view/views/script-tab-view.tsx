@@ -229,68 +229,74 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         const target = useMatch?.[1]?.trim();
         if (!target || !target.includes('.')) return false;
 
-        const [catalog, schema] = target.split('.', 2).map((part) => part.trim());
+        const parts = target.split('.').map((part) => part.trim());
+        if (parts.length !== 2) return false;
+
+        const [catalog, schema] = parts;
         if (!catalog || !schema) return false;
 
-        try {
-          await conn.query(`USE ${toDuckDBIdentifier(catalog.replace(/^"|"$/g, ''))}`);
-          await conn.query(`USE ${toDuckDBIdentifier(schema.replace(/^"|"$/g, ''))}`);
-          return true;
-        } catch {
-          await conn.query(`USE ${toDuckDBIdentifier(schema.replace(/^"|"$/g, ''))}`);
-          return true;
-        }
+        await conn.query(`USE ${toDuckDBIdentifier(catalog.replace(/^"|"$/g, ''))}`);
+        await conn.query(`USE ${toDuckDBIdentifier(schema.replace(/^"|"$/g, ''))}`);
+        return true;
       };
 
       try {
         clearTransient(tab.sqlScriptId);
         const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
         if (session?.currentCatalog && session.currentSchema) {
-          try {
-            await conn.query(
-              `USE ${toDuckDBIdentifier(session.currentCatalog)}.${toDuckDBIdentifier(
-                session.currentSchema,
-              )}`,
-            );
-          } catch (error) {
-            console.warn('Failed to replay DuckDB catalog+schema; retrying schema only:', error);
-            await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
-          }
+          await conn.query(`USE ${toDuckDBIdentifier(session.currentCatalog)}`);
+          await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
         } else if (session?.currentSchema) {
           await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
         } else if (session?.currentCatalog) {
           await conn.query(`USE ${toDuckDBIdentifier(session.currentCatalog)}`);
         }
 
-        // No need transaction if there is only one statement
-        const needsTransaction =
-          classifiedStatements.length > 1 &&
-          classifiedStatements.some((s) => s.needsTransaction) &&
-          !classifiedStatements.some((s) => s.type === SQLStatement.USE);
-        const rollbackOnCorsError = !needsTransaction;
+        // No need transaction if there is only one statement. USE statements are
+        // executed outside the transaction, but transactional statements after
+        // USE still get rollback protection.
+        const shouldUseTransaction =
+          classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
+        let transactionActive = false;
+
+        const beginTransactionIfNeeded = async (
+          statement: (typeof classifiedStatements)[number],
+        ) => {
+          if (shouldUseTransaction && statement.needsTransaction && !transactionActive) {
+            await conn.query('BEGIN TRANSACTION');
+            transactionActive = true;
+          }
+        };
+
+        const commitTransactionIfActive = async () => {
+          if (transactionActive) {
+            await conn.query('COMMIT');
+            transactionActive = false;
+          }
+        };
+
+        const rollbackTransactionIfActive = async () => {
+          if (transactionActive) {
+            await conn.query('ROLLBACK');
+            transactionActive = false;
+          }
+        };
 
         const runQueryWithFileSyncAndRetry = async (code: string) => {
           try {
-            await pooledConnectionQueryWithCorsRetry(conn, code, { rollbackOnCorsError });
+            await pooledConnectionQueryWithCorsRetry(conn, code, {
+              rollbackOnCorsError: !transactionActive,
+            });
           } catch (error: unknown) {
-            if (
-              /^\s*USE\s+/i.test(code) &&
-              getErrorMessage(error).includes('No catalog + schema named') &&
-              (await runQualifiedUseFallback(code))
-            ) {
-              return;
-            }
-
-            if (
-              /^\s*USE\s+memory\s*;?\s*$/i.test(code) &&
-              getErrorMessage(error).includes('No catalog + schema named "memory"')
-            ) {
+            if (/^\s*USE\s+/i.test(code) && (await runQualifiedUseFallback(code))) {
               return;
             }
 
             if (isNotReadableError(error)) {
               await syncFiles(pool);
-              await pooledConnectionQueryWithCorsRetry(conn, code, { rollbackOnCorsError });
+              await pooledConnectionQueryWithCorsRetry(conn, code, {
+                rollbackOnCorsError: !transactionActive,
+              });
             } else {
               throw error;
             }
@@ -311,20 +317,18 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           }
         };
 
-        if (needsTransaction) {
-          await conn.query('BEGIN TRANSACTION');
-        }
-
         // Execute each statement except the last one
         const statsExceptLast = classifiedStatements.slice(0, -1);
         for (const statement of statsExceptLast) {
           try {
+            if (statement.type === SQLStatement.USE) {
+              await commitTransactionIfActive();
+            }
+            await beginTransactionIfNeeded(statement);
             await runQueryWithFileSyncAndRetry(statement.code);
           } catch (error) {
             const message = getErrorMessage(error);
-            if (needsTransaction) {
-              await conn.query('ROLLBACK');
-            }
+            await rollbackTransactionIfActive();
             console.error('Error executing statement:', statement.type, error);
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
@@ -362,9 +366,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = getErrorMessage(error);
 
-            if (needsTransaction) {
-              await conn.query('ROLLBACK');
-            }
+            await rollbackTransactionIfActive();
             console.error(
               'Creation of a prepared statement for the last SELECT statement failed:',
               error,
@@ -399,12 +401,14 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           // The last statement is not a SELECT statement
           // Execute it immediately
           try {
+            if (lastStatement.type === SQLStatement.USE) {
+              await commitTransactionIfActive();
+            }
+            await beginTransactionIfNeeded(lastStatement);
             await runQueryWithFileSyncAndRetry(lastStatement.code);
           } catch (error) {
             const message = getErrorMessage(error);
-            if (needsTransaction) {
-              await conn.query('ROLLBACK');
-            }
+            await rollbackTransactionIfActive();
             console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
@@ -438,9 +442,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         }
 
         // All statements executed successfully
-        if (needsTransaction) {
-          await conn.query('COMMIT');
-        }
+        await commitTransactionIfActive();
 
         // Check if any DDL or database operations were executed and refresh metadata
         const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);

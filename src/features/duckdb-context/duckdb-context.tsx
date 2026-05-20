@@ -443,15 +443,8 @@ export const DuckDBConnectionPoolProvider = ({
 
                 const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
                 if (session?.currentCatalog && session.currentSchema) {
-                  try {
-                    await conn.query(
-                      `USE ${toDuckDBIdentifier(session.currentCatalog)}.${toDuckDBIdentifier(
-                        session.currentSchema,
-                      )}`,
-                    );
-                  } catch {
-                    await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
-                  }
+                  await conn.query(`USE ${toDuckDBIdentifier(session.currentCatalog)}`);
+                  await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
                 } else if (session?.currentSchema) {
                   await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
                 } else if (session?.currentCatalog) {

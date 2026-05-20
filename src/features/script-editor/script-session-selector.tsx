@@ -21,6 +21,7 @@ import { SQLScriptId } from '@models/sql-script';
 import { setScriptSession, useAppStore } from '@store/app-store';
 import { IconChevronRight, IconDatabase, IconSearch } from '@tabler/icons-react';
 import { getDatabaseIdentifier, isDatabaseDataSource } from '@utils/data-source';
+import { getErrorMessage } from '@utils/error-classification';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -37,6 +38,7 @@ export const ScriptSessionSelector = ({ scriptId }: ScriptSessionSelectorProps) 
   const session = useAppStore((state) => state.sqlScriptSessions.get(scriptId));
   const [opened, { close, toggle }] = useDisclosure(false);
   const [schemaCache, setSchemaCache] = useState<Map<string, string[]>>(new Map());
+  const [schemaLoadErrors, setSchemaLoadErrors] = useState<Map<string, string>>(new Map());
   const [loadingCatalog, setLoadingCatalog] = useState<string | null>(null);
   const [catalogFilter, setCatalogFilter] = useState('');
   const [previewCatalog, setPreviewCatalog] = useState<string | null>(null);
@@ -63,28 +65,37 @@ export const ScriptSessionSelector = ({ scriptId }: ScriptSessionSelectorProps) 
     let cancelled = false;
     setLoadingCatalog(focusedCatalog);
     (async () => {
-      const conn = await pool.getBackgroundConnection();
       try {
-        const result = await conn.query(
-          `SELECT schema_name FROM duckdb_schemas() WHERE database_name = '${escapeSqlLiteral(focusedCatalog)}' ORDER BY schema_name`,
-        );
-        if (cancelled) return;
-        const schemas = result.toArray().map((row: any) => String(row.schema_name));
-        setSchemaCache((prev) => {
-          const next = new Map(prev);
-          next.set(focusedCatalog, schemas);
-          return next;
-        });
+        const conn = await pool.getBackgroundConnection();
+        try {
+          const result = await conn.query(
+            `SELECT schema_name FROM duckdb_schemas() WHERE database_name = '${escapeSqlLiteral(focusedCatalog)}' ORDER BY schema_name`,
+          );
+          if (cancelled) return;
+          const schemas = result.toArray().map((row: any) => String(row.schema_name));
+          setSchemaCache((prev) => {
+            const next = new Map(prev);
+            next.set(focusedCatalog, schemas);
+            return next;
+          });
+          setSchemaLoadErrors((prev) => {
+            const next = new Map(prev);
+            next.delete(focusedCatalog);
+            return next;
+          });
+        } finally {
+          await conn.close();
+        }
       } catch (error) {
         console.warn('Failed to load DuckDB schemas for script session selector:', error);
-        setSchemaCache((prev) => {
+        if (cancelled) return;
+        setSchemaLoadErrors((prev) => {
           const next = new Map(prev);
-          next.set(focusedCatalog, []);
+          next.set(focusedCatalog, getErrorMessage(error));
           return next;
         });
       } finally {
         if (!cancelled) setLoadingCatalog(null);
-        await conn.close();
       }
     })();
 
@@ -100,6 +111,7 @@ export const ScriptSessionSelector = ({ scriptId }: ScriptSessionSelectorProps) 
   }, [catalogs, catalogFilter]);
 
   const focusedSchemas = schemaCache.get(focusedCatalog) ?? [];
+  const focusedSchemaError = schemaLoadErrors.get(focusedCatalog);
   const isLoadingFocusedSchemas =
     loadingCatalog === focusedCatalog && !schemaCache.has(focusedCatalog);
 
@@ -341,6 +353,12 @@ export const ScriptSessionSelector = ({ scriptId }: ScriptSessionSelectorProps) 
                     <Group justify="center" py="md">
                       <Loader size="xs" />
                     </Group>
+                  ) : focusedSchemaError ? (
+                    <Tooltip label={focusedSchemaError} multiline w={260}>
+                      <Text size="xs" c="red.5" ta="center" py="xs">
+                        Failed to load schemas
+                      </Text>
+                    </Tooltip>
                   ) : focusedSchemas.length === 0 ? (
                     <Text size="xs" c="dimmed" ta="center" py="xs">
                       No schemas
