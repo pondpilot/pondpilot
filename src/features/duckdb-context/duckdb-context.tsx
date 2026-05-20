@@ -4,7 +4,7 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
-import { clearTransient, markTransient, setAppLoadState, useAppStore } from '@store/app-store';
+import { markTransient, setAppLoadState, useAppStore } from '@store/app-store';
 import {
   buildSearchPathStatement,
   buildUseStatement,
@@ -494,9 +494,14 @@ export const DuckDBConnectionPoolProvider = ({
                   lastAppliedSession.set(conn, next);
                 }
 
-                if (session?.isTransient) {
-                  clearTransient(tab.sqlScriptId);
-                }
+                // Note: the transient flag is intentionally NOT cleared here.
+                // This hook fires on every connection claim, including the
+                // background re-read that happens when a user switches to an
+                // evicted tab. Clearing it here would hide the "session
+                // evicted" badge the instant the tab is viewed. The badge is
+                // cleared at the start of the next run instead (see
+                // script-tab-view), matching the eviction notice that catalog
+                // and schema are restored on the next run.
               },
               onTabConnectionSessionRecorded: (_tabId, conn, session) => {
                 lastAppliedSession.set(conn, session);
