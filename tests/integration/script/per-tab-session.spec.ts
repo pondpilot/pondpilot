@@ -40,26 +40,29 @@ test('script session catalog and schema survive reload and are replayed on run',
   runScript,
   assertDataTableMatches,
 }) => {
+  // `memory` is a non-default catalog (the default session is pondpilot·main),
+  // so switching to it and re-reading after reload proves the session was
+  // restored and replayed. `main` is the only schema that can be USEd in a
+  // fresh catalog — information_schema/pg_catalog are system schemas DuckDB
+  // rejects in USE.
   await createScriptAndSwitchToItsTab();
-  await fillScript(
-    'USE pondpilot.information_schema; SELECT current_database() AS db, current_schema() AS schema;',
-  );
+  await fillScript('USE memory; SELECT current_database() AS db, current_schema() AS schema;');
   await runScript();
   await assertDataTableMatches({
-    data: [['pondpilot', 'information_schema']],
+    data: [['memory', 'main']],
     columnNames: ['db', 'schema'],
   });
 
   await reloadPage();
   await expect(page.getByTestId('script-session-selector-trigger')).toHaveAttribute(
     'aria-label',
-    'Script session: pondpilot · information_schema',
+    'Script session: memory · main',
   );
 
   await fillScript('SELECT current_database() AS db, current_schema() AS schema;');
   await runScript();
   await assertDataTableMatches({
-    data: [['pondpilot', 'information_schema']],
+    data: [['memory', 'main']],
     columnNames: ['db', 'schema'],
   });
 });
