@@ -176,7 +176,6 @@ export const ScriptEditorDataStatePane = ({
   return (
     <Group className="px-3 h-10" justify="space-between">
       <Group gap={2}>
-        {sessionSelector}
         {dirty && !error && (
           <Group gap={4}>
             <IconFileSad size={18} className="text-textWarning-light dark:text-textWarning-dark" />
@@ -208,6 +207,7 @@ export const ScriptEditorDataStatePane = ({
       </Group>
       <Group gap={8}>
         <Group gap={2}>
+          {sessionSelector}
           {onEnterHistoryMode && (
             <Tooltip label="Version History">
               <ActionIcon

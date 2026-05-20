@@ -526,10 +526,7 @@ export const restoreAppDataFromIDB = async (
 
   const sqlScriptSessionsArray = await tx.objectStore(SQL_SCRIPT_SESSION_TABLE_NAME).getAll();
   const sqlScriptSessions = new Map<SQLScriptId, SQLScriptSession>(
-    sqlScriptSessionsArray.map((session) => [
-      session.scriptId,
-      { ...session, isTransient: false },
-    ]),
+    sqlScriptSessionsArray.map((session) => [session.scriptId, { ...session, isTransient: false }]),
   );
 
   const comparisonsArray = await tx.objectStore(COMPARISON_TABLE_NAME).getAll();

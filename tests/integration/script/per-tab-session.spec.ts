@@ -51,8 +51,10 @@ test('script session catalog and schema survive reload and are replayed on run',
   });
 
   await reloadPage();
-  await expect(page.getByLabel('Session catalog')).toHaveValue('pondpilot');
-  await expect(page.getByLabel('Session schema')).toHaveValue('information_schema');
+  await expect(page.getByTestId('script-session-selector-trigger')).toHaveAttribute(
+    'aria-label',
+    'Script session: pondpilot · information_schema',
+  );
 
   await fillScript('SELECT current_database() AS db, current_schema() AS schema;');
   await runScript();
@@ -70,8 +72,8 @@ test('catalog dropdown selection is applied on next run', async ({
   assertDataTableMatches,
 }) => {
   await createScriptAndSwitchToItsTab();
-  await page.getByLabel('Session catalog').click();
-  await page.getByRole('option', { name: 'memory' }).click();
+  await page.getByTestId('script-session-selector-trigger').click();
+  await page.getByTestId('script-session-catalog-memory').click();
   await fillScript('SELECT current_database() AS db;');
   await runScript();
   await assertDataTableMatches({ data: [['memory']], columnNames: ['db'] });
@@ -125,5 +127,6 @@ test('evicted script sessions show a transient badge', async ({
   await expect(page.getByText('Script session evicted')).toBeVisible({ timeout: 30000 });
 
   await switchToTab('query');
-  await expect(page.getByText('Transient session')).toBeVisible();
+  await page.getByTestId('script-session-selector-trigger').click();
+  await expect(page.getByText('Transient', { exact: true })).toBeVisible();
 });

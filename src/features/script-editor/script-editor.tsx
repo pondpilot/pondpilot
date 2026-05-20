@@ -100,7 +100,7 @@ export const ScriptEditor = ({
 
   const sqlScript = useAppStore((state) => state.sqlScripts.get(scriptId)!);
   const databaseMetadata = useAppStore.use.databaseMetadata();
-  const databaseModelsArray = Array.from(databaseMetadata.values());
+  const scriptSession = useAppStore((state) => state.sqlScriptSessions.get(scriptId));
   const iDbConn = useAppStore((state) => state._iDbConn);
 
   /**
@@ -221,8 +221,12 @@ export const ScriptEditor = ({
   });
 
   const schema = useMemo(
-    () => convertToFlowScopeSchema(databaseModelsArray),
-    [databaseModelsArray],
+    () =>
+      convertToFlowScopeSchema(Array.from(databaseMetadata.values()), {
+        defaultCatalog: scriptSession?.currentCatalog,
+        defaultSchema: scriptSession?.currentSchema,
+      }),
+    [databaseMetadata, scriptSession?.currentCatalog, scriptSession?.currentSchema],
   );
 
   /**

@@ -8,8 +8,18 @@ const shouldSkipTable = (tableName: string) =>
   tableName.startsWith('sqlite_') ||
   tableName.startsWith('pragma_');
 
-export const convertToFlowScopeSchema = (databases: DataBaseModel[]): SchemaMetadata => {
+export type FlowScopeSchemaDefaults = {
+  defaultCatalog?: string | null;
+  defaultSchema?: string | null;
+};
+
+export const convertToFlowScopeSchema = (
+  databases: DataBaseModel[],
+  defaults: FlowScopeSchemaDefaults = {},
+): SchemaMetadata => {
   const tables: SchemaTable[] = [];
+  const defaultCatalog = defaults.defaultCatalog ?? PERSISTENT_DB_NAME;
+  const defaultSchema = defaults.defaultSchema ?? 'main';
 
   databases.forEach((db) => {
     if (['system', 'temp'].includes(db.name)) return;
@@ -34,8 +44,9 @@ export const convertToFlowScopeSchema = (databases: DataBaseModel[]): SchemaMeta
   });
 
   return {
-    defaultCatalog: PERSISTENT_DB_NAME,
-    defaultSchema: 'main',
+    defaultCatalog,
+    defaultSchema,
+    searchPath: [{ catalog: defaultCatalog, schema: defaultSchema }],
     tables,
   };
 };

@@ -161,7 +161,11 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
     await pin.close();
     hydrated.length = 0;
 
-    const result = await pool.queryAbortableForTab(tabId('tab-a'), 'SELECT 1', new AbortController().signal);
+    const result = await pool.queryAbortableForTab(
+      tabId('tab-a'),
+      'SELECT 1',
+      new AbortController().signal,
+    );
 
     expect(result.aborted).toBe(false);
     expect(hydrated).toEqual([tabId('tab-a')]);
