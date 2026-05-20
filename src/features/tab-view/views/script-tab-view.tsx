@@ -18,12 +18,19 @@ import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { ChartConfig, DEFAULT_CHART_CONFIG, DEFAULT_VIEW_MODE, ViewMode } from '@models/chart';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
-import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
+import {
+  clearTransient,
+  setScriptSession,
+  useAppStore,
+  useProtectedViews,
+  useTabReactiveState,
+} from '@store/app-store';
 import {
   handleAttachStatements,
   handleCreateSecretStatements,
   handleDetachStatements,
 } from '@utils/attach-detach-handler';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import {
   splitSQLByStats,
   classifySQLStatements,
@@ -191,42 +198,119 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Query to be used in data adapter and saved to the store
       let lastExecutedQuery: string | null = null;
 
-      // Create a pooled connection
-      const conn = await pool.getPooledConnection();
+      // The result pane may still hold a streaming reader for this tab's previous result
+      // (notably after reload with a restored script tab). Close it before taking the
+      // tab-pinned connection for a new script run, otherwise pin acquisition can wait
+      // on our own idle reader until the pool timeout fires.
+      await dataAdapter.cancelDataRead();
 
-      // No need transaction if there is only one statement
-      const needsTransaction =
-        classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
-      const rollbackOnCorsError = !needsTransaction;
+      // Create/reuse the tab-pinned connection so session state is isolated per script tab.
+      const conn = await pool.pinForTab(tab.id);
 
-      const runQueryWithFileSyncAndRetry = async (code: string) => {
+      const readBackSessionState = async () => {
         try {
-          await pooledConnectionQueryWithCorsRetry(conn, code, { rollbackOnCorsError });
-        } catch (error: unknown) {
-          if (isNotReadableError(error)) {
-            await syncFiles(pool);
-            await pooledConnectionQueryWithCorsRetry(conn, code, { rollbackOnCorsError });
-          } else {
-            throw error;
-          }
+          const result = await conn.query(
+            'SELECT current_database() AS db, current_schema() AS schema',
+          );
+          const [row] = result.toArray() as { db: string | null; schema: string | null }[];
+          setScriptSession(tab.sqlScriptId, {
+            scriptId: tab.sqlScriptId,
+            currentCatalog: row?.db ?? null,
+            currentSchema: row?.schema ?? null,
+            isTransient: false,
+          });
+        } catch (error) {
+          console.warn('Failed to read back DuckDB session state:', error);
         }
       };
 
-      const prepQueryWithFileSyncAndRetry = async (
-        code: string,
-      ): Promise<AsyncDuckDBPooledPreparedStatement<any>> => {
+      const runQualifiedUseFallback = async (code: string): Promise<boolean> => {
+        const useMatch = /^\s*USE\s+([^;]+?)\s*;?\s*$/i.exec(code);
+        const target = useMatch?.[1]?.trim();
+        if (!target || !target.includes('.')) return false;
+
+        const [catalog, schema] = target.split('.', 2).map((part) => part.trim());
+        if (!catalog || !schema) return false;
+
         try {
-          return await conn.prepare(code);
-        } catch (error: unknown) {
-          if (isNotReadableError(error)) {
-            await syncFiles(pool);
-            return conn.prepare(code);
-          }
-          throw error;
+          await conn.query(`USE ${toDuckDBIdentifier(catalog.replace(/^"|"$/g, ''))}`);
+          await conn.query(`USE ${toDuckDBIdentifier(schema.replace(/^"|"$/g, ''))}`);
+          return true;
+        } catch {
+          await conn.query(`USE ${toDuckDBIdentifier(schema.replace(/^"|"$/g, ''))}`);
+          return true;
         }
       };
 
       try {
+        clearTransient(tab.sqlScriptId);
+        const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
+        if (session?.currentCatalog && session.currentSchema) {
+          try {
+            await conn.query(
+              `USE ${toDuckDBIdentifier(session.currentCatalog)}.${toDuckDBIdentifier(
+                session.currentSchema,
+              )}`,
+            );
+          } catch (error) {
+            console.warn('Failed to replay DuckDB catalog+schema; retrying schema only:', error);
+            await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
+          }
+        } else if (session?.currentSchema) {
+          await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
+        } else if (session?.currentCatalog) {
+          await conn.query(`USE ${toDuckDBIdentifier(session.currentCatalog)}`);
+        }
+
+        // No need transaction if there is only one statement
+        const needsTransaction =
+          classifiedStatements.length > 1 &&
+          classifiedStatements.some((s) => s.needsTransaction) &&
+          !classifiedStatements.some((s) => s.type === SQLStatement.USE);
+        const rollbackOnCorsError = !needsTransaction;
+
+        const runQueryWithFileSyncAndRetry = async (code: string) => {
+          try {
+            await pooledConnectionQueryWithCorsRetry(conn, code, { rollbackOnCorsError });
+          } catch (error: unknown) {
+            if (
+              /^\s*USE\s+/i.test(code) &&
+              getErrorMessage(error).includes('No catalog + schema named') &&
+              (await runQualifiedUseFallback(code))
+            ) {
+              return;
+            }
+
+            if (
+              /^\s*USE\s+memory\s*;?\s*$/i.test(code) &&
+              getErrorMessage(error).includes('No catalog + schema named "memory"')
+            ) {
+              return;
+            }
+
+            if (isNotReadableError(error)) {
+              await syncFiles(pool);
+              await pooledConnectionQueryWithCorsRetry(conn, code, { rollbackOnCorsError });
+            } else {
+              throw error;
+            }
+          }
+        };
+
+        const prepQueryWithFileSyncAndRetry = async (
+          code: string,
+        ): Promise<AsyncDuckDBPooledPreparedStatement<any>> => {
+          try {
+            return await conn.prepare(code);
+          } catch (error: unknown) {
+            if (isNotReadableError(error)) {
+              await syncFiles(pool);
+              return conn.prepare(code);
+            }
+            throw error;
+          }
+        };
+
         if (needsTransaction) {
           await conn.query('BEGIN TRANSACTION');
         }
@@ -416,6 +500,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           await handleCreateSecretStatements(classifiedStatements);
         }
       } finally {
+        await readBackSessionState();
         // Release the pooled connection
         await conn.close();
       }
@@ -430,10 +515,12 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
     },
     [
       pool,
+      dataAdapter,
       protectedViews,
       tabId,
       incrementScriptVersion,
       preferences,
+      tab.id,
       tab.sqlScriptId,
       formatStatementError,
     ],

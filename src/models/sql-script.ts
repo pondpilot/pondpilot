@@ -13,6 +13,13 @@ export type SQLScript = {
   content: string;
 };
 
+export type SQLScriptSession = {
+  scriptId: SQLScriptId;
+  currentCatalog: string | null;
+  currentSchema: string | null;
+  isTransient: boolean;
+};
+
 export type ScriptExecutionState = 'idle' | 'running' | 'error' | 'success';
 
 export type RunScriptMode = 'all' | 'selection';

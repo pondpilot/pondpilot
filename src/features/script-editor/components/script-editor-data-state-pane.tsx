@@ -14,7 +14,7 @@ import {
   IconSparkles,
 } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { useRef, useState } from 'react';
+import { ReactNode, useRef, useState } from 'react';
 
 import { RunQueryButton } from './components';
 
@@ -23,6 +23,7 @@ interface ScriptEditorDataStatePaneProps {
   dirty: boolean;
   historyMode?: boolean;
   selectedVersion?: ScriptVersion | null;
+  sessionSelector?: ReactNode;
 
   handleRunQuery: (mode?: 'all' | 'selection') => Promise<void>;
   onAIAssistantClick: () => void;
@@ -37,6 +38,7 @@ export const ScriptEditorDataStatePane = ({
   dirty,
   historyMode = false,
   selectedVersion,
+  sessionSelector,
   handleRunQuery,
   onAIAssistantClick,
   onEnterHistoryMode,
@@ -174,6 +176,7 @@ export const ScriptEditorDataStatePane = ({
   return (
     <Group className="px-3 h-10" justify="space-between">
       <Group gap={2}>
+        {sessionSelector}
         {dirty && !error && (
           <Group gap={4}>
             <IconFileSad size={18} className="text-textWarning-light dark:text-textWarning-dark" />

@@ -5,9 +5,10 @@
 import {
   AppIdbSchema,
   SCRIPT_ACCESS_TIME_TABLE_NAME,
+  SQL_SCRIPT_SESSION_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
 } from '@models/persisted-store';
-import { SQLScriptId } from '@models/sql-script';
+import { SQLScriptId, SQLScriptSession } from '@models/sql-script';
 import { IDBPDatabase } from 'idb';
 
 /**
@@ -39,7 +40,10 @@ export const persistDeleteSqlScript = async (
   deletedSqlScriptIds: Iterable<SQLScriptId>,
 ) => {
   const ids = Array.from(deletedSqlScriptIds);
-  const tx = iDb.transaction([SQL_SCRIPT_TABLE_NAME, SCRIPT_ACCESS_TIME_TABLE_NAME], 'readwrite');
+  const tx = iDb.transaction(
+    [SQL_SCRIPT_TABLE_NAME, SCRIPT_ACCESS_TIME_TABLE_NAME, SQL_SCRIPT_SESSION_TABLE_NAME],
+    'readwrite',
+  );
 
   // Delete each SQL script
   const scriptStore = tx.objectStore(SQL_SCRIPT_TABLE_NAME);
@@ -53,5 +57,25 @@ export const persistDeleteSqlScript = async (
     await accessTimeStore.delete(id);
   }
 
+  const sessionStore = tx.objectStore(SQL_SCRIPT_SESSION_TABLE_NAME);
+  for (const id of ids) {
+    await sessionStore.delete(id);
+  }
+
   await tx.done;
+};
+
+export const persistPutSqlScriptSession = async (
+  iDb: IDBPDatabase<AppIdbSchema>,
+  session: SQLScriptSession,
+) => {
+  const { isTransient: _isTransient, ...persisted } = session;
+  await iDb.put(SQL_SCRIPT_SESSION_TABLE_NAME, persisted, session.scriptId);
+};
+
+export const persistDeleteSqlScriptSession = async (
+  iDb: IDBPDatabase<AppIdbSchema>,
+  scriptId: SQLScriptId,
+) => {
+  await iDb.delete(SQL_SCRIPT_SESSION_TABLE_NAME, scriptId);
 };

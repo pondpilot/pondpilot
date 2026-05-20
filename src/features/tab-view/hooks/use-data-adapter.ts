@@ -1090,12 +1090,18 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     [queries, abortUserTasks, getUserTasksAbortSignal],
   );
 
-  const cancelDataRead = useCallback(() => {
+  const cancelDataRead = useCallback(async () => {
     // this will ensure that fetching doesn't resume
     fetchTo.current = actualData.current.length;
     dataReadCancelled.current = true;
     abortDataFetch();
     setLastSortSafe(sort);
+
+    const curReader = mainDataReaderRef.current;
+    if (curReader) {
+      mainDataReaderRef.current = null;
+      await curReader.cancel();
+    }
   }, [abortDataFetch, setLastSortSafe, sort]);
 
   const ackDataReadCancelled = useCallback(() => {

@@ -125,8 +125,8 @@ const TransactionalStatementMap: Record<SQLStatement, boolean> = {
   [SQLStatement.ROLLBACK]: false,
   [SQLStatement.ABORT]: false,
   [SQLStatement.UPDATE]: true,
-  [SQLStatement.WITH]: false,
-  [SQLStatement.USE]: false, // CTE can be anything, but without parsing the whole statement, let's assume it's always same as SELECT
+  [SQLStatement.WITH]: false, // CTE can be anything, but without parsing the whole statement, let's assume it's always same as SELECT
+  [SQLStatement.USE]: false,
   [SQLStatement.VACUUM]: false,
   [SQLStatement.UNKNOWN]: false,
 };
@@ -156,6 +156,7 @@ const StatementsAllowedInScripts = [
   SQLStatement.SUMMARIZE,
   SQLStatement.UPDATE,
   SQLStatement.WITH,
+  SQLStatement.USE,
   SQLStatement.VACUUM,
 ];
 

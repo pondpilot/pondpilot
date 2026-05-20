@@ -5,6 +5,7 @@ import { showAlert } from '@components/app-notifications';
 import { createScriptVersionController } from '@controllers/script-version';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
+import { getCurrentDuckDBConnectionPool } from '@features/duckdb-context/current-pool';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { TabId } from '@models/tab';
@@ -164,6 +165,7 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
   const {
     sqlScripts,
     scriptAccessTimes,
+    sqlScriptSessions,
     tabs,
     tabOrder,
     activeTabId,
@@ -194,6 +196,13 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
   let newPreviewTabId = previewTabId;
 
   if (tabsToDelete.length > 0) {
+    const pool = getCurrentDuckDBConnectionPool();
+    if (pool) {
+      for (const tabId of tabsToDelete) {
+        await pool.unpinTab(tabId);
+      }
+    }
+
     const result = deleteTabImpl({
       deleteTabIds: tabsToDelete,
       tabs,
@@ -211,11 +220,15 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
   const newScriptAccessTimes = new Map(
     Array.from(scriptAccessTimes).filter(([id]) => !sqlScriptIdsToDeleteSet.has(id)),
   );
+  const newSqlScriptSessions = new Map(
+    Array.from(sqlScriptSessions).filter(([id]) => !sqlScriptIdsToDeleteSet.has(id)),
+  );
 
   useAppStore.setState(
     {
       sqlScripts: newSqlScripts,
       scriptAccessTimes: newScriptAccessTimes,
+      sqlScriptSessions: newSqlScriptSessions,
       tabs: newTabs,
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,

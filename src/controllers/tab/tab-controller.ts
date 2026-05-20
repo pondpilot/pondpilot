@@ -2,6 +2,7 @@
 // By convetion the order should follow CRUD groups!
 import { createScriptVersionController } from '@controllers/script-version';
 import { sanitizeChartLabel } from '@features/chart-view/utils/sanitize-label';
+import { getCurrentDuckDBConnectionPool } from '@features/duckdb-context/current-pool';
 import { ChartConfig, ViewMode } from '@models/chart';
 import {
   AnyFlatFileDataSource,
@@ -1173,6 +1174,16 @@ export const deleteTab = async (tabIds: TabId[]) => {
               console.error('Failed to save version before closing tab:', result.error);
             }
           }
+        }
+      }
+    }
+
+    const pool = getCurrentDuckDBConnectionPool();
+    if (pool) {
+      for (const tabId of tabIds) {
+        const tab = tabs.get(tabId);
+        if (tab?.type === 'script') {
+          await pool.unpinTab(tabId);
         }
       }
     }

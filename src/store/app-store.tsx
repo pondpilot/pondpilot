@@ -1,4 +1,8 @@
 import { IconType } from '@components/named-icon';
+import {
+  persistDeleteSqlScriptSession,
+  persistPutSqlScriptSession,
+} from '@controllers/sql-script/persist';
 import { PROGRESS_CLEANUP_MAX_AGE_MS } from '@features/comparison/config/execution-config';
 import { Comparison, ComparisonExecutionProgress, ComparisonId } from '@models/comparison';
 import { ContentViewState } from '@models/content-view';
@@ -18,7 +22,7 @@ import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { ExportFormat } from '@models/export-options';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
-import { SQLScript, SQLScriptId } from '@models/sql-script';
+import { SQLScript, SQLScriptId, SQLScriptSession } from '@models/sql-script';
 import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
 import { getDatabaseIdentifier, isFlatFileDataSource } from '@utils/data-source';
 import { getTabIcon, getTabName } from '@utils/navigation';
@@ -70,6 +74,11 @@ type AppStore = {
    * A mapping of SQL script identifiers to their corresponding SQLScript objects.
    */
   sqlScripts: Map<SQLScriptId, SQLScript>;
+
+  /**
+   * Per-script DuckDB session state restored before each run.
+   */
+  sqlScriptSessions: Map<SQLScriptId, SQLScriptSession>;
 
   /**
    * A mapping of comparison identifiers to their corresponding Comparison objects.
@@ -172,6 +181,7 @@ const initialState: AppStore = {
   localEntries: new Map(),
   registeredFiles: new Map(),
   sqlScripts: new Map(),
+  sqlScriptSessions: new Map(),
   comparisons: new Map(),
   tabs: new Map(),
   databaseMetadata: new Map(),
@@ -690,6 +700,66 @@ export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
 
 export const setDuckDBFunctions = (functions: DBFunctionsMetadata[]) => {
   useAppStore.setState({ duckDBFunctions: functions }, undefined, 'AppStore/setDuckDBFunctions');
+};
+
+export const setScriptSession = (scriptId: SQLScriptId, session: SQLScriptSession) => {
+  useAppStore.setState(
+    (state) => {
+      const sqlScriptSessions = new Map(state.sqlScriptSessions);
+      sqlScriptSessions.set(scriptId, { ...session, scriptId });
+      return { sqlScriptSessions };
+    },
+    undefined,
+    'AppStore/setScriptSession',
+  );
+
+  const iDbConn = useAppStore.getState()._iDbConn;
+  if (iDbConn) {
+    persistPutSqlScriptSession(iDbConn, { ...session, scriptId }).catch((error) => {
+      console.error('Failed to persist SQL script session:', error);
+    });
+  }
+};
+
+export const clearScriptSession = (scriptId: SQLScriptId) => {
+  useAppStore.setState(
+    (state) => {
+      const sqlScriptSessions = new Map(state.sqlScriptSessions);
+      sqlScriptSessions.delete(scriptId);
+      return { sqlScriptSessions };
+    },
+    undefined,
+    'AppStore/clearScriptSession',
+  );
+
+  const iDbConn = useAppStore.getState()._iDbConn;
+  if (iDbConn) {
+    persistDeleteSqlScriptSession(iDbConn, scriptId).catch((error) => {
+      console.error('Failed to delete SQL script session:', error);
+    });
+  }
+};
+
+export const markTransient = (scriptId: SQLScriptId, isTransient: boolean = true) => {
+  useAppStore.setState(
+    (state) => {
+      const previous = state.sqlScriptSessions.get(scriptId) ?? {
+        scriptId,
+        currentCatalog: null,
+        currentSchema: null,
+        isTransient: false,
+      };
+      const sqlScriptSessions = new Map(state.sqlScriptSessions);
+      sqlScriptSessions.set(scriptId, { ...previous, isTransient });
+      return { sqlScriptSessions };
+    },
+    undefined,
+    'AppStore/markTransient',
+  );
+};
+
+export const clearTransient = (scriptId: SQLScriptId) => {
+  markTransient(scriptId, false);
 };
 
 export const setPendingConvert = (tabId: TabId, format: ExportFormat) => {

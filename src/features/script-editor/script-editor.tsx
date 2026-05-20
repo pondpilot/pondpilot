@@ -35,6 +35,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 
 import { ScriptEditorDataStatePane } from './components';
 import { VersionHistorySidebar, VersionDiffEditor } from './components/version-history';
+import { ScriptSessionSelector } from './script-session-selector';
 
 // Version tracking state - tracks content and timing for version creation
 interface VersionTrackingState {
@@ -598,6 +599,7 @@ export const ScriptEditor = ({
           onEnterHistoryMode={shouldShowVersionHistory ? handleEnterHistoryMode : undefined}
           onExitHistoryMode={handleExitHistoryMode}
           selectedVersion={selectedVersionForDiff}
+          sessionSelector={<ScriptSessionSelector scriptId={scriptId} />}
           onRestoreVersion={handleRestoreVersion}
           onRenameVersion={handleRenameVersion}
         />

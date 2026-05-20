@@ -1,5 +1,7 @@
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import type { TabId } from '@models/tab';
 import { toAbortablePromise } from '@utils/abort';
+import { getViteEnv } from '@utils/env';
 import * as arrow from 'apache-arrow';
 
 import { AsyncDuckDBPooledConnection } from './duckdb-pooled-connection';
@@ -33,6 +35,13 @@ const DEFAULT_CHECKPOINT_CONFIG: CheckpointConfig = {
 };
 
 type DuckDBConnectionConnAndIdex = { conn: AsyncDuckDBConnection; index: number };
+type ConnectionClaimMode = 'background' | 'pinnable' | 'any';
+
+export type DuckDBConnectionPoolOptions = {
+  backgroundReservation?: number;
+  onTabEvicted?: (tabId: TabId) => void;
+  onBeforeTabConnectionUse?: (tabId: TabId, conn: AsyncDuckDBConnection) => Promise<void>;
+};
 
 /**
  * DuckDB connection pool.
@@ -72,6 +81,16 @@ export class AsyncDuckDBConnectionPool {
   /** Track initialization promises for each connection */
   private readonly _connectionInitPromises: WeakMap<AsyncDuckDBConnection, Promise<void>> =
     new WeakMap();
+
+  private readonly _pinnedTabs: Map<TabId, number> = new Map();
+  private readonly _pinnedLruOrder: TabId[] = [];
+  private readonly _backgroundReservation: number = 5;
+  private readonly _onTabEvicted?: (tabId: TabId) => void;
+  private readonly _onBeforeTabConnectionUse?: (
+    tabId: TabId,
+    conn: AsyncDuckDBConnection,
+  ) => Promise<void>;
+  private readonly _pinPromises: Map<TabId, Promise<void>> = new Map();
 
   // State for checkpoint throttling
   private _lastCheckpointTime: number = 0;
@@ -117,6 +136,7 @@ export class AsyncDuckDBConnectionPool {
     updateStateCallback?: UpdateStateFn,
     checkpointConfig?: Partial<CheckpointConfig>,
     connectionInitializer?: (conn: AsyncDuckDBConnection) => Promise<void>,
+    options?: DuckDBConnectionPoolOptions,
   ) {
     this._bindings = bindings;
     this._maxSize = maxSize;
@@ -130,19 +150,126 @@ export class AsyncDuckDBConnectionPool {
       ...checkpointConfig,
     };
     this._connectionInitializer = connectionInitializer;
+    this._backgroundReservation = Math.max(
+      0,
+      Math.min(options?.backgroundReservation ?? 5, Math.max(0, maxSize - 1)),
+    );
+    this._onTabEvicted = options?.onTabEvicted;
+    this._onBeforeTabConnectionUse = options?.onBeforeTabConnectionUse;
+  }
+
+  private _pinnedIndexes(): Set<number> {
+    return new Set(this._pinnedTabs.values());
+  }
+
+  private _isIndexAllowedForMode(index: number, mode: ConnectionClaimMode): boolean {
+    if (mode === 'any') return !this._pinnedIndexes().has(index);
+
+    if (mode === 'background') {
+      return index < this._backgroundReservation && !this._pinnedIndexes().has(index);
+    }
+
+    return index >= this._backgroundReservation && !this._pinnedIndexes().has(index);
+  }
+
+  private _touchPinnedTab(tabId: TabId): void {
+    const existingIndex = this._pinnedLruOrder.indexOf(tabId);
+    if (existingIndex >= 0) {
+      this._pinnedLruOrder.splice(existingIndex, 1);
+    }
+    this._pinnedLruOrder.push(tabId);
+  }
+
+  private async _claimPinnedTab(tabId: TabId): Promise<DuckDBConnectionConnAndIdex> {
+    const index = this._pinnedTabs.get(tabId);
+    if (index === undefined) {
+      throw new Error(`Tab ${tabId} does not have a pinned DuckDB connection`);
+    }
+
+    const startTime = Date.now();
+    while (Date.now() - startTime < GET_CONNECTION_TIMEOUT) {
+      if (!this._inUse.has(index)) {
+        this._inUse.add(index);
+        const conn = this._connections[index];
+        try {
+          await this._ensureConnectionInitialized(conn);
+          await this._onBeforeTabConnectionUse?.(tabId, conn);
+          this._touchPinnedTab(tabId);
+        } catch (error) {
+          await this._releaseConnection(index);
+          throw error;
+        }
+        return { conn, index };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    throw new PoolTimeoutError();
+  }
+
+  private async _evictLeastRecentlyUsedPinnedTab(): Promise<void> {
+    const tabId = this._pinnedLruOrder.shift();
+    if (!tabId) return;
+
+    const index = this._pinnedTabs.get(tabId);
+    if (index === undefined) return;
+
+    await this._claimPinnedTab(tabId);
+    try {
+      await this._resetConnectionState(this._connections[index]);
+      await this._replaceConnection(index);
+      this._pinnedTabs.delete(tabId);
+      const lruIndex = this._pinnedLruOrder.indexOf(tabId);
+      if (lruIndex >= 0) this._pinnedLruOrder.splice(lruIndex, 1);
+      this._onTabEvicted?.(tabId);
+    } finally {
+      await this._releaseConnection(index);
+    }
+  }
+
+  private async _resetConnectionState(conn: AsyncDuckDBConnection): Promise<void> {
+    await conn.cancelSent();
+    try {
+      await conn.query('USE memory;');
+    } catch (error) {
+      console.warn('Failed to reset DuckDB connection catalog to memory:', error);
+    }
+    await conn.query('SET search_path TO main;');
+    try {
+      await conn.query('ROLLBACK;');
+    } catch {
+      // No active transaction: DuckDB reports an error, but reset should remain best-effort.
+    }
+  }
+
+  private async _replaceConnection(index: number): Promise<void> {
+    const oldConn = this._connections[index];
+    const newConn = await this._bindings.connect();
+
+    try {
+      await this._ensureConnectionInitialized(newConn);
+    } catch (error) {
+      await newConn.close().catch((closeError) => {
+        console.warn('Failed to close replacement connection after initializer error:', closeError);
+      });
+      throw error;
+    }
+
+    this._connections[index] = newConn;
+    await oldConn.close();
   }
 
   /**
    * Claims (finds and marks as in use) a connection from the pool if one is available.
    */
-  _claimConnection(): DuckDBConnectionConnAndIdex | null {
+  _claimConnection(mode: ConnectionClaimMode = 'any'): DuckDBConnectionConnAndIdex | null {
     // Find the first connection that is not in use
     const available = this._connections
       .map((conn, index) => ({
         conn,
         index,
       }))
-      .find((_, index) => !this._inUse.has(index), this);
+      .find((_, index) => !this._inUse.has(index) && this._isIndexAllowedForMode(index, mode));
 
     // If a connection is not found, return null
     if (!available) {
@@ -162,9 +289,9 @@ export class AsyncDuckDBConnectionPool {
    * @returns {Promise<AsyncDuckDBPooledConnection>} A promise that resolves to a pooled connection.
    * @throws {PoolTimeoutError} If the pool is full and no connection is available within the timeout.
    */
-  async _getConnection(): Promise<DuckDBConnectionConnAndIdex> {
+  async _getConnection(mode: ConnectionClaimMode = 'any'): Promise<DuckDBConnectionConnAndIdex> {
     // Try claiming a connection from the pool
-    const available = this._claimConnection();
+    const available = this._claimConnection(mode);
 
     if (available) {
       await this._ensureConnectionInitialized(available.conn);
@@ -174,6 +301,21 @@ export class AsyncDuckDBConnectionPool {
     // If no connection is available, create a new one if we still
     // have space in the pool, claim and return it
     if (this._connections.length < this._maxSize) {
+      if (mode === 'pinnable') {
+        while (this._connections.length < this._backgroundReservation) {
+          const backgroundConn = await this._bindings.connect();
+          try {
+            await this._ensureConnectionInitialized(backgroundConn);
+          } catch (error) {
+            await backgroundConn.close().catch((closeError) => {
+              console.warn('Failed to close connection after initializer error:', closeError);
+            });
+            throw error;
+          }
+          this._connections.push(backgroundConn);
+        }
+      }
+
       const conn = await this._bindings.connect();
       try {
         await this._ensureConnectionInitialized(conn);
@@ -188,18 +330,23 @@ export class AsyncDuckDBConnectionPool {
       this._connections.push(conn);
 
       const index = this._connections.length - 1;
-      this._inUse.add(index);
+      if (!this._isIndexAllowedForMode(index, mode)) {
+        await conn.close();
+        this._connections.pop();
+      } else {
+        this._inUse.add(index);
 
-      return {
-        conn,
-        index,
-      };
+        return {
+          conn,
+          index,
+        };
+      }
     }
 
     // If the pool is full, wait for a connection to be released up to a timeout
     const startTime = Date.now();
     while (Date.now() - startTime < GET_CONNECTION_TIMEOUT) {
-      const availableConn = this._claimConnection();
+      const availableConn = this._claimConnection(mode);
       if (availableConn) {
         try {
           await this._ensureConnectionInitialized(availableConn.conn);
@@ -249,7 +396,7 @@ export class AsyncDuckDBConnectionPool {
             this._checkpointInProgress = true;
 
             // Log the checkpoint if enabled and in dev mode
-            if (this._checkpointConfig.logCheckpoints && import.meta.env.DEV) {
+            if (this._checkpointConfig.logCheckpoints && getViteEnv().DEV) {
               // eslint-disable-next-line no-console
               console.debug(
                 `Running checkpoint after ${this._changesSinceLastCheckpoint} changes`,
@@ -301,7 +448,7 @@ export class AsyncDuckDBConnectionPool {
 
     // If a checkpoint is already in progress, wait a bit and return
     if (this._checkpointInProgress) {
-      if (this._checkpointConfig.logCheckpoints && import.meta.env.DEV) {
+      if (this._checkpointConfig.logCheckpoints && getViteEnv().DEV) {
         // eslint-disable-next-line no-console
         console.debug('Checkpoint already in progress, skipping forced checkpoint');
       }
@@ -315,7 +462,7 @@ export class AsyncDuckDBConnectionPool {
       this._checkpointInProgress = true;
 
       // Log the forced checkpoint if enabled
-      if (this._checkpointConfig.logCheckpoints && import.meta.env.DEV) {
+      if (this._checkpointConfig.logCheckpoints && getViteEnv().DEV) {
         // eslint-disable-next-line no-console
         console.debug('Running forced checkpoint');
       }
@@ -358,6 +505,10 @@ export class AsyncDuckDBConnectionPool {
    * Performs a final checkpoint if configured to do so and there are pending changes.
    */
   public async close() {
+    for (const tabId of Array.from(this._pinnedTabs.keys())) {
+      await this.unpinTab(tabId);
+    }
+
     // Try to do a final checkpoint before closing
     try {
       // Only checkpoint if it's enabled in the configuration AND we have changes to save
@@ -367,7 +518,7 @@ export class AsyncDuckDBConnectionPool {
         this._connections.length > 0 &&
         this._changesSinceLastCheckpoint > 0
       ) {
-        if (this._checkpointConfig.logCheckpoints && import.meta.env.DEV) {
+        if (this._checkpointConfig.logCheckpoints && getViteEnv().DEV) {
           // eslint-disable-next-line no-console
           console.debug(
             `Running final checkpoint before close with ${this._changesSinceLastCheckpoint} pending changes`,
@@ -388,13 +539,17 @@ export class AsyncDuckDBConnectionPool {
   /**
    * Get a long-living pooled connection.
    *
+   * Code-review guard: new direct callers should be challenged. Use
+   * `pinForTab` for script execution and `getBackgroundConnection` for
+   * background work so per-tab session state stays isolated.
+   *
    * @returns A promise that resolves to a pooled connection object.
    * @throws {PoolTimeoutError} If the pool is full and no connection is available within the timeout.
    * @throws {Error} Any underlying error from the DuckDB connection.
    */
   public async getPooledConnection(): Promise<AsyncDuckDBPooledConnection> {
     // Try to get a connection from the pool
-    const { conn, index } = await this._getConnection();
+    const { conn, index } = await this._getConnection('background');
 
     try {
       // Return a pooled connection
@@ -408,6 +563,149 @@ export class AsyncDuckDBConnectionPool {
     } catch (error) {
       // Release the connection back to the pool
       this._releaseConnection(index);
+      throw error;
+    }
+  }
+
+  public async pinForTab(tabId: TabId): Promise<AsyncDuckDBPooledConnection> {
+    if (this._pinnedTabs.has(tabId)) {
+      const { conn, index } = await this._claimPinnedTab(tabId);
+      return new AsyncDuckDBPooledConnection({
+        conn,
+        onClose: async () => {
+          await this._releaseConnection(index);
+        },
+      });
+    }
+
+    const pendingPin = this._pinPromises.get(tabId);
+    if (pendingPin) {
+      await pendingPin;
+      return this.pinForTab(tabId);
+    }
+
+    const pinPromise = (async () => {
+      const pinnableLimit = this._maxSize - this._backgroundReservation;
+      if (this._pinnedTabs.size >= pinnableLimit) {
+        await this._evictLeastRecentlyUsedPinnedTab();
+      }
+
+      const { index } = await this._getConnection('pinnable');
+      this._pinnedTabs.set(tabId, index);
+      this._touchPinnedTab(tabId);
+      await this._releaseConnection(index);
+    })();
+
+    this._pinPromises.set(tabId, pinPromise);
+
+    try {
+      await pinPromise;
+    } finally {
+      this._pinPromises.delete(tabId);
+    }
+
+    return this.pinForTab(tabId);
+  }
+
+  public async unpinTab(tabId: TabId): Promise<void> {
+    const index = this._pinnedTabs.get(tabId);
+    if (index === undefined) return;
+
+    if (this._inUse.has(index)) {
+      await this._connections[index].cancelSent();
+    }
+
+    await this._claimPinnedTab(tabId);
+    try {
+      await this._resetConnectionState(this._connections[index]);
+      await this._replaceConnection(index);
+      this._pinnedTabs.delete(tabId);
+      const lruIndex = this._pinnedLruOrder.indexOf(tabId);
+      if (lruIndex >= 0) this._pinnedLruOrder.splice(lruIndex, 1);
+    } finally {
+      await this._releaseConnection(index);
+    }
+  }
+
+  public async getBackgroundConnection(): Promise<AsyncDuckDBPooledConnection> {
+    return this.getPooledConnection();
+  }
+
+  public async queryAbortableForTab<
+    T extends {
+      [key: string]: arrow.DataType;
+    } = any,
+  >(
+    tabId: TabId,
+    text: string,
+    signal: AbortSignal,
+  ): Promise<{ value: arrow.Table<T>; aborted: false } | { value: void; aborted: true }> {
+    if (!this._pinnedTabs.has(tabId)) {
+      const pinned = await this.pinForTab(tabId);
+      await pinned.close();
+    }
+
+    const batches = [] as arrow.RecordBatch[];
+    const { conn, index } = await this._claimPinnedTab(tabId);
+
+    const read = async () => {
+      for await (const batch of await conn.send<T>(text, true)) {
+        batches.push(batch);
+        if (signal.aborted) return new arrow.Table<T>([]);
+      }
+
+      return new arrow.Table<T>(batches);
+    };
+
+    return toAbortablePromise({
+      promise: read(),
+      signal,
+      onAbort: async () => {
+        await conn.cancelSent();
+      },
+      onFinalize: async () => {
+        await this._releaseConnection(index);
+      },
+    });
+  }
+
+  public async sendAbortableForTab<
+    T extends {
+      [key: string]: arrow.DataType;
+    } = any,
+  >(
+    tabId: TabId,
+    text: string,
+    signal: AbortSignal,
+    allowStreamResult?: boolean,
+  ): Promise<AsyncDuckDBPooledStreamReader<T> | null> {
+    if (!this._pinnedTabs.has(tabId)) {
+      const pinned = await this.pinForTab(tabId);
+      await pinned.close();
+    }
+
+    const { conn, index } = await this._claimPinnedTab(tabId);
+
+    try {
+      const result = await toAbortablePromise({
+        promise: conn.send<T>(text, allowStreamResult),
+        signal,
+      });
+
+      if (result.aborted) {
+        await this._releaseConnection(index);
+        return null;
+      }
+
+      return new AsyncDuckDBPooledStreamReader<T>({
+        reader: result.value,
+        onClose: async () => {
+          await conn.cancelSent();
+          await this._releaseConnection(index);
+        },
+      });
+    } catch (error) {
+      await this._releaseConnection(index);
       throw error;
     }
   }
@@ -432,7 +730,7 @@ export class AsyncDuckDBConnectionPool {
     ...params: Parameters<AsyncDuckDBConnection['getTableNames']>
   ): ReturnType<AsyncDuckDBConnection['getTableNames']> {
     // Try to get a connection from the pool
-    const { conn, index } = await this._getConnection();
+    const { conn, index } = await this._getConnection('background');
 
     try {
       // run the query
@@ -463,7 +761,7 @@ export class AsyncDuckDBConnectionPool {
     } = any,
   >(text: string): Promise<arrow.Table<T>> {
     // Try to get a connection from the pool
-    const { conn, index } = await this._getConnection();
+    const { conn, index } = await this._getConnection('background');
 
     try {
       // run the query
@@ -505,7 +803,7 @@ export class AsyncDuckDBConnectionPool {
     const batches = [] as arrow.RecordBatch[];
 
     // Try to get a connection from the pool
-    const { conn, index } = await this._getConnection();
+    const { conn, index } = await this._getConnection('background');
 
     const read = async () => {
       for await (const batch of await conn.send<T>(text, true)) {
@@ -549,7 +847,7 @@ export class AsyncDuckDBConnectionPool {
     } = any,
   >(text: string, allowStreamResult?: boolean): Promise<AsyncDuckDBPooledStreamReader<T>> {
     // Try to get a connection from the pool
-    const { conn, index } = await this._getConnection();
+    const { conn, index } = await this._getConnection('background');
 
     try {
       // Send the query.
@@ -597,7 +895,7 @@ export class AsyncDuckDBConnectionPool {
     allowStreamResult?: boolean,
   ): Promise<AsyncDuckDBPooledStreamReader<T> | null> {
     // Try to get a connection from the pool
-    const { conn, index } = await this._getConnection();
+    const { conn, index } = await this._getConnection('background');
 
     try {
       // Send the query with abort signal

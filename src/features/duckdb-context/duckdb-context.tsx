@@ -1,13 +1,16 @@
+import { showWarning } from '@components/app-notifications';
 import { configureConnectionForHttpfs } from '@controllers/db/httpfs-extension-controller';
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
-import { setAppLoadState } from '@store/app-store';
+import { clearTransient, markTransient, setAppLoadState, useAppStore } from '@store/app-store';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { v4 } from 'uuid';
 
+import { setCurrentDuckDBConnectionPool } from './current-pool';
 import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
 
 class DuckDBInitializationCancelledError extends Error {
@@ -85,8 +88,8 @@ export const DuckDBConnectionPoolProvider = ({
 
   const [connectionPool, setConnectionPool] = useState<AsyncDuckDBConnectionPool | null>(null);
 
-  const DEFAULT_MAX_POOL_SIZE = 30;
-  const normalizedPoolSize = Math.max(5, Math.min(maxPoolSize || DEFAULT_MAX_POOL_SIZE, 50));
+  const DEFAULT_MAX_POOL_SIZE = 50;
+  const normalizedPoolSize = Math.max(5, Math.min(maxPoolSize || DEFAULT_MAX_POOL_SIZE, 100));
 
   // Get persistence state from context
   const { persistenceState, updatePersistenceState } = useDuckDBPersistence();
@@ -211,6 +214,7 @@ export const DuckDBConnectionPoolProvider = ({
             console.error('Failed to close DuckDB connection pool during cleanup:', error);
           } finally {
             setConnectionPool(null);
+            setCurrentDuckDBConnectionPool(null);
           }
         }
 
@@ -424,7 +428,53 @@ export const DuckDBConnectionPoolProvider = ({
               // Only log checkpoints in development mode
               logCheckpoints: import.meta.env.DEV,
             },
-            configureConnectionForHttpfs,
+            async (conn) => {
+              await configureConnectionForHttpfs(conn);
+              try {
+                await conn.query("ATTACH IF NOT EXISTS ':memory:' AS memory;");
+              } catch (error) {
+                console.warn('Failed to attach per-connection memory catalog:', error);
+              }
+            },
+            {
+              onBeforeTabConnectionUse: async (tabId, conn) => {
+                const tab = useAppStore.getState().tabs.get(tabId);
+                if (tab?.type !== 'script') return;
+
+                const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
+                if (session?.currentCatalog && session.currentSchema) {
+                  try {
+                    await conn.query(
+                      `USE ${toDuckDBIdentifier(session.currentCatalog)}.${toDuckDBIdentifier(
+                        session.currentSchema,
+                      )}`,
+                    );
+                  } catch {
+                    await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
+                  }
+                } else if (session?.currentSchema) {
+                  await conn.query(`USE ${toDuckDBIdentifier(session.currentSchema)}`);
+                } else if (session?.currentCatalog) {
+                  await conn.query(`USE ${toDuckDBIdentifier(session.currentCatalog)}`);
+                }
+
+                if (session?.isTransient) {
+                  clearTransient(tab.sqlScriptId);
+                }
+              },
+              onTabEvicted: (tabId) => {
+                const tab = useAppStore.getState().tabs.get(tabId);
+                if (tab?.type !== 'script') return;
+
+                markTransient(tab.sqlScriptId, true);
+                showWarning({
+                  id: `duckdb-session-evicted-${tabId}`,
+                  title: 'Script session evicted',
+                  message:
+                    'This tab was inactive long enough for DuckDB to reuse its connection. Catalog and schema will be restored on the next run, but temp tables and SET values are not preserved.',
+                });
+              },
+            },
           );
 
           /**
@@ -515,6 +565,7 @@ export const DuckDBConnectionPoolProvider = ({
           ensureNotCancelled();
 
           setConnectionPool(pool);
+          setCurrentDuckDBConnectionPool(pool);
           memoizedStatusUpdate({
             state: 'ready',
             message: 'DuckDB is ready with OPFS persistence!',

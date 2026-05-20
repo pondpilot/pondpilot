@@ -41,13 +41,14 @@ import {
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
   SCRIPT_ACCESS_TIME_TABLE_NAME,
+  SQL_SCRIPT_SESSION_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   SCRIPT_VERSION_TABLE_NAME,
   TAB_TABLE_NAME,
   TABLE_ACCESS_TIME_TABLE_NAME,
   AppIdbSchema,
 } from '@models/persisted-store';
-import { SQLScript, SQLScriptId } from '@models/sql-script';
+import { SQLScript, SQLScriptId, SQLScriptSession } from '@models/sql-script';
 import { ComparisonTab, TabId } from '@models/tab';
 import { makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
@@ -117,6 +118,9 @@ async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
       // Migration to version 4: add script version table with index
       // The table and index are created in the loop above (via special handling
       // for SCRIPT_VERSION_TABLE_NAME which creates the store with keyPath and index)
+
+      // Migration to version 6: add persisted per-script session state.
+      // The table is created in the loop above and starts empty for existing users.
     },
   });
 }
@@ -518,6 +522,14 @@ export const restoreAppDataFromIDB = async (
       const { lastUsed: _lastUsed, ...scriptWithoutLastUsed } = script as LegacySQLScript;
       return [script.id, scriptWithoutLastUsed as SQLScript];
     }),
+  );
+
+  const sqlScriptSessionsArray = await tx.objectStore(SQL_SCRIPT_SESSION_TABLE_NAME).getAll();
+  const sqlScriptSessions = new Map<SQLScriptId, SQLScriptSession>(
+    sqlScriptSessionsArray.map((session) => [
+      session.scriptId,
+      { ...session, isTransient: false },
+    ]),
   );
 
   const comparisonsArray = await tx.objectStore(COMPARISON_TABLE_NAME).getAll();
@@ -1234,6 +1246,7 @@ export const restoreAppDataFromIDB = async (
       localEntries: localEntriesMap,
       registeredFiles,
       sqlScripts,
+      sqlScriptSessions,
       comparisons,
       tabs: newTabs,
       tabOrder: newTabOrder,

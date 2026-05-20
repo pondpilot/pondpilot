@@ -269,7 +269,7 @@ export interface DataAdapterApi {
    * Cancels the current data read and prevents further reads
    * until user asks for more data by paging/scrolling
    */
-  cancelDataRead: () => void;
+  cancelDataRead: () => Promise<void>;
 
   /**
    * Resets the data read cancelled state. This is used to

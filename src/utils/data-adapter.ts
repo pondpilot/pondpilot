@@ -653,20 +653,24 @@ export function getScriptAdapterQueries({
                 .join(', ');
               queryToRun = `SELECT * FROM (${trimmedQuery}) ORDER BY ${orderBy}`;
             }
-            const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
+            const reader = await pool.sendAbortableForTab(tab.id, queryToRun, abortSignal, true);
             return reader;
           }
         : undefined,
       getReader: !classifiedStmt.isAllowedInSubquery
         ? async (abortSignal) => {
-            const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
+            const reader = await pool.sendAbortableForTab(tab.id, trimmedQuery, abortSignal, true);
             return reader;
           }
         : undefined,
       getColumnAggregate: classifiedStmt.isAllowedInSubquery
         ? async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
             const queryToRun = `SELECT ${aggType}(${columnName}) FROM (${trimmedQuery})`;
-            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+            const { value, aborted } = await pool.queryAbortableForTab(
+              tab.id,
+              queryToRun,
+              abortSignal,
+            );
 
             if (aborted) {
               return { value: undefined, aborted };
@@ -678,7 +682,11 @@ export function getScriptAdapterQueries({
         ? async (columns: DBColumn[], abortSignal: AbortSignal) => {
             const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
             const queryToRun = `SELECT ${columnNames} FROM (${trimmedQuery})`;
-            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+            const { value, aborted } = await pool.queryAbortableForTab(
+              tab.id,
+              queryToRun,
+              abortSignal,
+            );
 
             if (aborted) {
               return { value: [], aborted };
@@ -706,7 +714,7 @@ export function getScriptAdapterQueries({
               sortOrder,
             );
 
-            const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+            const { value, aborted } = await pool.queryAbortableForTab(tab.id, query, abortSignal);
 
             if (aborted) {
               return { value: [], aborted };
