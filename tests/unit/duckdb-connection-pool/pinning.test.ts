@@ -10,11 +10,16 @@ class FakeConnection {
   public closed = false;
   /** Optional hook fired when cancelSent runs — used to simulate query termination releasing the slot. */
   public onCancel?: () => void;
+  /** Exact query strings that should throw — used to exercise best-effort reset paths. */
+  public failQueries?: Set<string>;
 
   constructor(public readonly id: number) {}
 
   async query(sql: string) {
     this.calls.push(sql);
+    if (this.failQueries?.has(sql)) {
+      throw new Error(`simulated query failure: ${sql}`);
+    }
     return { toArray: () => [] };
   }
 
@@ -28,8 +33,9 @@ class FakeConnection {
     this.closed = true;
   }
 
-  async send() {
-    return [];
+  async send(sql?: string) {
+    if (sql) this.calls.push(sql);
+    return createFakeStreamReader();
   }
 
   async prepare() {
@@ -40,6 +46,26 @@ class FakeConnection {
     return [];
   }
 }
+
+// Minimal empty async-batch reader test double. A factory (not a class) so the
+// file keeps a single class and the iterator stays a plain method rather than a
+// yield-less generator. The pooled wrapper consumes it via cancel()/next(),
+// while queryAbortableForTab iterates the raw reader via `for await`.
+const createFakeStreamReader = () => {
+  const reader = {
+    cancelled: false,
+    async cancel() {
+      reader.cancelled = true;
+    },
+    async next() {
+      return { done: true as const, value: null };
+    },
+    [Symbol.asyncIterator]() {
+      return reader;
+    },
+  };
+  return reader;
+};
 
 const makePool = (
   maxSize = 4,
@@ -152,6 +178,20 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
     expect(connections).toHaveLength(2);
   });
 
+  it('keeps concurrent first pins within the pinnable LRU limit', async () => {
+    const { pool } = makePool(3, 1);
+
+    await Promise.all(
+      [tabId('tab-a'), tabId('tab-b'), tabId('tab-c')].map(async (id) => {
+        const pinned = await pool.pinForTab(id);
+        await pinned.close();
+      }),
+    );
+
+    expect((pool as any)._pinnedTabs.size).toBe(2);
+    expect(Array.from((pool as any)._pinnedTabs.keys())).toEqual([tabId('tab-b'), tabId('tab-c')]);
+  });
+
   it('does not leak a pinned slot when a tab is closed while pin is in flight', async () => {
     const connections: FakeConnection[] = [];
     let releaseFirstConnect: (() => void) | undefined;
@@ -245,5 +285,99 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
 
     expect(result.aborted).toBe(false);
     expect(hydrated).toEqual([tabId('tab-a')]);
+  });
+
+  it('closes an open pinned reader before running a tab helper query', async () => {
+    const { pool, connections } = makePool(4, 1);
+
+    const reader = await pool.sendAbortableForTab(
+      tabId('tab-a'),
+      'SELECT * FROM large_result',
+      new AbortController().signal,
+      true,
+    );
+
+    expect(reader?.closed).toBe(false);
+
+    const result = await pool.queryAbortableForTab(
+      tabId('tab-a'),
+      'SELECT count(*) FROM large_result',
+      new AbortController().signal,
+    );
+
+    expect(result.aborted).toBe(false);
+    expect(reader?.closed).toBe(true);
+    expect(connections[(pool as any)._pinnedTabs.get(tabId('tab-a'))].calls).toEqual([
+      'cancelSent',
+      'SELECT * FROM large_result',
+      'cancelSent',
+      'SELECT count(*) FROM large_result',
+    ]);
+  });
+
+  it('resets connection state best-effort even when SET search_path throws', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { pool, connections } = makePool(4, 1);
+
+    const pinned = await pool.pinForTab(tabId('tab-a'));
+    await pinned.close();
+
+    const index = (pool as any)._pinnedTabs.get(tabId('tab-a'));
+    const conn = connections[index];
+    conn.failQueries = new Set(['SET search_path TO main;']);
+
+    // A throw on the final reset statement must be swallowed so the function
+    // stays best-effort and the reclaim path can finish its bookkeeping.
+    await expect((pool as any)._resetConnectionState(conn)).resolves.toBeUndefined();
+    expect(conn.calls).toContain('SET search_path TO main;');
+
+    warnSpy.mockRestore();
+  });
+
+  it('reclaims the slot even when the replacement connection fails to initialize', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const connections: FakeConnection[] = [];
+    let initCalls = 0;
+    const bindings = {
+      connect: jest.fn(async () => {
+        const conn = new FakeConnection(connections.length);
+        connections.push(conn);
+        return conn;
+      }),
+    };
+
+    const pool = new AsyncDuckDBConnectionPool(
+      bindings as any,
+      4,
+      undefined,
+      undefined,
+      // Fail the replacement connection's initializer (3rd connect: after the
+      // background + first pinned connection have already been initialized).
+      async () => {
+        initCalls += 1;
+        if (initCalls === 3) {
+          throw new Error('simulated initializer failure');
+        }
+      },
+      { backgroundReservation: 1 },
+    );
+
+    const pinned = await pool.pinForTab(tabId('tab-a'));
+    await pinned.close();
+    expect((pool as any)._pinnedTabs.size).toBe(1);
+
+    // _replaceConnection throws inside reclaim, but the pin bookkeeping must
+    // still run so the slot does not become an unreclaimable phantom.
+    await expect(pool.unpinTab(tabId('tab-a'))).resolves.toBeUndefined();
+
+    expect((pool as any)._pinnedTabs.size).toBe(0);
+    expect((pool as any)._pinnedLruOrder).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Failed to reset/replace connection while reclaiming pinned slot:',
+      expect.any(Error),
+    );
+
+    warnSpy.mockRestore();
   });
 });

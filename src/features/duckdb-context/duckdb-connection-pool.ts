@@ -91,6 +91,7 @@ export class AsyncDuckDBConnectionPool {
     conn: AsyncDuckDBConnection,
   ) => Promise<void>;
   private readonly _pinPromises: Map<TabId, Promise<void>> = new Map();
+  private _pinCreationQueue: Promise<void> = Promise.resolve();
   /**
    * Active streaming readers issued for pinned tabs. Tracked so that reclaiming
    * the slot (unpin/eviction) can drain the reader and release the underlying
@@ -242,26 +243,63 @@ export class AsyncDuckDBConnectionPool {
     }
   }
 
-  private async _evictLeastRecentlyUsedPinnedTab(): Promise<void> {
-    const tabId = this._pinnedLruOrder.shift();
-    if (!tabId) return;
+  private async _closePinnedReader(tabId: TabId): Promise<void> {
+    const reader = this._pinnedReaders.get(tabId);
+    if (reader) {
+      this._pinnedReaders.delete(tabId);
+      await reader.close();
+    }
+  }
 
-    const index = this._pinnedTabs.get(tabId);
-    if (index === undefined) return;
-
+  /**
+   * Reclaim a pinned slot so it can be reused: drain whatever holds the slot,
+   * reset and replace the underlying connection so no session state leaks, then
+   * drop all pin bookkeeping.
+   *
+   * Connection reset/replace is best-effort. A throw there must not skip the
+   * bookkeeping cleanup: if it did, the tab would stay in `_pinnedTabs` while
+   * its LRU entry is already gone, producing a slot that can never be reclaimed
+   * again (a permanent leak of pinnable capacity). With `_resetConnectionState`
+   * fully guarded, the only thing that can throw here is `_replaceConnection`'s
+   * initializer, after the reset already succeeded — so the old connection is
+   * left clean and safe to reuse.
+   */
+  private async _reclaimPinnedSlot(tabId: TabId, index: number): Promise<void> {
     await this._drainPinnedTabSlot(tabId, index);
 
     await this._claimPinnedTab(tabId);
     try {
-      await this._resetConnectionState(this._connections[index]);
-      await this._replaceConnection(index);
+      try {
+        await this._resetConnectionState(this._connections[index]);
+        await this._replaceConnection(index);
+      } catch (error) {
+        console.warn('Failed to reset/replace connection while reclaiming pinned slot:', error);
+      }
       this._pinnedTabs.delete(tabId);
       const lruIndex = this._pinnedLruOrder.indexOf(tabId);
       if (lruIndex >= 0) this._pinnedLruOrder.splice(lruIndex, 1);
-      this._onTabEvicted?.(tabId);
     } finally {
       await this._releaseConnection(index);
     }
+  }
+
+  private async _evictLeastRecentlyUsedPinnedTab(): Promise<void> {
+    // Peek (don't shift) the LRU head: if reclaim throws before the bookkeeping
+    // runs (e.g. `_claimPinnedTab` times out on a stuck slot), the tab stays
+    // consistently present in both `_pinnedTabs` and the LRU order instead of
+    // becoming a phantom pin.
+    const tabId = this._pinnedLruOrder[0];
+    if (!tabId) return;
+
+    const index = this._pinnedTabs.get(tabId);
+    if (index === undefined) {
+      // Stale LRU entry with no matching pin: drop it and bail.
+      this._pinnedLruOrder.shift();
+      return;
+    }
+
+    await this._reclaimPinnedSlot(tabId, index);
+    this._onTabEvicted?.(tabId);
   }
 
   private async _resetConnectionState(conn: AsyncDuckDBConnection): Promise<void> {
@@ -279,7 +317,15 @@ export class AsyncDuckDBConnectionPool {
     } catch (error) {
       console.warn('Failed to reset DuckDB connection catalog to memory:', error);
     }
-    await conn.query('SET search_path TO main;');
+    // Best-effort like the statements above: a throw here (e.g. the catalog
+    // reset already invalidated the available schemas) must not propagate out
+    // of the reclaim path, otherwise the pin bookkeeping cleanup is skipped and
+    // the slot becomes a phantom pin that can never be evicted again.
+    try {
+      await conn.query('SET search_path TO main;');
+    } catch (error) {
+      console.warn('Failed to reset DuckDB connection search_path:', error);
+    }
   }
 
   private async _replaceConnection(index: number): Promise<void> {
@@ -624,17 +670,27 @@ export class AsyncDuckDBConnectionPool {
       return this.pinForTab(tabId);
     }
 
-    const pinPromise = (async () => {
+    const runPin = async () => {
+      if (this._pinnedTabs.has(tabId)) {
+        return;
+      }
+
       const pinnableLimit = this._maxSize - this._backgroundReservation;
       if (this._pinnedTabs.size >= pinnableLimit) {
         await this._evictLeastRecentlyUsedPinnedTab();
       }
 
       const { index } = await this._getConnection('pinnable');
+      if (this._pinnedTabs.size >= pinnableLimit) {
+        await this._evictLeastRecentlyUsedPinnedTab();
+      }
       this._pinnedTabs.set(tabId, index);
       this._touchPinnedTab(tabId);
       await this._releaseConnection(index);
-    })();
+    };
+
+    const pinPromise = this._pinCreationQueue.then(runPin, runPin);
+    this._pinCreationQueue = pinPromise.catch(() => undefined);
 
     this._pinPromises.set(tabId, pinPromise);
 
@@ -663,18 +719,7 @@ export class AsyncDuckDBConnectionPool {
     const index = this._pinnedTabs.get(tabId);
     if (index === undefined) return;
 
-    await this._drainPinnedTabSlot(tabId, index);
-
-    await this._claimPinnedTab(tabId);
-    try {
-      await this._resetConnectionState(this._connections[index]);
-      await this._replaceConnection(index);
-      this._pinnedTabs.delete(tabId);
-      const lruIndex = this._pinnedLruOrder.indexOf(tabId);
-      if (lruIndex >= 0) this._pinnedLruOrder.splice(lruIndex, 1);
-    } finally {
-      await this._releaseConnection(index);
-    }
+    await this._reclaimPinnedSlot(tabId, index);
   }
 
   public async getBackgroundConnection(): Promise<AsyncDuckDBPooledConnection> {
@@ -694,6 +739,8 @@ export class AsyncDuckDBConnectionPool {
       const pinned = await this.pinForTab(tabId);
       await pinned.close();
     }
+
+    await this._closePinnedReader(tabId);
 
     const batches = [] as arrow.RecordBatch[];
     const { conn, index } = await this._claimPinnedTab(tabId);
@@ -733,6 +780,8 @@ export class AsyncDuckDBConnectionPool {
       const pinned = await this.pinForTab(tabId);
       await pinned.close();
     }
+
+    await this._closePinnedReader(tabId);
 
     const { conn, index } = await this._claimPinnedTab(tabId);
 

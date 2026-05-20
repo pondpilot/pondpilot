@@ -1181,7 +1181,15 @@ export const deleteTab = async (tabIds: TabId[]) => {
     const pool = getCurrentDuckDBConnectionPool();
     if (pool) {
       const scriptTabIds = tabIds.filter((id) => tabs.get(id)?.type === 'script');
-      await Promise.all(scriptTabIds.map((id) => pool.unpinTab(id)));
+      // allSettled, not all: one unpin rejecting (e.g. a slot raced by a
+      // concurrent eviction) must not abandon the sibling unpins and leak
+      // their pinned connection slots.
+      const unpinResults = await Promise.allSettled(scriptTabIds.map((id) => pool.unpinTab(id)));
+      for (const result of unpinResults) {
+        if (result.status === 'rejected') {
+          console.error('Failed to unpin tab connection during tab deletion:', result.reason);
+        }
+      }
     }
 
     let persistencePayload: {

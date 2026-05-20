@@ -5,7 +5,11 @@ import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { clearTransient, markTransient, setAppLoadState, useAppStore } from '@store/app-store';
-import { buildUseStatement } from '@utils/duckdb/identifier';
+import {
+  buildUseStatement,
+  CatalogSchemaSelection,
+  needsCatalogSchemaReapply,
+} from '@utils/duckdb/identifier';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { v4 } from 'uuid';
@@ -415,6 +419,17 @@ export const DuckDBConnectionPoolProvider = ({
             message: 'Initializing connection pool...',
           });
 
+          // Tracks the catalog/schema last applied to each pinned connection.
+          // Keyed by the raw connection, so when the pool replaces a connection
+          // (on unpin/eviction) the fresh connection has no entry and hydration
+          // runs again. Lets the hook below skip a redundant USE when the
+          // persisted session is unchanged, preserving richer in-script session
+          // state (e.g. SET search_path) across the result pane's re-claims.
+          const lastAppliedSession = new WeakMap<
+            duckdb.AsyncDuckDBConnection,
+            CatalogSchemaSelection
+          >();
+
           // Create a connection pool with configurable checkpoint settings
           const pool = new AsyncDuckDBConnectionPool(
             newDb,
@@ -442,9 +457,22 @@ export const DuckDBConnectionPoolProvider = ({
                 if (tab?.type !== 'script') return;
 
                 const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
-                const useStmt = buildUseStatement(session?.currentCatalog, session?.currentSchema);
-                if (useStmt) {
-                  await conn.query(useStmt);
+                const next: CatalogSchemaSelection = {
+                  catalog: session?.currentCatalog ?? null,
+                  schema: session?.currentSchema ?? null,
+                };
+
+                // Only replay catalog/schema when it differs from what this
+                // connection already reflects. Re-issuing USE on every claim
+                // would collapse richer session state set during the run (e.g.
+                // SET search_path TO s1, s2) when the result pane re-claims the
+                // connection to read further batches of the same result.
+                if (needsCatalogSchemaReapply(lastAppliedSession.get(conn), next)) {
+                  const useStmt = buildUseStatement(next.catalog, next.schema);
+                  if (useStmt) {
+                    await conn.query(useStmt);
+                  }
+                  lastAppliedSession.set(conn, next);
                 }
 
                 if (session?.isTransient) {

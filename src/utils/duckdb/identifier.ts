@@ -85,3 +85,29 @@ export function buildUseStatement(
   }
   return null;
 }
+
+/** A catalog/schema pair applied to a connection via `buildUseStatement`. */
+export interface CatalogSchemaSelection {
+  catalog: string | null;
+  schema: string | null;
+}
+
+/**
+ * Whether the desired catalog/schema differs from what was last applied to a
+ * connection and therefore needs a fresh `USE` statement.
+ *
+ * Callers cache the last selection per connection and only re-issue `USE` when
+ * this returns `true`. Re-applying when unchanged would reset the connection's
+ * catalog/schema and collapse richer interim session state (e.g. a script's
+ * `SET search_path TO s1, s2`) on every reuse of the connection.
+ *
+ * A missing `previous` (e.g. a freshly created or replaced connection) always
+ * needs application.
+ */
+export function needsCatalogSchemaReapply(
+  previous: CatalogSchemaSelection | undefined,
+  next: CatalogSchemaSelection,
+): boolean {
+  if (!previous) return true;
+  return previous.catalog !== next.catalog || previous.schema !== next.schema;
+}
