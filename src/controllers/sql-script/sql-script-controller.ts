@@ -206,7 +206,10 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
       );
       for (const result of unpinResults) {
         if (result.status === 'rejected') {
-          console.error('Failed to unpin tab connection during SQL script deletion:', result.reason);
+          console.error(
+            'Failed to unpin tab connection during SQL script deletion:',
+            result.reason,
+          );
         }
       }
     }
