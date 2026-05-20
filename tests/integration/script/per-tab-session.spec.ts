@@ -79,6 +79,26 @@ test('catalog dropdown selection is applied on next run', async ({
   await assertDataTableMatches({ data: [['memory']], columnNames: ['db'] });
 });
 
+test('script result reads preserve extended search_path state', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  assertDataTableMatches,
+}) => {
+  await createScriptAndSwitchToItsTab();
+  await fillScript(`
+    USE memory;
+    CREATE SCHEMA IF NOT EXISTS s1;
+    CREATE SCHEMA IF NOT EXISTS s2;
+    CREATE OR REPLACE TABLE s2.search_path_probe AS SELECT 7 AS value;
+    SET search_path = 's1,s2';
+    SELECT * FROM search_path_probe;
+  `);
+  await runScript();
+
+  await assertDataTableMatches({ data: [[7]], columnNames: ['value'] });
+});
+
 test('restored script tab can run while previous result reader is still open', async ({
   reloadPage,
   createScriptAndSwitchToItsTab,

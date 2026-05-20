@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import {
+  buildSearchPathStatement,
   buildUseStatement,
   CatalogSchemaSelection,
   needsCatalogSchemaReapply,
@@ -29,10 +30,38 @@ describe('buildUseStatement', () => {
   });
 });
 
+describe('buildSearchPathStatement', () => {
+  it('replays the captured path verbatim as a string literal', () => {
+    // The value comes from current_setting('search_path'); DuckDB produced it,
+    // so it round-trips without re-quoting individual identifiers.
+    expect(buildSearchPathStatement('s1, s2')).toBe("SET search_path = 's1, s2'");
+  });
+
+  it('doubles single quotes to keep the literal valid', () => {
+    expect(buildSearchPathStatement("o'brien, main")).toBe("SET search_path = 'o''brien, main'");
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(buildSearchPathStatement('  memory.main  ')).toBe("SET search_path = 'memory.main'");
+  });
+
+  it('returns null when there is nothing to restore', () => {
+    expect(buildSearchPathStatement(null)).toBeNull();
+    expect(buildSearchPathStatement(undefined)).toBeNull();
+    expect(buildSearchPathStatement('')).toBeNull();
+    expect(buildSearchPathStatement('   ')).toBeNull();
+  });
+});
+
 describe('needsCatalogSchemaReapply', () => {
-  const selection = (catalog: string | null, schema: string | null): CatalogSchemaSelection => ({
+  const selection = (
+    catalog: string | null,
+    schema: string | null,
+    searchPath?: string | null,
+  ): CatalogSchemaSelection => ({
     catalog,
     schema,
+    searchPath,
   });
 
   it('always needs application when nothing was applied before', () => {
@@ -43,7 +72,7 @@ describe('needsCatalogSchemaReapply', () => {
 
   it('skips re-application when the selection is unchanged', () => {
     // This is the core of the fix: an unchanged session must NOT re-issue USE,
-    // otherwise interim state like SET search_path is collapsed on every reuse.
+    // otherwise interim state like a multi-entry search_path is collapsed on every reuse.
     expect(
       needsCatalogSchemaReapply(selection('mydb', 'public'), selection('mydb', 'public')),
     ).toBe(false);
@@ -67,5 +96,33 @@ describe('needsCatalogSchemaReapply', () => {
     expect(needsCatalogSchemaReapply(selection('mydb', 'public'), selection('mydb', null))).toBe(
       true,
     );
+  });
+
+  it('needs re-application when only the search_path changes', () => {
+    // Same catalog/schema but a different multi-entry path must re-apply, else
+    // the richer path captured after a run is never restored.
+    expect(
+      needsCatalogSchemaReapply(selection('mydb', 's1', 's1'), selection('mydb', 's1', 's1, s2')),
+    ).toBe(true);
+  });
+
+  it('treats absent and null search_path as equal', () => {
+    // A manual catalog/schema pick omits searchPath; it must not be seen as a
+    // change versus a previously recorded null path.
+    expect(needsCatalogSchemaReapply(selection('mydb', 's1'), selection('mydb', 's1', null))).toBe(
+      false,
+    );
+    expect(needsCatalogSchemaReapply(selection('mydb', 's1', null), selection('mydb', 's1'))).toBe(
+      false,
+    );
+  });
+
+  it('skips re-application when the search_path is unchanged', () => {
+    expect(
+      needsCatalogSchemaReapply(
+        selection('mydb', 's1', 's1, s2'),
+        selection('mydb', 's1', 's1, s2'),
+      ),
+    ).toBe(false);
   });
 });

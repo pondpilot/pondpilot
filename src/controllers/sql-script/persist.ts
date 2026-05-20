@@ -72,10 +72,3 @@ export const persistPutSqlScriptSession = async (
   const { isTransient: _isTransient, ...persisted } = session;
   await iDb.put(SQL_SCRIPT_SESSION_TABLE_NAME, persisted, session.scriptId);
 };
-
-export const persistDeleteSqlScriptSession = async (
-  iDb: IDBPDatabase<AppIdbSchema>,
-  scriptId: SQLScriptId,
-) => {
-  await iDb.delete(SQL_SCRIPT_SESSION_TABLE_NAME, scriptId);
-};

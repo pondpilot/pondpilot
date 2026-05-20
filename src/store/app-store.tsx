@@ -1,8 +1,5 @@
 import { IconType } from '@components/named-icon';
-import {
-  persistDeleteSqlScriptSession,
-  persistPutSqlScriptSession,
-} from '@controllers/sql-script/persist';
+import { persistPutSqlScriptSession } from '@controllers/sql-script/persist';
 import { PROGRESS_CLEANUP_MAX_AGE_MS } from '@features/comparison/config/execution-config';
 import { Comparison, ComparisonExecutionProgress, ComparisonId } from '@models/comparison';
 import { ContentViewState } from '@models/content-view';
@@ -717,25 +714,6 @@ export const setScriptSession = (scriptId: SQLScriptId, session: SQLScriptSessio
   if (iDbConn) {
     persistPutSqlScriptSession(iDbConn, { ...session, scriptId }).catch((error) => {
       console.error('Failed to persist SQL script session:', error);
-    });
-  }
-};
-
-export const clearScriptSession = (scriptId: SQLScriptId) => {
-  useAppStore.setState(
-    (state) => {
-      const sqlScriptSessions = new Map(state.sqlScriptSessions);
-      sqlScriptSessions.delete(scriptId);
-      return { sqlScriptSessions };
-    },
-    undefined,
-    'AppStore/clearScriptSession',
-  );
-
-  const iDbConn = useAppStore.getState()._iDbConn;
-  if (iDbConn) {
-    persistDeleteSqlScriptSession(iDbConn, scriptId).catch((error) => {
-      console.error('Failed to delete SQL script session:', error);
     });
   }
 };

@@ -129,6 +129,41 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
     expect((pool as any)._pinnedLruOrder).toEqual([tabId('tab-b'), tabId('tab-a')]);
   });
 
+  it('records post-run session state against the pinned connection', async () => {
+    const recorded: Array<{
+      tabId: TabId;
+      connId: number;
+      catalog: string | null;
+      schema: string | null;
+    }> = [];
+    const { pool, connections } = makePool(4, 1, {
+      onTabConnectionSessionRecorded: (id, conn, session) => {
+        recorded.push({
+          tabId: id,
+          connId: (conn as unknown as FakeConnection).id,
+          catalog: session.catalog,
+          schema: session.schema,
+        });
+      },
+    });
+
+    const conn = await pool.pinForTab(tabId('tab-a'));
+    pool.recordPinnedTabConnectionSession(tabId('tab-a'), {
+      catalog: 'memory',
+      schema: 's1',
+    });
+    await conn.close();
+
+    expect(recorded).toEqual([
+      {
+        tabId: tabId('tab-a'),
+        connId: connections[1].id,
+        catalog: 'memory',
+        schema: 's1',
+      },
+    ]);
+  });
+
   it('keeps background connections isolated from pinned indexes', async () => {
     const { pool } = makePool(4, 1);
 

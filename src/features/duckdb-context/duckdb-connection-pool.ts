@@ -1,6 +1,7 @@
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import type { TabId } from '@models/tab';
 import { toAbortablePromise } from '@utils/abort';
+import type { CatalogSchemaSelection } from '@utils/duckdb/identifier';
 import { getViteEnv } from '@utils/env';
 import * as arrow from 'apache-arrow';
 
@@ -34,13 +35,18 @@ const DEFAULT_CHECKPOINT_CONFIG: CheckpointConfig = {
   logCheckpoints: true, // Log checkpoints in development mode
 };
 
-type DuckDBConnectionConnAndIdex = { conn: AsyncDuckDBConnection; index: number };
+type DuckDBConnectionConnAndIndex = { conn: AsyncDuckDBConnection; index: number };
 type ConnectionClaimMode = 'background' | 'pinnable' | 'any';
 
 export type DuckDBConnectionPoolOptions = {
   backgroundReservation?: number;
   onTabEvicted?: (tabId: TabId) => void;
   onBeforeTabConnectionUse?: (tabId: TabId, conn: AsyncDuckDBConnection) => Promise<void>;
+  onTabConnectionSessionRecorded?: (
+    tabId: TabId,
+    conn: AsyncDuckDBConnection,
+    session: CatalogSchemaSelection,
+  ) => void;
 };
 
 /**
@@ -90,6 +96,11 @@ export class AsyncDuckDBConnectionPool {
     tabId: TabId,
     conn: AsyncDuckDBConnection,
   ) => Promise<void>;
+  private readonly _onTabConnectionSessionRecorded?: (
+    tabId: TabId,
+    conn: AsyncDuckDBConnection,
+    session: CatalogSchemaSelection,
+  ) => void;
   private readonly _pinPromises: Map<TabId, Promise<void>> = new Map();
   private _pinCreationQueue: Promise<void> = Promise.resolve();
   /**
@@ -163,20 +174,24 @@ export class AsyncDuckDBConnectionPool {
     );
     this._onTabEvicted = options?.onTabEvicted;
     this._onBeforeTabConnectionUse = options?.onBeforeTabConnectionUse;
+    this._onTabConnectionSessionRecorded = options?.onTabConnectionSessionRecorded;
   }
 
   private _pinnedIndexes(): Set<number> {
     return new Set(this._pinnedTabs.values());
   }
 
-  private _isIndexAllowedForMode(index: number, mode: ConnectionClaimMode): boolean {
-    if (mode === 'any') return !this._pinnedIndexes().has(index);
-
-    if (mode === 'background') {
-      return index < this._backgroundReservation && !this._pinnedIndexes().has(index);
-    }
-
-    return index >= this._backgroundReservation && !this._pinnedIndexes().has(index);
+  private _isIndexAllowedForMode(
+    index: number,
+    mode: ConnectionClaimMode,
+    // Callers iterating many connections (e.g. `_claimConnection`) pass a
+    // precomputed set so the pinned indexes aren't rebuilt per connection.
+    pinnedIndexes: Set<number> = this._pinnedIndexes(),
+  ): boolean {
+    if (pinnedIndexes.has(index)) return false;
+    if (mode === 'any') return true;
+    if (mode === 'background') return index < this._backgroundReservation;
+    return index >= this._backgroundReservation;
   }
 
   private _touchPinnedTab(tabId: TabId): void {
@@ -187,7 +202,7 @@ export class AsyncDuckDBConnectionPool {
     this._pinnedLruOrder.push(tabId);
   }
 
-  private async _claimPinnedTab(tabId: TabId): Promise<DuckDBConnectionConnAndIdex> {
+  private async _claimPinnedTab(tabId: TabId): Promise<DuckDBConnectionConnAndIndex> {
     const index = this._pinnedTabs.get(tabId);
     if (index === undefined) {
       throw new Error(`Tab ${tabId} does not have a pinned DuckDB connection`);
@@ -348,14 +363,21 @@ export class AsyncDuckDBConnectionPool {
   /**
    * Claims (finds and marks as in use) a connection from the pool if one is available.
    */
-  _claimConnection(mode: ConnectionClaimMode = 'any'): DuckDBConnectionConnAndIdex | null {
+  _claimConnection(mode: ConnectionClaimMode = 'any'): DuckDBConnectionConnAndIndex | null {
+    // Compute the pinned indexes once for the whole scan rather than rebuilding
+    // the set for every connection inside `find`.
+    const pinnedIndexes = this._pinnedIndexes();
+
     // Find the first connection that is not in use
     const available = this._connections
       .map((conn, index) => ({
         conn,
         index,
       }))
-      .find((_, index) => !this._inUse.has(index) && this._isIndexAllowedForMode(index, mode));
+      .find(
+        (_, index) =>
+          !this._inUse.has(index) && this._isIndexAllowedForMode(index, mode, pinnedIndexes),
+      );
 
     // If a connection is not found, return null
     if (!available) {
@@ -375,7 +397,7 @@ export class AsyncDuckDBConnectionPool {
    * @returns {Promise<AsyncDuckDBPooledConnection>} A promise that resolves to a pooled connection.
    * @throws {PoolTimeoutError} If the pool is full and no connection is available within the timeout.
    */
-  async _getConnection(mode: ConnectionClaimMode = 'any'): Promise<DuckDBConnectionConnAndIdex> {
+  async _getConnection(mode: ConnectionClaimMode = 'any'): Promise<DuckDBConnectionConnAndIndex> {
     // Try claiming a connection from the pool
     const available = this._claimConnection(mode);
 
@@ -680,10 +702,11 @@ export class AsyncDuckDBConnectionPool {
         await this._evictLeastRecentlyUsedPinnedTab();
       }
 
+      // Pin creation is serialized through `_pinCreationQueue` and
+      // `_getConnection('pinnable')` never adds to `_pinnedTabs`, so the size
+      // can only shrink (via unpin) between the eviction above and here — one
+      // eviction is sufficient to stay within `pinnableLimit`.
       const { index } = await this._getConnection('pinnable');
-      if (this._pinnedTabs.size >= pinnableLimit) {
-        await this._evictLeastRecentlyUsedPinnedTab();
-      }
       this._pinnedTabs.set(tabId, index);
       this._touchPinnedTab(tabId);
       await this._releaseConnection(index);
@@ -701,6 +724,16 @@ export class AsyncDuckDBConnectionPool {
     }
 
     return this.pinForTab(tabId);
+  }
+
+  public recordPinnedTabConnectionSession(tabId: TabId, session: CatalogSchemaSelection): void {
+    const index = this._pinnedTabs.get(tabId);
+    if (index === undefined) return;
+
+    const conn = this._connections[index];
+    if (!conn) return;
+
+    this._onTabConnectionSessionRecorded?.(tabId, conn, session);
   }
 
   public async unpinTab(tabId: TabId): Promise<void> {

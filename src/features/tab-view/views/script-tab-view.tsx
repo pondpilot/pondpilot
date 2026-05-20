@@ -30,7 +30,7 @@ import {
   handleCreateSecretStatements,
   handleDetachStatements,
 } from '@utils/attach-detach-handler';
-import { buildUseStatement } from '@utils/duckdb/identifier';
+import { buildUseStatement, checkValidDuckDBIdentifer } from '@utils/duckdb/identifier';
 import {
   splitSQLByStats,
   classifySQLStatements,
@@ -213,11 +213,32 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             'SELECT current_database() AS db, current_schema() AS schema',
           );
           const [row] = result.toArray() as { db: string | null; schema: string | null }[];
+
+          // Capture the full search_path in a separate, best-effort query: a
+          // multi-entry path set via `SET search_path TO s1, s2` collapses to
+          // the first schema on replay (after eviction or reload) unless we
+          // restore it verbatim. A failure here must not drop the well-tested
+          // catalog/schema capture above.
+          let searchPath: string | null = null;
+          try {
+            const sp = await conn.query("SELECT current_setting('search_path') AS search_path");
+            const [spRow] = sp.toArray() as { search_path: string | null }[];
+            searchPath = spRow?.search_path ?? null;
+          } catch (error) {
+            console.warn('Failed to read back DuckDB search_path:', error);
+          }
+
           setScriptSession(tab.sqlScriptId, {
             scriptId: tab.sqlScriptId,
             currentCatalog: row?.db ?? null,
             currentSchema: row?.schema ?? null,
+            searchPath,
             isTransient: false,
+          });
+          pool.recordPinnedTabConnectionSession(tab.id, {
+            catalog: row?.db ?? null,
+            schema: row?.schema ?? null,
+            searchPath,
           });
         } catch (error) {
           console.warn('Failed to read back DuckDB session state:', error);
@@ -229,16 +250,19 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         const target = useMatch?.[1]?.trim();
         if (!target || !target.includes('.')) return false;
 
+        // Only handle the simple `catalog.schema` form where both parts are
+        // bare (unquoted) identifiers. Quoted or dotted names like
+        // `USE "my.db".main` can't be split on `.` or quote-stripped safely, so
+        // we bail and let the original error surface rather than mis-quote.
         const parts = target.split('.').map((part) => part.trim());
         if (parts.length !== 2) return false;
 
         const [catalog, schema] = parts;
-        if (!catalog || !schema) return false;
+        if (!checkValidDuckDBIdentifer(catalog) || !checkValidDuckDBIdentifer(schema)) {
+          return false;
+        }
 
-        const qualified = buildUseStatement(
-          catalog.replace(/^"|"$/g, ''),
-          schema.replace(/^"|"$/g, ''),
-        );
+        const qualified = buildUseStatement(catalog, schema);
         if (!qualified) return false;
         await conn.query(qualified);
         return true;
