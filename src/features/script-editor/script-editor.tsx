@@ -25,6 +25,7 @@ import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { ScriptVersion } from '@models/script-version';
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
+import { TabId } from '@models/tab';
 import { useAppStore, useDuckDBFunctions } from '@store/app-store';
 import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
@@ -80,6 +81,7 @@ function versionTrackingReducer(
 
 interface ScriptEditorProps {
   id: SQLScriptId;
+  tabId: TabId;
   scriptState: ScriptExecutionState;
 
   active?: boolean;
@@ -89,6 +91,7 @@ interface ScriptEditorProps {
 
 export const ScriptEditor = ({
   id: scriptId,
+  tabId,
   active,
   runScriptQuery,
   scriptState,
@@ -209,16 +212,6 @@ export const ScriptEditor = ({
     }
     return {};
   }, [duckDBFunctions]);
-
-  // Get the tab ID from the script
-  const tabId = useAppStore((state) => {
-    for (const [tId, tab] of state.tabs) {
-      if (tab.type === 'script' && tab.sqlScriptId === scriptId) {
-        return tId;
-      }
-    }
-    return null;
-  });
 
   const schema = useMemo(
     () =>
@@ -603,7 +596,7 @@ export const ScriptEditor = ({
           onEnterHistoryMode={shouldShowVersionHistory ? handleEnterHistoryMode : undefined}
           onExitHistoryMode={handleExitHistoryMode}
           selectedVersion={selectedVersionForDiff}
-          sessionSelector={<ScriptSessionSelector scriptId={scriptId} />}
+          sessionSelector={<ScriptSessionSelector scriptId={scriptId} tabId={tabId} />}
           onRestoreVersion={handleRestoreVersion}
           onRenameVersion={handleRenameVersion}
         />

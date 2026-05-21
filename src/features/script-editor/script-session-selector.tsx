@@ -18,20 +18,26 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { SQLScriptId } from '@models/sql-script';
+import { TabId } from '@models/tab';
 import { setScriptSession, useAppStore } from '@store/app-store';
 import { IconChevronRight, IconDatabase, IconSearch } from '@tabler/icons-react';
-import { getDatabaseIdentifier, isDatabaseDataSource } from '@utils/data-source';
+import {
+  getDatabaseIdentifier,
+  isDatabaseDataSource,
+  parseMotherDuckDbKey,
+} from '@utils/data-source';
 import { getErrorMessage } from '@utils/error-classification';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useMemo, useState } from 'react';
 
 interface ScriptSessionSelectorProps {
   scriptId: SQLScriptId;
+  tabId: TabId;
 }
 
 const escapeSqlLiteral = (value: string) => value.replace(/'/g, "''");
 
-export const ScriptSessionSelector = ({ scriptId }: ScriptSessionSelectorProps) => {
+export const ScriptSessionSelector = ({ scriptId, tabId }: ScriptSessionSelectorProps) => {
   const pool = useDuckDBConnectionPool();
   const dataSources = useAppStore((state) => state.dataSources);
   const databaseMetadata = useAppStore((state) => state.databaseMetadata);
@@ -45,9 +51,12 @@ export const ScriptSessionSelector = ({ scriptId }: ScriptSessionSelectorProps) 
 
   const catalogs = useMemo(() => {
     const set = new Set<string>([PERSISTENT_DB_NAME, 'memory']);
-    for (const dbName of databaseMetadata.keys()) set.add(dbName);
+    for (const dbName of databaseMetadata.keys()) {
+      set.add(parseMotherDuckDbKey(dbName) ?? dbName);
+    }
     for (const dataSource of dataSources.values()) {
       if (isDatabaseDataSource(dataSource)) {
+        if (dataSource.type === 'motherduck') continue;
         set.add(getDatabaseIdentifier(dataSource));
       }
     }
@@ -74,10 +83,26 @@ export const ScriptSessionSelector = ({ scriptId }: ScriptSessionSelectorProps) 
     setLoadingCatalog(focusedCatalog);
     (async () => {
       try {
-        const conn = await pool.getBackgroundConnection();
+        const conn =
+          focusedCatalog === 'memory'
+            ? await pool.tryPinForTabDataOperation(tabId)
+            : await pool.getBackgroundConnection();
+        if (!conn) {
+          if (focusedCatalog === 'memory') {
+            const schemas =
+              currentCatalog === 'memory' && currentSchema ? [currentSchema] : ['main'];
+            setSchemaCache((prev) => {
+              const next = new Map(prev);
+              next.set(focusedCatalog, schemas);
+              return next;
+            });
+            return;
+          }
+          throw new Error('DuckDB connection is not available');
+        }
         try {
           const result = await conn.query(
-            `SELECT schema_name FROM duckdb_schemas() WHERE database_name = '${escapeSqlLiteral(focusedCatalog)}' ORDER BY schema_name`,
+            `SELECT schema_name FROM duckdb_schemas() WHERE database_name = '${escapeSqlLiteral(focusedCatalog)}' AND NOT internal ORDER BY schema_name`,
           );
           if (cancelled) return;
           const schemas = result.toArray().map((row: any) => String(row.schema_name));
@@ -110,7 +135,7 @@ export const ScriptSessionSelector = ({ scriptId }: ScriptSessionSelectorProps) 
     return () => {
       cancelled = true;
     };
-  }, [opened, pool, focusedCatalog, schemaCache]);
+  }, [opened, pool, focusedCatalog, schemaCache, tabId, currentCatalog, currentSchema]);
 
   const filteredCatalogs = useMemo(() => {
     const needle = catalogFilter.trim().toLowerCase();

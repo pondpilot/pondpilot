@@ -45,7 +45,7 @@ async function executeWithCorsRetry<TResult>(
   retryExecutor: (rewrittenQuery: string) => Promise<TResult>,
   getS3Endpoint: () => Promise<string | null>,
   rollback: () => Promise<void>,
-  options: { rollbackOnCorsError?: boolean } = {},
+  options: { rollbackOnCorsError?: boolean; onExecutedQuery?: (query: string) => void } = {},
 ): Promise<TResult> {
   const settings = getCorsProxySettings();
   const rollbackOnCorsError = options.rollbackOnCorsError ?? true;
@@ -63,12 +63,16 @@ async function executeWithCorsRetry<TResult>(
     });
     // Always use the rewritten query to ensure proxy: prefix is stripped
     // even if the URL wasn't actually wrapped with the proxy
-    return await retryExecutor(rewritten);
+    const result = await retryExecutor(rewritten);
+    options.onExecutedQuery?.(rewritten);
+    return result;
   }
 
   try {
     // Try direct execution first (for 'auto' mode)
-    return await executor();
+    const result = await executor();
+    options.onExecutedQuery?.(query);
+    return result;
   } catch (error) {
     // Only retry if it's a CORS error and an ATTACH statement (auto mode)
     if (settings.behavior === 'auto' && isCorsError(error) && isAttachStatement(query)) {
@@ -124,7 +128,9 @@ async function executeWithCorsRetry<TResult>(
 
         // Retry with proxied URL
         try {
-          return await retryExecutor(rewritten);
+          const result = await retryExecutor(rewritten);
+          options.onExecutedQuery?.(rewritten);
+          return result;
         } catch (proxyError) {
           const proxyErrorMsg = getErrorMessage(proxyError);
 
@@ -134,6 +140,7 @@ async function executeWithCorsRetry<TResult>(
             proxyErrorMsg.includes('already attached') ||
             proxyErrorMsg.includes('Unique file handle conflict')
           ) {
+            options.onExecutedQuery?.(rewritten);
             // eslint-disable-next-line no-console
             console.info('Database already attached via CORS proxy, continuing...');
             // Return an empty Arrow Table since ATTACH doesn't return data
@@ -231,7 +238,7 @@ export async function pooledConnectionQueryWithCorsRetry<
 >(
   conn: AsyncDuckDBPooledConnection,
   query: string,
-  options: { rollbackOnCorsError?: boolean } = {},
+  options: { rollbackOnCorsError?: boolean; onExecutedQuery?: (query: string) => void } = {},
 ): Promise<arrow.Table<T>> {
   return executeWithCorsRetry(
     query,

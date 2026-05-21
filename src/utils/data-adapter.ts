@@ -641,6 +641,18 @@ export function getScriptAdapterQueries({
   return {
     adapter: {
       sourceQuery: classifiedStmt.isAllowedInSubquery ? trimmedQuery : undefined,
+      copyToParquet: classifiedStmt.isAllowedInSubquery
+        ? async (tempFileName: string, compression: string) => {
+            const conn = await pool.pinForTabDataOperation(tab.id);
+            try {
+              await conn.query(
+                `COPY (${trimmedQuery}) TO '${tempFileName}' (FORMAT PARQUET, COMPRESSION '${compression}')`,
+              );
+            } finally {
+              await conn.close();
+            }
+          }
+        : undefined,
       // As of today we do not allow runnig even an estimated row count on
       // arbitrary queries, so we do no create these functions
       getSortableReader: classifiedStmt.isAllowedInSubquery

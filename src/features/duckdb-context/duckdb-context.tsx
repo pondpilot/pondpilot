@@ -9,7 +9,6 @@ import {
   buildSearchPathStatement,
   buildUseStatement,
   CatalogSchemaSelection,
-  needsCatalogSchemaReapply,
 } from '@utils/duckdb/identifier';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
@@ -420,18 +419,6 @@ export const DuckDBConnectionPoolProvider = ({
             message: 'Initializing connection pool...',
           });
 
-          // Tracks the catalog/schema last applied to each pinned connection.
-          // Keyed by the raw connection, so when the pool replaces a connection
-          // (on unpin/eviction) the fresh connection has no entry and hydration
-          // runs again. Lets the hook below skip a redundant USE when the
-          // persisted session is unchanged, preserving richer in-script session
-          // state (e.g. a multi-entry search_path) across the result pane's
-          // re-claims.
-          const lastAppliedSession = new WeakMap<
-            duckdb.AsyncDuckDBConnection,
-            CatalogSchemaSelection
-          >();
-
           // Create a connection pool with configurable checkpoint settings
           const pool = new AsyncDuckDBConnectionPool(
             newDb,
@@ -459,39 +446,43 @@ export const DuckDBConnectionPoolProvider = ({
                 if (tab?.type !== 'script') return;
 
                 const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
-                const next: CatalogSchemaSelection = {
-                  catalog: session?.currentCatalog ?? null,
-                  schema: session?.currentSchema ?? null,
-                  searchPath: session?.searchPath ?? null,
-                };
-
-                // Only replay catalog/schema when it differs from what this
-                // connection already reflects. Re-issuing USE on every claim
-                // would collapse richer session state set during the run (e.g.
-                // multi-entry search_path) when the result pane re-claims the
-                // connection to read further batches of the same result.
-                if (needsCatalogSchemaReapply(lastAppliedSession.get(conn), next)) {
-                  const useStmt = buildUseStatement(next.catalog, next.schema);
-                  if (useStmt) {
-                    await conn.query(useStmt);
-                  }
-                  // Restore a multi-entry search_path captured after the run.
-                  // USE collapses the path to a single schema, so re-apply the
-                  // full path on top. Best-effort: a value DuckDB can't round-
-                  // trip must not abort the run — we keep the single schema USE
-                  // already set.
-                  const searchPathStmt = buildSearchPathStatement(next.searchPath);
-                  if (searchPathStmt) {
-                    try {
-                      await conn.query(searchPathStmt);
-                    } catch (error) {
-                      console.warn(
-                        'Failed to restore DuckDB search_path for script session:',
-                        error,
-                      );
+                const next: CatalogSchemaSelection = session
+                  ? {
+                      catalog: session.currentCatalog,
+                      schema: session.currentSchema,
+                      searchPath: session.searchPath ?? null,
                     }
+                  : {
+                      catalog: PERSISTENT_DB_NAME,
+                      schema: 'main',
+                      searchPath: null,
+                    };
+
+                const useStmt = buildUseStatement(next.catalog, next.schema);
+                if (useStmt) {
+                  try {
+                    await conn.query(useStmt);
+                  } catch (error) {
+                    throw new Error(
+                      `Failed to restore DuckDB script session (${next.catalog ?? 'default'}${
+                        next.schema ? `.${next.schema}` : ''
+                      }). Select another session or reconnect the data source before running.`,
+                      { cause: error },
+                    );
                   }
-                  lastAppliedSession.set(conn, next);
+                }
+                // Restore a multi-entry search_path captured after the run.
+                // USE collapses the path to a single schema, so re-apply the
+                // full path on top. Best-effort: a value DuckDB can't round-
+                // trip must not abort the run — we keep the single schema USE
+                // already set.
+                const searchPathStmt = buildSearchPathStatement(next.searchPath);
+                if (searchPathStmt) {
+                  try {
+                    await conn.query(searchPathStmt);
+                  } catch (error) {
+                    console.warn('Failed to restore DuckDB search_path for script session:', error);
+                  }
                 }
 
                 // Note: the transient flag is intentionally NOT cleared here.
@@ -502,9 +493,6 @@ export const DuckDBConnectionPoolProvider = ({
                 // cleared at the start of the next run instead (see
                 // script-tab-view), matching the eviction notice that catalog
                 // and schema are restored on the next run.
-              },
-              onTabConnectionSessionRecorded: (_tabId, conn, session) => {
-                lastAppliedSession.set(conn, session);
               },
               onTabEvicted: (tabId) => {
                 const tab = useAppStore.getState().tabs.get(tabId);

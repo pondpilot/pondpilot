@@ -723,8 +723,9 @@ export const markTransient = (scriptId: SQLScriptId, isTransient: boolean = true
     (state) => {
       const previous = state.sqlScriptSessions.get(scriptId) ?? {
         scriptId,
-        currentCatalog: null,
-        currentSchema: null,
+        currentCatalog: PERSISTENT_DB_NAME,
+        currentSchema: 'main',
+        searchPath: null,
         isTransient: false,
       };
       const sqlScriptSessions = new Map(state.sqlScriptSessions);

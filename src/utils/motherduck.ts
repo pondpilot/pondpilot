@@ -371,8 +371,12 @@ export async function detachMotherDuckDatabases(pool: AsyncDuckDBConnectionPool)
       await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(db.name)}`);
     } catch (error) {
       console.warn(`Failed to detach MotherDuck database '${db.name}':`, error);
+    } finally {
+      pool.registerGlobalDetach(db.name);
     }
   }
+
+  pool.registerGlobalDetach('md:');
 }
 
 /**

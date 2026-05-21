@@ -144,6 +144,40 @@ describe('export-data utils', () => {
       expect(mockLink.click).toHaveBeenCalled();
       expect(mockLink.download).toBe('output.parquet');
     });
+
+    it('should use adapter-provided Parquet COPY when available', async () => {
+      const mockQuery = jest.fn<(sql: string) => Promise<any>>().mockResolvedValue({});
+      const mockCopyToParquet = jest
+        .fn<(tempFileName: string, compression: string) => Promise<void>>()
+        .mockResolvedValue(undefined);
+      const mockCopyFileToBuffer = jest
+        .fn<() => Promise<Uint8Array>>()
+        .mockResolvedValue(new Uint8Array([1, 2, 3]));
+      const mockDropFile = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+
+      const adapter = {
+        sourceQuery: 'SELECT * FROM session_temp_table',
+        copyToParquet: mockCopyToParquet,
+        pool: {
+          query: mockQuery,
+          copyFileToBuffer: mockCopyFileToBuffer,
+          dropFile: mockDropFile,
+        },
+      } as unknown as DataAdapterApi;
+
+      await exportAsParquet(
+        adapter,
+        { includeHeader: true, compression: 'zstd' },
+        'session.parquet',
+      );
+
+      expect(mockCopyToParquet).toHaveBeenCalledTimes(1);
+      expect(mockCopyToParquet.mock.calls[0][0]).toMatch(/^__parquet_export_.*\.parquet$/);
+      expect(mockCopyToParquet.mock.calls[0][1]).toBe('zstd');
+      expect(mockQuery).not.toHaveBeenCalled();
+      expect(mockCopyFileToBuffer).toHaveBeenCalledTimes(1);
+      expect(mockDropFile).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('isValidXmlElementName', () => {

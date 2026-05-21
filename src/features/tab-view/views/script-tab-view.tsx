@@ -30,6 +30,12 @@ import {
   handleCreateSecretStatements,
   handleDetachStatements,
 } from '@utils/attach-detach-handler';
+import {
+  parseAttachStatement,
+  parseDetachStatement,
+  parseIcebergAttachStatement,
+  parseMotherDuckAttachStatement,
+} from '@utils/attach-parser';
 import { buildUseStatement, checkValidDuckDBIdentifer } from '@utils/duckdb/identifier';
 import {
   splitSQLByStats,
@@ -205,7 +211,28 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       await dataAdapter.cancelDataRead();
 
       // Create/reuse the tab-pinned connection so session state is isolated per script tab.
-      const conn = await pool.pinForTab(tab.id);
+      const conn = await pool.pinForTab(tab.id).catch((error) => {
+        const message = getErrorMessage(error);
+        console.error('Error preparing DuckDB session for script:', error);
+        setScriptExecutionState('error');
+        setTabExecutionError(tabId, {
+          errorMessage: message,
+          statementType: SQLStatement.USE,
+          timestamp: Date.now(),
+          lineNumber: 1,
+          statementIndex: 0,
+          statementCode: 'RESTORE SESSION',
+        });
+        showError({
+          title: 'Error restoring script session',
+          message,
+        });
+        return null;
+      });
+
+      if (!conn) {
+        return;
+      }
 
       const readBackSessionState = async () => {
         try {
@@ -280,6 +307,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         const shouldUseTransaction =
           classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
         let transactionActive = false;
+        const replayableSqlByStatement = new Map<ClassifiedSQLStatement, string>();
 
         const beginTransactionIfNeeded = async (
           statement: (typeof classifiedStatements)[number],
@@ -304,11 +332,18 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           }
         };
 
-        const runQueryWithFileSyncAndRetry = async (code: string) => {
+        const runQueryWithFileSyncAndRetry = async (statement: ClassifiedSQLStatement) => {
+          const { code } = statement;
+          let executedSql = code;
+          const options = {
+            rollbackOnCorsError: !transactionActive,
+            onExecutedQuery: (sql: string) => {
+              executedSql = sql;
+            },
+          };
           try {
-            await pooledConnectionQueryWithCorsRetry(conn, code, {
-              rollbackOnCorsError: !transactionActive,
-            });
+            await pooledConnectionQueryWithCorsRetry(conn, code, options);
+            replayableSqlByStatement.set(statement, executedSql);
           } catch (error: unknown) {
             if (/^\s*USE\s+/i.test(code) && (await runQualifiedUseFallback(code))) {
               return;
@@ -316,9 +351,8 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
             if (isNotReadableError(error)) {
               await syncFiles(pool);
-              await pooledConnectionQueryWithCorsRetry(conn, code, {
-                rollbackOnCorsError: !transactionActive,
-              });
+              await pooledConnectionQueryWithCorsRetry(conn, code, options);
+              replayableSqlByStatement.set(statement, executedSql);
             } else {
               throw error;
             }
@@ -347,7 +381,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               await commitTransactionIfActive();
             }
             await beginTransactionIfNeeded(statement);
-            await runQueryWithFileSyncAndRetry(statement.code);
+            await runQueryWithFileSyncAndRetry(statement);
           } catch (error) {
             const message = getErrorMessage(error);
             await rollbackTransactionIfActive();
@@ -427,7 +461,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               await commitTransactionIfActive();
             }
             await beginTransactionIfNeeded(lastStatement);
-            await runQueryWithFileSyncAndRetry(lastStatement.code);
+            await runQueryWithFileSyncAndRetry(lastStatement);
           } catch (error) {
             const message = getErrorMessage(error);
             await rollbackTransactionIfActive();
@@ -476,6 +510,36 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         );
 
         if (hasDDL || hasAttachDetach) {
+          if (hasAttachDetach) {
+            const secretSetupStatements = classifiedStatements
+              .filter(
+                (s) => s.type === SQLStatement.CREATE && SECRET_STATEMENT_PATTERN.test(s.code),
+              )
+              .map((s) => s.code);
+
+            for (const statement of classifiedStatements) {
+              if (statement.type === SQLStatement.ATTACH) {
+                const dbName =
+                  parseIcebergAttachStatement(statement.code)?.catalogAlias ??
+                  parseAttachStatement(statement.code)?.dbName ??
+                  parseMotherDuckAttachStatement(statement.code)?.dbName;
+                if (dbName) {
+                  pool.registerGlobalAttach(
+                    dbName,
+                    replayableSqlByStatement.get(statement) ?? statement.code,
+                    secretSetupStatements,
+                    { appliedTabId: tab.id },
+                  );
+                }
+              } else if (statement.type === SQLStatement.DETACH) {
+                const dbName = parseDetachStatement(statement.code);
+                if (dbName) {
+                  pool.registerGlobalDetach(dbName, { appliedTabId: tab.id });
+                }
+              }
+            }
+          }
+
           // Get all currently attached databases
           const attachedDatabasesResult = await conn.query(
             'SELECT DISTINCT database_name FROM duckdb_databases() WHERE NOT internal',
@@ -564,6 +628,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         <Allotment.Pane preferredSize={tab.editorPaneHeight} minSize={200}>
           <ScriptEditor
             id={tab.sqlScriptId}
+            tabId={tab.id}
             active={active}
             runScriptQuery={runScriptQuery}
             scriptState={scriptExecutionState}
