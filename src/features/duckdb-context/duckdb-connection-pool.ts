@@ -1,8 +1,15 @@
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import type { TabId } from '@models/tab';
 import { toAbortablePromise } from '@utils/abort';
-import type { CatalogSchemaSelection } from '@utils/duckdb/identifier';
+import {
+  parseAttachStatement,
+  parseDetachStatement,
+  parseIcebergAttachStatement,
+  parseMotherDuckAttachStatement,
+} from '@utils/attach-parser';
+import { toDuckDBIdentifier, type CatalogSchemaSelection } from '@utils/duckdb/identifier';
 import { getViteEnv } from '@utils/env';
+import { quote } from '@utils/helpers';
 import * as arrow from 'apache-arrow';
 
 import { AsyncDuckDBPooledConnection } from './duckdb-pooled-connection';
@@ -37,6 +44,15 @@ const DEFAULT_CHECKPOINT_CONFIG: CheckpointConfig = {
 
 type DuckDBConnectionConnAndIndex = { conn: AsyncDuckDBConnection; index: number };
 type ConnectionClaimMode = 'background' | 'pinnable' | 'any';
+type RegisteredAttach = {
+  sql: string;
+  setupSql: string[];
+  version: number;
+};
+type RegisterGlobalCatalogMutationOptions = {
+  appliedConnection?: AsyncDuckDBConnection;
+  appliedTabId?: TabId;
+};
 
 export type DuckDBConnectionPoolOptions = {
   backgroundReservation?: number;
@@ -79,6 +95,13 @@ export class AsyncDuckDBConnectionPool {
   protected readonly _connections: AsyncDuckDBConnection[];
   /** The set of connections in use (indexes) */
   protected readonly _inUse: Set<number>;
+  /**
+   * Indexes whose connection was removed from rotation (tombstoned). The slot
+   * is kept in `_connections` so existing indexes never shift — see
+   * `_removeConnection`. Dead slots are skipped when claiming and on close, and
+   * are never reused, which drops the broken connection and reduces capacity.
+   */
+  protected readonly _deadIndices: Set<number> = new Set();
   /** Optional callback to update persistence state after operations */
   protected readonly _updateStateCallback?: UpdateStateFn;
   protected readonly _checkpointConfig: CheckpointConfig;
@@ -91,6 +114,13 @@ export class AsyncDuckDBConnectionPool {
   private readonly _pinnedTabs: Map<TabId, number> = new Map();
   private readonly _pinnedLruOrder: TabId[] = [];
   private readonly _backgroundReservation: number = 5;
+  /**
+   * Number of slots at the top of the pinnable region that background work may
+   * never claim, so this many pins can always be created without waiting on
+   * background load. Mirrors `_backgroundReservation` at the other end of the
+   * pool; computed in the constructor and clamped to the pinnable region size.
+   */
+  private readonly _pinReservation: number = 5;
   private readonly _onTabEvicted?: (tabId: TabId) => void;
   private readonly _onBeforeTabConnectionUse?: (
     tabId: TabId,
@@ -109,6 +139,13 @@ export class AsyncDuckDBConnectionPool {
    * connection without waiting for the pool timeout.
    */
   private readonly _pinnedReaders: Map<TabId, AsyncDuckDBPooledStreamReader<any>> = new Map();
+  private readonly _registeredAttaches: Map<string, RegisteredAttach> = new Map();
+  private readonly _registeredDetaches: Map<string, number> = new Map();
+  private readonly _connectionCatalogVersions: WeakMap<AsyncDuckDBConnection, number> =
+    new WeakMap();
+  private readonly _connectionAppliedCatalogMutations: WeakMap<AsyncDuckDBConnection, Set<number>> =
+    new WeakMap();
+  private _catalogVersion = 0;
 
   // State for checkpoint throttling
   private _lastCheckpointTime: number = 0;
@@ -138,6 +175,112 @@ export class AsyncDuckDBConnectionPool {
       this._connectionInitPromises.delete(conn);
       throw error;
     }
+  }
+
+  private async _databaseExists(conn: AsyncDuckDBConnection, dbName: string): Promise<boolean> {
+    const result = await conn.query(
+      `SELECT database_name FROM duckdb_databases() WHERE database_name = ${quote(dbName, { single: true })}`,
+    );
+    return result.toArray().length > 0;
+  }
+
+  /**
+   * Detach `dbName` from `conn` if it is attached. Returns whether detaching
+   * switched the connection off its current catalog (via `USE memory`): when it
+   * did, any tab session bound to that catalog is no longer in effect on the
+   * connection and must be replayed before the connection is used again.
+   */
+  private async _detachIfPresent(conn: AsyncDuckDBConnection, dbName: string): Promise<boolean> {
+    if (!(await this._databaseExists(conn, dbName))) {
+      return false;
+    }
+
+    const current = await conn.query('SELECT current_database() AS db');
+    const currentDb = (current.toArray()[0] as { db?: string | null } | undefined)?.db ?? null;
+    let switchedOffCurrent = false;
+    if (currentDb === dbName) {
+      await conn.query('USE memory;');
+      switchedOffCurrent = true;
+    }
+
+    await conn.query(`DETACH ${toDuckDBIdentifier(dbName)}`);
+    return switchedOffCurrent;
+  }
+
+  /**
+   * Reconcile `conn`'s attached catalogs with the globally registered ATTACH/
+   * DETACH set. Returns whether reconciliation switched the connection off its
+   * current catalog: a `true` result means a pinned tab's saved session
+   * (catalog/schema/search_path) no longer applies and must be replayed before
+   * the tab's next query, even on a claim that would otherwise skip replay.
+   */
+  private async _ensureConnectionCatalogState(conn: AsyncDuckDBConnection): Promise<boolean> {
+    const connVersion = this._connectionCatalogVersions.get(conn) ?? 0;
+    const targetVersion = this._catalogVersion;
+    if (connVersion === targetVersion) {
+      return false;
+    }
+    const appliedMutations = this._connectionAppliedCatalogMutations.get(conn);
+
+    // Set when a detach switches the connection off its current catalog, so
+    // callers can restore a pinned tab's session that the detach invalidated.
+    let sessionDisturbed = false;
+
+    const registeredAttaches = new Map(
+      Array.from(this._registeredAttaches).filter(([, attach]) => attach.version <= targetVersion),
+    );
+    const registeredDetaches = new Map(
+      Array.from(this._registeredDetaches).filter(
+        ([dbName, detachVersion]) =>
+          detachVersion <= targetVersion && !registeredAttaches.has(dbName),
+      ),
+    );
+
+    for (const [dbName, detachVersion] of registeredDetaches) {
+      if (detachVersion > connVersion && !appliedMutations?.has(detachVersion)) {
+        if (await this._detachIfPresent(conn, dbName)) {
+          sessionDisturbed = true;
+        }
+      }
+    }
+
+    for (const [dbName, attach] of registeredAttaches) {
+      if (appliedMutations?.has(attach.version)) {
+        continue;
+      }
+
+      if (dbName === 'md:' && attach.version <= connVersion) {
+        continue;
+      }
+
+      if (attach.version <= connVersion && (await this._databaseExists(conn, dbName))) {
+        continue;
+      }
+
+      if (attach.version > connVersion) {
+        if (await this._detachIfPresent(conn, dbName)) {
+          sessionDisturbed = true;
+        }
+      }
+
+      for (const setupSql of attach.setupSql) {
+        try {
+          await conn.query(setupSql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.toLowerCase().includes('already exists')) {
+            throw error;
+          }
+        }
+      }
+
+      if (!(await this._databaseExists(conn, dbName))) {
+        await conn.query(attach.sql);
+      }
+    }
+
+    this._connectionCatalogVersions.set(conn, targetVersion);
+    return sessionDisturbed;
   }
 
   /**
@@ -172,6 +315,13 @@ export class AsyncDuckDBConnectionPool {
       0,
       Math.min(options?.backgroundReservation ?? 5, Math.max(0, maxSize - 1)),
     );
+    // Reserve a matching band for pins at the top of the pinnable region.
+    // Clamp to the pinnable region size (`maxSize - backgroundReservation`) so
+    // the two reserved bands never overlap and background keeps its floor.
+    this._pinReservation = Math.min(
+      this._backgroundReservation,
+      this._maxSize - this._backgroundReservation,
+    );
     this._onTabEvicted = options?.onTabEvicted;
     this._onBeforeTabConnectionUse = options?.onBeforeTabConnectionUse;
     this._onTabConnectionSessionRecorded = options?.onTabConnectionSessionRecorded;
@@ -190,7 +340,11 @@ export class AsyncDuckDBConnectionPool {
   ): boolean {
     if (pinnedIndexes.has(index)) return false;
     if (mode === 'any') return true;
-    if (mode === 'background') return index < this._backgroundReservation;
+    // Background may use its reserved floor plus any idle slot in the shared
+    // middle, but never the pin-reserved band at the top of the pinnable
+    // region — that band keeps `_pinReservation` slots claimable for pins even
+    // under sustained background load.
+    if (mode === 'background') return index < this._maxSize - this._pinReservation;
     return index >= this._backgroundReservation;
   }
 
@@ -202,20 +356,43 @@ export class AsyncDuckDBConnectionPool {
     this._pinnedLruOrder.push(tabId);
   }
 
-  private async _claimPinnedTab(tabId: TabId): Promise<DuckDBConnectionConnAndIndex> {
-    const index = this._pinnedTabs.get(tabId);
-    if (index === undefined) {
-      throw new Error(`Tab ${tabId} does not have a pinned DuckDB connection`);
-    }
-
+  private async _claimPinnedTab(
+    tabId: TabId,
+    // `replayOnCatalogChange` forces a session replay when catalog
+    // reconciliation switched the connection off its catalog, even if
+    // `replaySession` is false. Reclaim paths opt out: they reset/replace the
+    // connection immediately, so restoring the session would be wasted work
+    // (and could throw on a catalog that can no longer be reached).
+    {
+      replaySession = true,
+      replayOnCatalogChange = true,
+    }: { replaySession?: boolean; replayOnCatalogChange?: boolean } = {},
+  ): Promise<DuckDBConnectionConnAndIndex> {
     const startTime = Date.now();
     while (Date.now() - startTime < GET_CONNECTION_TIMEOUT) {
-      if (!this._inUse.has(index)) {
+      // Re-read the index every iteration. While we wait for the slot to free
+      // up, the pin can be evicted/unpinned and its connection replaced; a
+      // stale captured index would bind us to a fresh connection that never had
+      // this tab's session replayed (silently wrong catalog/schema). If the pin
+      // is gone, fail fast rather than claim a foreign slot.
+      const index = this._pinnedTabs.get(tabId);
+      if (index === undefined) {
+        throw new Error(`Tab ${tabId} does not have a pinned DuckDB connection`);
+      }
+      // Skip a tombstoned slot: `_removeConnection` clears `_inUse` before it
+      // finishes closing the connection and before `_reclaimPinnedSlot` drops
+      // the `_pinnedTabs` mapping. Without this guard a concurrent claim could
+      // bind the closing connection. Polling lets the teardown finish, after
+      // which the pin mapping is gone and the claim fails fast above.
+      if (!this._inUse.has(index) && !this._deadIndices.has(index)) {
         this._inUse.add(index);
         const conn = this._connections[index];
         try {
           await this._ensureConnectionInitialized(conn);
-          await this._onBeforeTabConnectionUse?.(tabId, conn);
+          const catalogChanged = await this._ensureConnectionCatalogState(conn);
+          if (replaySession || (replayOnCatalogChange && catalogChanged)) {
+            await this._onBeforeTabConnectionUse?.(tabId, conn);
+          }
           this._touchPinnedTab(tabId);
         } catch (error) {
           await this._releaseConnection(index);
@@ -227,6 +404,38 @@ export class AsyncDuckDBConnectionPool {
     }
 
     throw new PoolTimeoutError();
+  }
+
+  private async _tryClaimPinnedTab(
+    tabId: TabId,
+    { replaySession = true }: { replaySession?: boolean } = {},
+  ): Promise<DuckDBConnectionConnAndIndex | null> {
+    const index = this._pinnedTabs.get(tabId);
+    // A tombstoned slot (see `_claimPinnedTab`) is not claimable: its connection
+    // is being closed even though `_inUse` no longer holds it.
+    if (
+      index === undefined ||
+      this._inUse.has(index) ||
+      this._deadIndices.has(index) ||
+      this._pinnedReaders.has(tabId)
+    ) {
+      return null;
+    }
+
+    this._inUse.add(index);
+    const conn = this._connections[index];
+    try {
+      await this._ensureConnectionInitialized(conn);
+      const catalogChanged = await this._ensureConnectionCatalogState(conn);
+      if (replaySession || catalogChanged) {
+        await this._onBeforeTabConnectionUse?.(tabId, conn);
+      }
+      this._touchPinnedTab(tabId);
+      return { conn, index };
+    } catch (error) {
+      await this._releaseConnection(index);
+      throw error;
+    }
   }
 
   /**
@@ -271,30 +480,32 @@ export class AsyncDuckDBConnectionPool {
    * reset and replace the underlying connection so no session state leaks, then
    * drop all pin bookkeeping.
    *
-   * Connection reset/replace is best-effort. A throw there must not skip the
-   * bookkeeping cleanup: if it did, the tab would stay in `_pinnedTabs` while
-   * its LRU entry is already gone, producing a slot that can never be reclaimed
-   * again (a permanent leak of pinnable capacity). With `_resetConnectionState`
-   * fully guarded, the only thing that can throw here is `_replaceConnection`'s
-   * initializer, after the reset already succeeded — so the old connection is
-   * left clean and safe to reuse.
+   * If replacement fails, remove the old connection from the pool instead of
+   * releasing it. Reset is best-effort and cannot clear all connection-scoped
+   * state (for example temp tables), so a failed replacement must not let the
+   * evicted tab's session leak into later work.
    */
   private async _reclaimPinnedSlot(tabId: TabId, index: number): Promise<void> {
     await this._drainPinnedTabSlot(tabId, index);
 
-    await this._claimPinnedTab(tabId);
+    await this._claimPinnedTab(tabId, { replaySession: false, replayOnCatalogChange: false });
+    let releaseClaim = true;
     try {
       try {
         await this._resetConnectionState(this._connections[index]);
         await this._replaceConnection(index);
       } catch (error) {
         console.warn('Failed to reset/replace connection while reclaiming pinned slot:', error);
+        await this._removeConnection(index);
+        releaseClaim = false;
       }
       this._pinnedTabs.delete(tabId);
       const lruIndex = this._pinnedLruOrder.indexOf(tabId);
       if (lruIndex >= 0) this._pinnedLruOrder.splice(lruIndex, 1);
     } finally {
-      await this._releaseConnection(index);
+      if (releaseClaim) {
+        await this._releaseConnection(index);
+      }
     }
   }
 
@@ -318,7 +529,11 @@ export class AsyncDuckDBConnectionPool {
   }
 
   private async _resetConnectionState(conn: AsyncDuckDBConnection): Promise<void> {
-    await conn.cancelSent();
+    try {
+      await conn.cancelSent();
+    } catch (error) {
+      console.warn('Failed to cancel pending DuckDB statements during connection reset:', error);
+    }
     // ROLLBACK must run before USE: DuckDB rejects catalog changes inside an
     // active transaction, so if the previous holder left one open, USE memory
     // would silently fail and leave the connection in an inconsistent state.
@@ -360,6 +575,26 @@ export class AsyncDuckDBConnectionPool {
     await oldConn.close();
   }
 
+  private async _removeConnection(index: number): Promise<void> {
+    const conn = this._connections[index];
+
+    // Tombstone the slot instead of splicing it out. Outstanding pooled
+    // connections capture their slot index in their onClose closure; splicing
+    // would shift every higher index and make those closures release (and
+    // FORCE CHECKPOINT) the wrong connection while leaking the real slot.
+    // Keeping the slot in place leaves all indexes stable. The dead slot is
+    // skipped when claiming and on close and is never reused, which both drops
+    // the broken connection from rotation and reduces pool capacity by one.
+    this._deadIndices.add(index);
+    this._inUse.delete(index);
+
+    try {
+      await conn.close();
+    } catch (error) {
+      console.warn('Failed to close removed DuckDB connection:', error);
+    }
+  }
+
   /**
    * Claims (finds and marks as in use) a connection from the pool if one is available.
    */
@@ -376,7 +611,9 @@ export class AsyncDuckDBConnectionPool {
       }))
       .find(
         (_, index) =>
-          !this._inUse.has(index) && this._isIndexAllowedForMode(index, mode, pinnedIndexes),
+          !this._inUse.has(index) &&
+          !this._deadIndices.has(index) &&
+          this._isIndexAllowedForMode(index, mode, pinnedIndexes),
       );
 
     // If a connection is not found, return null
@@ -402,8 +639,14 @@ export class AsyncDuckDBConnectionPool {
     const available = this._claimConnection(mode);
 
     if (available) {
-      await this._ensureConnectionInitialized(available.conn);
-      return available;
+      try {
+        await this._ensureConnectionInitialized(available.conn);
+        await this._ensureConnectionCatalogState(available.conn);
+        return available;
+      } catch (error) {
+        await this._releaseConnection(available.index);
+        throw error;
+      }
     }
 
     // If no connection is available, create a new one if we still
@@ -414,6 +657,7 @@ export class AsyncDuckDBConnectionPool {
           const backgroundConn = await this._bindings.connect();
           try {
             await this._ensureConnectionInitialized(backgroundConn);
+            await this._ensureConnectionCatalogState(backgroundConn);
           } catch (error) {
             await backgroundConn.close().catch((closeError) => {
               console.warn('Failed to close connection after initializer error:', closeError);
@@ -427,6 +671,7 @@ export class AsyncDuckDBConnectionPool {
       const conn = await this._bindings.connect();
       try {
         await this._ensureConnectionInitialized(conn);
+        await this._ensureConnectionCatalogState(conn);
       } catch (error) {
         try {
           await conn.close();
@@ -458,6 +703,7 @@ export class AsyncDuckDBConnectionPool {
       if (availableConn) {
         try {
           await this._ensureConnectionInitialized(availableConn.conn);
+          await this._ensureConnectionCatalogState(availableConn.conn);
         } catch (error) {
           this._releaseConnection(availableConn.index);
           throw error;
@@ -614,7 +860,11 @@ export class AsyncDuckDBConnectionPool {
    */
   public async close() {
     for (const tabId of Array.from(this._pinnedTabs.keys())) {
-      await this.unpinTab(tabId);
+      try {
+        await this.unpinTab(tabId);
+      } catch (error) {
+        console.warn('Failed to unpin DuckDB tab connection during pool close:', error);
+      }
     }
 
     // Try to do a final checkpoint before closing
@@ -639,9 +889,15 @@ export class AsyncDuckDBConnectionPool {
       console.error('Error during final checkpoint:', error);
     }
 
-    // Close all connections
-    await Promise.all(this._connections.map((conn) => conn.close()));
+    // Close all connections. Dead (tombstoned) slots hold an already-closed
+    // connection, so skip them to avoid double-closing.
+    await Promise.all(
+      this._connections
+        .filter((_, index) => !this._deadIndices.has(index))
+        .map((conn) => conn.close()),
+    );
     this._connections.length = 0;
+    this._deadIndices.clear();
   }
 
   /**
@@ -675,9 +931,12 @@ export class AsyncDuckDBConnectionPool {
     }
   }
 
-  public async pinForTab(tabId: TabId): Promise<AsyncDuckDBPooledConnection> {
+  public async pinForTab(
+    tabId: TabId,
+    { replaySession = true }: { replaySession?: boolean } = {},
+  ): Promise<AsyncDuckDBPooledConnection> {
     if (this._pinnedTabs.has(tabId)) {
-      const { conn, index } = await this._claimPinnedTab(tabId);
+      const { conn, index } = await this._claimPinnedTab(tabId, { replaySession });
       return new AsyncDuckDBPooledConnection({
         conn,
         onClose: async () => {
@@ -689,7 +948,7 @@ export class AsyncDuckDBConnectionPool {
     const pendingPin = this._pinPromises.get(tabId);
     if (pendingPin) {
       await pendingPin;
-      return this.pinForTab(tabId);
+      return this.pinForTab(tabId, { replaySession });
     }
 
     const runPin = async () => {
@@ -723,7 +982,42 @@ export class AsyncDuckDBConnectionPool {
       this._pinPromises.delete(tabId);
     }
 
-    return this.pinForTab(tabId);
+    return this.pinForTab(tabId, { replaySession });
+  }
+
+  private async _ensurePinnedTabHydrated(tabId: TabId): Promise<void> {
+    if (!this._pinnedTabs.has(tabId)) {
+      const pinned = await this.pinForTab(tabId);
+      await pinned.close();
+    }
+  }
+
+  public async pinForTabDataOperation(tabId: TabId): Promise<AsyncDuckDBPooledConnection> {
+    await this._ensurePinnedTabHydrated(tabId);
+    await this._closePinnedReader(tabId);
+    // Hydration above replays the session when it has to create the pin. If the
+    // pin was instead evicted/unpinned in the meantime, `pinForTab` recreates it
+    // on a fresh connection, so the session must be replayed — otherwise the
+    // data op runs against the default catalog/schema and silently returns the
+    // wrong rows. When the pin survived, its connection already carries the
+    // session, so skip the (costly) replay as before.
+    const replaySession = !this._pinnedTabs.has(tabId);
+    return this.pinForTab(tabId, { replaySession });
+  }
+
+  public async tryPinForTabDataOperation(
+    tabId: TabId,
+  ): Promise<AsyncDuckDBPooledConnection | null> {
+    const claimed = await this._tryClaimPinnedTab(tabId, { replaySession: false });
+    if (!claimed) return null;
+
+    const { conn, index } = claimed;
+    return new AsyncDuckDBPooledConnection({
+      conn,
+      onClose: async () => {
+        await this._releaseConnection(index);
+      },
+    });
   }
 
   public recordPinnedTabConnectionSession(tabId: TabId, session: CatalogSchemaSelection): void {
@@ -734,6 +1028,97 @@ export class AsyncDuckDBConnectionPool {
     if (!conn) return;
 
     this._onTabConnectionSessionRecorded?.(tabId, conn, session);
+  }
+
+  private _markCatalogMutationApplied(conn: AsyncDuckDBConnection, version: number): void {
+    let appliedMutations = this._connectionAppliedCatalogMutations.get(conn);
+    if (!appliedMutations) {
+      appliedMutations = new Set<number>();
+      this._connectionAppliedCatalogMutations.set(conn, appliedMutations);
+    }
+    appliedMutations.add(version);
+
+    let contiguousVersion = this._connectionCatalogVersions.get(conn) ?? 0;
+    while (appliedMutations.has(contiguousVersion + 1)) {
+      contiguousVersion += 1;
+    }
+    this._connectionCatalogVersions.set(conn, contiguousVersion);
+  }
+
+  private _markCatalogVersionApplied(
+    options: RegisterGlobalCatalogMutationOptions,
+    version: number,
+  ): void {
+    if (options.appliedConnection) {
+      this._markCatalogMutationApplied(options.appliedConnection, version);
+      return;
+    }
+
+    if (options.appliedTabId) {
+      const index = this._pinnedTabs.get(options.appliedTabId);
+      const conn = index === undefined ? undefined : this._connections[index];
+      if (conn) {
+        this._markCatalogMutationApplied(conn, version);
+      }
+    }
+  }
+
+  public registerGlobalAttach(
+    dbName: string,
+    sql: string,
+    setupSql: string[] = [],
+    options: RegisterGlobalCatalogMutationOptions = {},
+  ): void {
+    const existing = this._registeredAttaches.get(dbName);
+    if (existing?.sql === sql) {
+      this._registeredAttaches.set(dbName, {
+        ...existing,
+        setupSql: setupSql.length > 0 ? setupSql : existing.setupSql,
+      });
+      this._registeredDetaches.delete(dbName);
+      this._markCatalogVersionApplied(options, existing.version);
+      return;
+    }
+
+    this._catalogVersion += 1;
+    const version = this._catalogVersion;
+    this._registeredAttaches.set(dbName, {
+      sql,
+      setupSql,
+      version,
+    });
+    this._registeredDetaches.delete(dbName);
+    this._markCatalogVersionApplied(options, version);
+  }
+
+  public registerGlobalDetach(
+    dbName: string,
+    options: RegisterGlobalCatalogMutationOptions = {},
+  ): void {
+    this._catalogVersion += 1;
+    const version = this._catalogVersion;
+    this._registeredAttaches.delete(dbName);
+    this._registeredDetaches.set(dbName, version);
+    this._markCatalogVersionApplied(options, version);
+  }
+
+  private _recordGlobalCatalogMutation(
+    sql: string,
+    appliedConnection: AsyncDuckDBConnection,
+  ): void {
+    const attach =
+      parseIcebergAttachStatement(sql)?.catalogAlias ??
+      parseAttachStatement(sql)?.dbName ??
+      parseMotherDuckAttachStatement(sql)?.dbName;
+    if (attach) {
+      this.registerGlobalAttach(attach, sql, [], { appliedConnection });
+      return;
+    }
+
+    const detach = parseDetachStatement(sql);
+    if (detach) {
+      this.registerGlobalDetach(detach, { appliedConnection });
+    }
   }
 
   public async unpinTab(tabId: TabId): Promise<void> {
@@ -768,15 +1153,12 @@ export class AsyncDuckDBConnectionPool {
     text: string,
     signal: AbortSignal,
   ): Promise<{ value: arrow.Table<T>; aborted: false } | { value: void; aborted: true }> {
-    if (!this._pinnedTabs.has(tabId)) {
-      const pinned = await this.pinForTab(tabId);
-      await pinned.close();
-    }
+    await this._ensurePinnedTabHydrated(tabId);
 
     await this._closePinnedReader(tabId);
 
     const batches = [] as arrow.RecordBatch[];
-    const { conn, index } = await this._claimPinnedTab(tabId);
+    const { conn, index } = await this._claimPinnedTab(tabId, { replaySession: false });
 
     const read = async () => {
       for await (const batch of await conn.send<T>(text, true)) {
@@ -809,14 +1191,11 @@ export class AsyncDuckDBConnectionPool {
     signal: AbortSignal,
     allowStreamResult?: boolean,
   ): Promise<AsyncDuckDBPooledStreamReader<T> | null> {
-    if (!this._pinnedTabs.has(tabId)) {
-      const pinned = await this.pinForTab(tabId);
-      await pinned.close();
-    }
+    await this._ensurePinnedTabHydrated(tabId);
 
     await this._closePinnedReader(tabId);
 
-    const { conn, index } = await this._claimPinnedTab(tabId);
+    const { conn, index } = await this._claimPinnedTab(tabId, { replaySession: false });
 
     try {
       const result = await toAbortablePromise({
@@ -903,6 +1282,7 @@ export class AsyncDuckDBConnectionPool {
     try {
       // run the query
       const res = await conn.query<T>(text);
+      this._recordGlobalCatalogMutation(text, conn);
 
       // Return the result
       return res;
