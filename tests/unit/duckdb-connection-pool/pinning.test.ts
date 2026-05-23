@@ -1130,4 +1130,73 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
     unpinSpy.mockRestore();
     warnSpy.mockRestore();
   });
+
+  it('serializes concurrent catalog mutations so they cannot interleave', async () => {
+    // Reproduces the concurrent-restore race: re-attaching several local
+    // databases at once issues ATTACH/DETACH on different pooled connections,
+    // and per-connection reconciliation replays the global set. Without
+    // serialization these interleave and cross-wire across connections. The
+    // catalog mutation queue must run each ATTACH/DETACH (reconcile + execute +
+    // register) exclusively, in submission order.
+    const connections: FakeConnection[] = [];
+    let releaseFirst: () => void = () => {};
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const attachStarted: string[] = [];
+
+    const bindings = {
+      connect: jest.fn(async () => {
+        const conn = new FakeConnection(connections.length);
+        const runQuery = conn.query.bind(conn);
+        conn.query = async (sql: string) => {
+          const attach = /ATTACH\s+'[^']*'\s+AS\s+(\w+)/i.exec(sql);
+          if (attach) {
+            const db = attach[1];
+            attachStarted.push(db);
+            // Block the first mutation mid-flight while it holds the queue, so
+            // we can observe whether the second mutation starts before the
+            // first finishes.
+            if (db === 'db_a') {
+              await firstGate;
+            }
+          }
+          return runQuery(sql);
+        };
+        connections.push(conn);
+        return conn;
+      }),
+    };
+
+    const pool = new AsyncDuckDBConnectionPool(
+      bindings as any,
+      6,
+      undefined,
+      undefined,
+      undefined,
+      {
+        backgroundReservation: 2,
+      },
+    );
+
+    const first = pool.query("ATTACH 'a.duckdb' AS db_a (READ_ONLY)");
+    const second = pool.query("ATTACH 'b.duckdb' AS db_b (READ_ONLY)");
+
+    // Let microtasks settle. The first mutation holds the queue (blocked on
+    // firstGate), so the second must not have started its ATTACH yet.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(attachStarted).toEqual(['db_a']);
+
+    releaseFirst();
+    await Promise.all([first, second]);
+
+    // The second mutation's ATTACH only ran after the first released the queue
+    // (it is never first), and both mutations registered without cross-wiring
+    // errors. Reconciliation may re-run an earlier ATTACH while bringing a
+    // freshly used connection up to the current catalog version, so we don't
+    // assert the exact replay sequence.
+    expect(attachStarted[0]).toBe('db_a');
+    expect(attachStarted).toContain('db_b');
+    expect(Array.from((pool as any)._registeredAttaches.keys()).sort()).toEqual(['db_a', 'db_b']);
+  });
 });

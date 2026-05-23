@@ -146,6 +146,18 @@ export class AsyncDuckDBConnectionPool {
   private readonly _connectionAppliedCatalogMutations: WeakMap<AsyncDuckDBConnection, Set<number>> =
     new WeakMap();
   private _catalogVersion = 0;
+  /**
+   * Serializes catalog-state changes (ATTACH/DETACH execution + registration)
+   * and the per-connection reconciliation that depends on them. Because the
+   * pool spreads work across many connections and reconciliation replays the
+   * global attach/detach set, concurrent catalog mutations (e.g. restoring
+   * several local databases at once) would otherwise interleave and cross-wire
+   * DETACH/ATTACH across connections. Operations that actually mutate catalog
+   * state run exclusively through this queue; the no-op fast path (a connection
+   * already at the current version) stays off the queue so steady-state query
+   * concurrency is unaffected.
+   */
+  private _catalogMutationQueue: Promise<unknown> = Promise.resolve();
 
   // State for checkpoint throttling
   private _lastCheckpointTime: number = 0;
@@ -214,7 +226,59 @@ export class AsyncDuckDBConnectionPool {
    * (catalog/schema/search_path) no longer applies and must be replayed before
    * the tab's next query, even on a claim that would otherwise skip replay.
    */
-  private async _ensureConnectionCatalogState(conn: AsyncDuckDBConnection): Promise<boolean> {
+  /**
+   * Run `fn` exclusively with respect to all other catalog-mutating work
+   * (reconciliation and ATTACH/DETACH execution + registration). See
+   * `_catalogMutationQueue`.
+   */
+  private _runSerializedCatalogOp<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this._catalogMutationQueue.then(fn, fn);
+    // Keep the chain alive regardless of this op's outcome so a single failure
+    // can't wedge the queue.
+    this._catalogMutationQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  /**
+   * True when `sql` is an ATTACH/DETACH that mutates the global catalog set.
+   * Mirrors the statements `_recordGlobalCatalogMutation` registers.
+   */
+  private _isCatalogMutation(sql: string): boolean {
+    return Boolean(
+      parseIcebergAttachStatement(sql)?.catalogAlias ??
+        parseAttachStatement(sql)?.dbName ??
+        parseMotherDuckAttachStatement(sql)?.dbName ??
+        parseDetachStatement(sql),
+    );
+  }
+
+  /**
+   * Reconcile `conn`'s attached catalogs with the globally registered ATTACH/
+   * DETACH set. The no-op fast path (connection already at the current version)
+   * runs lock-free so steady-state query concurrency is unaffected. When
+   * reconciliation has real work to do it must run on the catalog mutation
+   * queue so it can't interleave with concurrent ATTACH/DETACH: callers that
+   * already hold the queue pass `serialized: true`, everyone else joins it
+   * here.
+   */
+  private async _ensureConnectionCatalogState(
+    conn: AsyncDuckDBConnection,
+    { serialized = false }: { serialized?: boolean } = {},
+  ): Promise<boolean> {
+    const connVersion = this._connectionCatalogVersions.get(conn) ?? 0;
+    if (connVersion === this._catalogVersion) {
+      return false;
+    }
+    if (serialized) {
+      return this._reconcileConnectionCatalog(conn);
+    }
+    return this._runSerializedCatalogOp(() => this._reconcileConnectionCatalog(conn));
+  }
+
+  private async _reconcileConnectionCatalog(conn: AsyncDuckDBConnection): Promise<boolean> {
     const connVersion = this._connectionCatalogVersions.get(conn) ?? 0;
     const targetVersion = this._catalogVersion;
     if (connVersion === targetVersion) {
@@ -634,14 +698,23 @@ export class AsyncDuckDBConnectionPool {
    * @returns {Promise<AsyncDuckDBPooledConnection>} A promise that resolves to a pooled connection.
    * @throws {PoolTimeoutError} If the pool is full and no connection is available within the timeout.
    */
-  async _getConnection(mode: ConnectionClaimMode = 'any'): Promise<DuckDBConnectionConnAndIndex> {
+  async _getConnection(
+    mode: ConnectionClaimMode = 'any',
+    // When true, skip catalog reconciliation during acquisition. Used by the
+    // catalog-mutation path, which claims a connection lock-free and then runs
+    // reconciliation itself inside the catalog mutation queue (claiming under
+    // the queue could deadlock against connections waiting for the queue).
+    { deferCatalogReconcile = false }: { deferCatalogReconcile?: boolean } = {},
+  ): Promise<DuckDBConnectionConnAndIndex> {
     // Try claiming a connection from the pool
     const available = this._claimConnection(mode);
 
     if (available) {
       try {
         await this._ensureConnectionInitialized(available.conn);
-        await this._ensureConnectionCatalogState(available.conn);
+        if (!deferCatalogReconcile) {
+          await this._ensureConnectionCatalogState(available.conn);
+        }
         return available;
       } catch (error) {
         await this._releaseConnection(available.index);
@@ -671,7 +744,9 @@ export class AsyncDuckDBConnectionPool {
       const conn = await this._bindings.connect();
       try {
         await this._ensureConnectionInitialized(conn);
-        await this._ensureConnectionCatalogState(conn);
+        if (!deferCatalogReconcile) {
+          await this._ensureConnectionCatalogState(conn);
+        }
       } catch (error) {
         try {
           await conn.close();
@@ -703,7 +778,9 @@ export class AsyncDuckDBConnectionPool {
       if (availableConn) {
         try {
           await this._ensureConnectionInitialized(availableConn.conn);
-          await this._ensureConnectionCatalogState(availableConn.conn);
+          if (!deferCatalogReconcile) {
+            await this._ensureConnectionCatalogState(availableConn.conn);
+          }
         } catch (error) {
           this._releaseConnection(availableConn.index);
           throw error;
@@ -1276,6 +1353,27 @@ export class AsyncDuckDBConnectionPool {
       [key: string]: arrow.DataType;
     } = any,
   >(text: string): Promise<arrow.Table<T>> {
+    // Catalog mutations (ATTACH/DETACH) must not interleave with each other or
+    // with reconciliation, so run reconcile + execute + register atomically on
+    // the catalog mutation queue. The connection is claimed *before* taking the
+    // queue so we never hold the queue while waiting for a connection (which
+    // could deadlock against connections parked in reconciliation).
+    if (this._isCatalogMutation(text)) {
+      const { conn, index } = await this._getConnection('background', {
+        deferCatalogReconcile: true,
+      });
+      try {
+        return await this._runSerializedCatalogOp(async () => {
+          await this._reconcileConnectionCatalog(conn);
+          const res = await conn.query<T>(text);
+          this._recordGlobalCatalogMutation(text, conn);
+          return res;
+        });
+      } finally {
+        this._releaseConnection(index);
+      }
+    }
+
     // Try to get a connection from the pool
     const { conn, index } = await this._getConnection('background');
 
