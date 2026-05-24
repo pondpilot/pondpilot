@@ -1246,13 +1246,22 @@ export class AsyncDuckDBConnectionPool {
       return new arrow.Table<T>(batches);
     };
 
+    // Keep a handle on the streaming read so the connection is not released
+    // back to the pool while the coroutine is still draining it. On abort,
+    // `toAbortablePromise` rejects (and runs `onAbort`/`onFinalize`) without
+    // waiting for `read()` to finish, so `onFinalize` must await it; otherwise
+    // a subsequent query that claims this same pinned connection would
+    // interleave with this one's stream and read a corrupted result.
+    const readPromise = read();
+
     return toAbortablePromise({
-      promise: read(),
+      promise: readPromise,
       signal,
       onAbort: async () => {
         await conn.cancelSent();
       },
       onFinalize: async () => {
+        await readPromise.catch(() => {});
         await this._releaseConnection(index);
       },
     });

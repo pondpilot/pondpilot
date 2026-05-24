@@ -53,6 +53,15 @@ type ResetOptions = {
    * therefore do not re-trigger off their own paused-reader restore.
    */
   silentForChart?: boolean;
+  /**
+   * When true, the reset does not abort in-flight user tasks (column
+   * copy/export/aggregate). A transparent reader restore runs from inside such
+   * a user task's `finally`, and a concurrently queued user task may already
+   * hold a live abort signal; aborting it here would cancel the very operation
+   * the restore exists to support. The main reader is governed by the
+   * data-fetch signal, which is still cancelled.
+   */
+  preserveUserTasks?: boolean;
 };
 
 type ResetFn = (newSortParams: ColumnSortSpecList | null, options?: ResetOptions) => Promise<void>;
@@ -211,6 +220,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
   // Holds the current connection to the database
   const mainDataReaderRef = useRef<DataAdapterStreamReader<any> | null>(null);
+
+  // Serializes operations that pause the main reader (column copy/export,
+  // column aggregate summaries). Each such operation cancels the tab's single
+  // pinned-connection reader, runs its query, then re-opens the main reader in
+  // its `finally`. Running two concurrently lets one operation's main-reader
+  // re-open re-claim the pinned connection while the other is still waiting to
+  // claim it, deadlocking until the pool timeout. Chaining keeps each
+  // pause/run/restore cycle atomic with respect to the others.
+  const pausedReaderOpChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
   // Holds the data read from the data source. We use ref to allow efficient
   // appends instead of re-writing, what can be a huge array every time.
@@ -523,7 +541,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   const reset = useCallback(
     async (
       newSortParams: ColumnSortSpecList | null,
-      { silentForChart = false }: ResetOptions = {},
+      { silentForChart = false, preserveUserTasks = false }: ResetOptions = {},
     ) => {
       // Reset a bunch of things.
 
@@ -553,8 +571,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         lastAvailableRowCount = staleData.data.length + staleData.rowOffset;
       }
 
-      // Cancel any pending fetches, and background tasks & readers
-      cancelAllDataOperations();
+      // Cancel any pending fetches, and background tasks & readers. A
+      // transparent restore (preserveUserTasks) leaves in-flight user tasks
+      // alone — see `ResetOptions.preserveUserTasks`.
+      if (preserveUserTasks) {
+        abortDataFetch();
+        abortBackgroundTasks();
+      } else {
+        cancelAllDataOperations();
+      }
 
       // Cancel the main data reader before creating a new one
       const curReader = mainDataReaderRef.current;
@@ -602,7 +627,16 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // And let the new reader be created in the background
       await getNewReader(newSortParams);
     },
-    [actualDataSchema, cancelAllDataOperations, getNewReader, staleData, setLastSortSafe, sort],
+    [
+      actualDataSchema,
+      cancelAllDataOperations,
+      abortDataFetch,
+      abortBackgroundTasks,
+      getNewReader,
+      staleData,
+      setLastSortSafe,
+      sort,
+    ],
   );
 
   resetRef.current = reset;
@@ -977,31 +1011,50 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   );
 
   const runWithMainReaderPaused = useCallback(
-    async <T>(
+    <T>(
       operation: () => Promise<T>,
       { resetAfter = true }: { resetAfter?: boolean } = {},
     ): Promise<T> => {
-      const curReader = mainDataReaderRef.current;
-      const shouldResetReader =
-        curReader !== null && !curReader.closed && !dataSourceExhaustedRef.current;
+      const runPaused = async (): Promise<T> => {
+        const curReader = mainDataReaderRef.current;
+        const shouldResetReader =
+          curReader !== null && !curReader.closed && !dataSourceExhaustedRef.current;
 
-      if (shouldResetReader) {
-        abortDataFetch();
-        mainDataReaderRef.current = null;
-        await curReader.cancel();
-      }
-
-      try {
-        return await operation();
-      } finally {
-        if (shouldResetReader && resetAfter) {
-          // Transparent restore of the main reader we paused above. Not a
-          // logical reload, so it must not bump `chartSourceVersion` — that is
-          // what would otherwise re-trigger the caller (e.g. chart aggregation)
-          // and spin into an aggregate/reset loop.
-          await resetRef.current?.(sortRef.current, { silentForChart: true });
+        if (shouldResetReader) {
+          abortDataFetch();
+          mainDataReaderRef.current = null;
+          await curReader.cancel();
         }
-      }
+
+        try {
+          return await operation();
+        } finally {
+          if (shouldResetReader && resetAfter) {
+            // Transparent restore of the main reader we paused above. Not a
+            // logical reload, so it must not bump `chartSourceVersion` — that is
+            // what would otherwise re-trigger the caller (e.g. chart aggregation)
+            // and spin into an aggregate/reset loop. It must also not abort
+            // in-flight user tasks: a serialized copy/aggregate queued behind
+            // this one already holds a live signal we would otherwise cancel.
+            await resetRef.current?.(sortRef.current, {
+              silentForChart: true,
+              preserveUserTasks: true,
+            });
+          }
+        }
+      };
+
+      // Serialize against any other paused-reader operation in flight so their
+      // pause → run → reader-restore cycles never interleave on the tab's
+      // single pinned connection (see `pausedReaderOpChainRef`).
+      const run = pausedReaderOpChainRef.current.then(runPaused, runPaused);
+      // Keep the chain alive regardless of this operation's outcome, so a
+      // failed/cancelled operation doesn't wedge later ones.
+      pausedReaderOpChainRef.current = run.then(
+        () => undefined,
+        () => undefined,
+      );
+      return run;
     },
     [abortDataFetch],
   );
