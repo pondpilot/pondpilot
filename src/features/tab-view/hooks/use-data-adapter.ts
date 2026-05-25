@@ -111,7 +111,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // This is used to allow downstream components to subscribe
   // and react only to data source changes, but not to intermediate
   // data changes. Think, every time `mainDataReader` is created
-  // or reset, we increment this number.
+  // or reset for a logical reload, we increment this number. A transparent
+  // pause/restore of the reader (see `runWithMainReaderPaused`) does NOT bump
+  // it: that is not a source change, and bumping it would reset the grid to
+  // page 0 and invalidate cached column summaries.
   // This is strictly inreasing number.
   const [dataSourceVersion, setDataSourceVersion] = useState<number>(0);
 
@@ -448,7 +451,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   ]);
 
   const getNewReader = useCallback(
-    async (newSortParams: ColumnSortSpecList, options = { retry_with_file_sync: true }) => {
+    async (
+      newSortParams: ColumnSortSpecList,
+      options: { retry_with_file_sync?: boolean; bumpDataSourceVersion?: boolean } = {
+        retry_with_file_sync: true,
+      },
+    ) => {
       try {
         if (queries.getReader || queries.getSortableReader) {
           // Get the abort signal
@@ -465,7 +473,13 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           if (newReader !== null) {
             terminalSchemaErrorRef.current = null;
             mainDataReaderRef.current = newReader;
-            setDataSourceVersion((prev) => prev + 1);
+            // A transparent reader restore (see `runWithMainReaderPaused`) opts
+            // out of this bump: re-creating the reader to free the shared
+            // connection is not a logical source change, so the grid must keep
+            // its page and column summaries stay valid.
+            if (options.bumpDataSourceVersion ?? true) {
+              setDataSourceVersion((prev) => prev + 1);
+            }
 
             // Send row count fetching to background if we do not have it already
             if (!rowCountInfo.realRowCount) {
@@ -624,8 +638,14 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // Save new sort params
       setSort(newSortParams);
 
-      // And let the new reader be created in the background
-      await getNewReader(newSortParams);
+      // And let the new reader be created in the background. A transparent
+      // reader restore (silentForChart) is not a logical source change, so it
+      // must not bump `dataSourceVersion` — mirroring how `chartSourceVersion`
+      // above is left untouched. Otherwise the grid would jump to page 0.
+      await getNewReader(newSortParams, {
+        retry_with_file_sync: true,
+        bumpDataSourceVersion: !silentForChart,
+      });
     },
     [
       actualDataSchema,

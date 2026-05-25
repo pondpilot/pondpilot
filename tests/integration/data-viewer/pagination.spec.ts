@@ -1,6 +1,7 @@
 import { expect, mergeTests } from '@playwright/test';
+import { getTableColumnId } from '@utils/db';
 
-import { test as dataViewTest } from '../fixtures/data-view';
+import { test as dataViewTest, getHeaderCell } from '../fixtures/data-view';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
@@ -102,5 +103,44 @@ test.describe('Data Viewer Pagination', () => {
 
     // Check the pagination control is visible and has the correct text
     await expect(paginationControl).toHaveText('0 rows');
+  });
+
+  test('should keep the current page when a column summary pauses the reader', async ({
+    page,
+    createScriptAndSwitchToItsTab,
+    fillScript,
+    runScript,
+    waitForDataTable,
+    waitForPaginationControl,
+  }) => {
+    // A source much larger than one page keeps the main reader open and
+    // non-exhausted while the user is on a later page — the precondition for a
+    // transparent reader pause/restore. Selecting a column pauses that reader
+    // to run its aggregate, then restores it. The restore must NOT be treated
+    // as a logical reload; otherwise the grid jumps back to the first page.
+    await createScriptAndSwitchToItsTab();
+    await fillScript('SELECT i AS amount FROM range(0, 5000) AS t(i);');
+    await runScript();
+    const dataTable = await waitForDataTable();
+
+    const paginationControl = await waitForPaginationControl();
+    const outOf = paginationControl.getByTestId('pagination-control-out-of');
+    await expect(outOf).toContainText('1-100');
+
+    // Move to the second page.
+    await paginationControl.locator('button').nth(1).click();
+    await expect(outOf).toContainText('101-200');
+
+    // Select the numeric column. A single-column selection triggers a SUM
+    // summary, which pauses and then transparently restores the main reader.
+    await getHeaderCell(dataTable, getTableColumnId('amount', 0)).click();
+
+    // The footer renders only once the aggregate resolves, which is also when
+    // the paused reader has been restored — so this is the moment the page
+    // would have been reset by the bug.
+    await expect(page.getByText(/SUM:/)).toBeVisible({ timeout: 15000 });
+
+    // The transparent restore must not reset pagination: still on page two.
+    await expect(outOf).toContainText('101-200');
   });
 });
