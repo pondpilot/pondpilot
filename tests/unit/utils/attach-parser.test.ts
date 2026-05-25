@@ -217,8 +217,27 @@ describe('attach-parser', () => {
       );
     });
 
+    it('should parse AS-less per-database MotherDuck ATTACH statements', () => {
+      expect(parseMotherDuckAttachStatement("ATTACH IF NOT EXISTS 'md:my_db'")).toEqual({
+        rawUrl: 'md:my_db',
+        dbName: 'my_db',
+        statement: "ATTACH IF NOT EXISTS 'md:my_db'",
+      });
+      expect(parseMotherDuckAttachStatement('ATTACH DATABASE "md:analytics";')).toEqual({
+        rawUrl: 'md:analytics',
+        dbName: 'analytics',
+        statement: 'ATTACH DATABASE "md:analytics";',
+      });
+      expect(parseMotherDuckAttachStatement("ATTACH 'md:pp_db2'")).toEqual({
+        rawUrl: 'md:pp_db2',
+        dbName: 'pp_db2',
+        statement: "ATTACH 'md:pp_db2'",
+      });
+    });
+
     it('should return null for regular aliased ATTACH statements', () => {
       expect(parseMotherDuckAttachStatement("ATTACH 'md:' AS md")).toBeNull();
+      expect(parseMotherDuckAttachStatement("ATTACH 'md:my_db' AS foo")).toBeNull();
       expect(parseMotherDuckAttachStatement("ATTACH 'https://example.com/db.duckdb'")).toBeNull();
     });
   });

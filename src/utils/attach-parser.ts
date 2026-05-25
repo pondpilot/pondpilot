@@ -126,22 +126,32 @@ export interface ParsedAttachStatement {
 }
 
 /**
- * Parse MotherDuck's AS-less attach form:
- *   ATTACH IF NOT EXISTS 'md:'
+ * Parse MotherDuck's AS-less attach forms:
+ *   ATTACH IF NOT EXISTS 'md:'          -- handshake, attaches the default database
+ *   ATTACH IF NOT EXISTS 'md:my_db'     -- attaches a specific account database
+ *
+ * The aliased form (`ATTACH 'md:my_db' AS foo`) is left to `parseAttachStatement`.
  */
 export function parseMotherDuckAttachStatement(statement: string): ParsedAttachStatement | null {
   const normalizedStatement = normalizeStatementForCatalogParsing(statement);
   const match = normalizedStatement.match(
-    /^\s*ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?(['"])md:\1\s*;?\s*$/i,
+    /^\s*ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?(['"])md:([^'"]*)\1\s*;?\s*$/i,
   );
 
   if (!match) {
     return null;
   }
 
+  // The bare `md:` handshake attaches the account's default database and is
+  // registered globally under the literal `md:` key (see the reconcile
+  // fast-path in the connection pool and `registerMotherDuckDatabaseAttaches`).
+  // The `md:<name>` form attaches that catalog under its plain name (e.g.
+  // `my_db` in `duckdb_databases()`), so report that name — that is the key the
+  // pool reconciles and replays against on every other connection.
+  const dbName = match[2];
   return {
-    rawUrl: 'md:',
-    dbName: 'md:',
+    rawUrl: dbName ? `md:${dbName}` : 'md:',
+    dbName: dbName || 'md:',
     statement,
   };
 }
