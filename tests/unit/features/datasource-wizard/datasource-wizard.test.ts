@@ -147,20 +147,20 @@ describe('Datasource Wizard Integration', () => {
     it('should build correct query to check if database is attached', () => {
       const dbName = 'test_db';
       const escapedDbName = toDuckDBIdentifier(dbName);
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = ${escapedDbName}`;
+      const checkQuery = `SELECT database_name FROM duckdb_databases() WHERE database_name = ${escapedDbName}`;
 
       expect(checkQuery).toBe(
-        'SELECT database_name FROM duckdb_databases WHERE database_name = test_db',
+        'SELECT database_name FROM duckdb_databases() WHERE database_name = test_db',
       );
     });
 
     it('should escape database names in readiness check', () => {
       const dbName = 'test-db';
       const escapedDbName = toDuckDBIdentifier(dbName);
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = ${escapedDbName}`;
+      const checkQuery = `SELECT database_name FROM duckdb_databases() WHERE database_name = ${escapedDbName}`;
 
       expect(checkQuery).toBe(
-        'SELECT database_name FROM duckdb_databases WHERE database_name = "test-db"',
+        'SELECT database_name FROM duckdb_databases() WHERE database_name = "test-db"',
       );
     });
   });

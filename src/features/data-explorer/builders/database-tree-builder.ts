@@ -24,6 +24,7 @@ import {
   disconnectMotherDuckConnection,
   getMotherDuckDatabaseModel,
   attachAllMotherDuckDatabases,
+  registerMotherDuckDatabaseAttaches,
   withMotherDuckConnection,
 } from '@utils/motherduck';
 import { getLocalDBDataSourceName } from '@utils/navigation';
@@ -698,6 +699,7 @@ export function buildMotherDuckConnectionNode(
         // discovery and metadata (which uses USE) must share that connection.
         await withMotherDuckConnection(conn, async (mdConn) => {
           const dbNames = await attachAllMotherDuckDatabases(mdConn);
+          registerMotherDuckDatabaseAttaches(conn, dbNames);
           const currentMetadata = useAppStore.getState().databaseMetadata;
           const newMetadata = new Map(currentMetadata);
           // Remove stale MotherDuck entries that no longer exist
@@ -705,6 +707,7 @@ export function buildMotherDuckConnectionNode(
             const plainName = parseMotherDuckDbKey(key);
             if (plainName && !dbNames.includes(plainName)) {
               newMetadata.delete(key);
+              conn.registerGlobalDetach(plainName);
             }
           }
           if (dbNames.length > 0) {

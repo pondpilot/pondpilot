@@ -190,10 +190,23 @@ export class AsyncDuckDBConnectionPool {
   }
 
   private async _databaseExists(conn: AsyncDuckDBConnection, dbName: string): Promise<boolean> {
-    const result = await conn.query(
-      `SELECT database_name FROM duckdb_databases() WHERE database_name = ${quote(dbName, { single: true })}`,
-    );
-    return result.toArray().length > 0;
+    try {
+      const result = await conn.query(
+        `SELECT database_name FROM duckdb_databases() WHERE database_name = ${quote(dbName, { single: true })}`,
+      );
+      return result.toArray().length > 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('There must be at least one attached databases')) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  private _isMotherDuckDatabaseAttach(dbName: string, sql: string): boolean {
+    const motherDuckAttach = parseMotherDuckAttachStatement(sql);
+    return Boolean(motherDuckAttach && motherDuckAttach.dbName === dbName && dbName !== 'md:');
   }
 
   /**
@@ -318,6 +331,17 @@ export class AsyncDuckDBConnectionPool {
       }
 
       if (attach.version <= connVersion && (await this._databaseExists(conn, dbName))) {
+        continue;
+      }
+
+      const databaseAlreadyAttached = await this._databaseExists(conn, dbName);
+
+      // MotherDuck can attach account databases as a side effect of the `md:`
+      // handshake/background catalog refresh. If we already see that catalog,
+      // do not detach it just to replay an idempotent `ATTACH IF NOT EXISTS
+      // 'md:<db>'`: tearing down the current MotherDuck catalog can leave the
+      // WASM engine with no usable attached database.
+      if (databaseAlreadyAttached && this._isMotherDuckDatabaseAttach(dbName, attach.sql)) {
         continue;
       }
 

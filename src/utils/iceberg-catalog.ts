@@ -255,7 +255,7 @@ export async function attachAndVerifyIcebergCatalog(options: AttachIcebergOption
     }
 
     // Verify the catalog is attached
-    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(catalogAlias)}'`;
+    const checkQuery = `SELECT database_name FROM duckdb_databases() WHERE database_name = '${escapeSqlStringValue(catalogAlias)}'`;
     let dbFound = false;
     let attempts = 0;
 

@@ -11,6 +11,7 @@ import {
   detachMotherDuckDatabases,
   attachAllMotherDuckDatabases,
   getMotherDuckDatabaseModel,
+  registerMotherDuckDatabaseAttaches,
   withMotherDuckConnection,
 } from '@utils/motherduck';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
@@ -114,19 +115,24 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
         // Load extension, connect, and discover databases on ONE connection so
         // the databases attached by the ATTACH 'md:' handshake are visible to
         // the discovery and metadata queries.
-        const discoveredMetadata = await withMotherDuckConnection(pool, async (conn) => {
+        const discovery = await withMotherDuckConnection(pool, async (conn) => {
           await loadMotherDuckExtension(conn);
           await connectMotherDuck(conn, token);
+          let dbNames: string[] = [];
           try {
-            const dbNames = await attachAllMotherDuckDatabases(conn);
+            dbNames = await attachAllMotherDuckDatabases(conn);
             if (dbNames.length > 0) {
-              return await getMotherDuckDatabaseModel(conn, dbNames);
+              return {
+                dbNames,
+                metadata: await getMotherDuckDatabaseModel(conn, dbNames),
+              };
             }
           } catch (metadataError) {
             console.error('Failed to load MotherDuck metadata:', metadataError);
           }
-          return null;
+          return { dbNames, metadata: null };
         });
+        registerMotherDuckDatabaseAttaches(pool, discovery.dbNames);
 
         connection.connectionState = 'connected';
 
@@ -134,9 +140,9 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
         const newDataSources = new Map(dataSources);
         newDataSources.set(connection.id, connection);
 
-        if (discoveredMetadata) {
+        if (discovery.metadata) {
           const newMetadata = new Map(databaseMetadata);
-          for (const [dbName, dbModel] of discoveredMetadata) {
+          for (const [dbName, dbModel] of discovery.metadata) {
             newMetadata.set(dbName, dbModel);
           }
           useAppStore.setState(
@@ -151,10 +157,6 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
             'DatasourceWizard/addMotherDuck',
           );
         }
-
-        // Register md: globally so pinned tab connections replay the handshake
-        // and can query MotherDuck databases from scripts.
-        pool.registerGlobalAttach('md:', "ATTACH IF NOT EXISTS 'md:'");
 
         // Persist connection to IndexedDB
         const { _iDbConn: currentIDbConn } = useAppStore.getState();

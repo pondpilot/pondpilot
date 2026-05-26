@@ -6,7 +6,8 @@ import {
   updateSchemaComparison,
 } from '@controllers/tab/comparison-tab-controller';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { Stack, LoadingOverlay, Alert, Text, Center } from '@mantine/core';
+import { useAppTheme } from '@hooks/use-app-theme';
+import { Stack, LoadingOverlay, Alert, Text, Center, useMantineTheme } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { TabId, ComparisonConfig } from '@models/tab';
 import { IconAlertCircle } from '@tabler/icons-react';
@@ -24,6 +25,7 @@ import { useComparisonProgress } from './hooks/use-comparison-progress';
 import { useComparisonProgressCleanup } from './hooks/use-comparison-progress-cleanup';
 import { useSchemaAnalysis } from './hooks/use-schema-analysis';
 import { createSourceKey } from './utils/source-comparison';
+import { getStatusAccentColor, getThemeColorValue } from './utils/theme';
 
 interface ComparisonTabViewProps {
   tabId: TabId;
@@ -33,6 +35,8 @@ interface ComparisonTabViewProps {
 export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps) => {
   const data = useComparison(tabId);
   const pool = useInitializedDuckDBConnectionPool();
+  const theme = useMantineTheme();
+  const colorScheme = useAppTheme();
   const { analyzeSchemas, isAnalyzing, error: analysisError } = useSchemaAnalysis(pool);
   const {
     executeComparison,
@@ -44,6 +48,17 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastAnalysisKeyRef = useRef<string | null>(null);
   const lastAnalysisFailedRef = useRef(false);
+  const alertTextColor = getThemeColorValue(theme, 'text-primary', colorScheme === 'dark' ? 0 : 9);
+  const alertErrorTitleColor = getStatusAccentColor(theme, 'removed', colorScheme);
+  const errorAlertStyles = {
+    title: {
+      color: alertErrorTitleColor,
+      fontWeight: 600,
+    },
+    message: {
+      color: alertTextColor,
+    },
+  };
 
   // Set up periodic cleanup of stale comparison progress entries
   useComparisonProgressCleanup();
@@ -274,6 +289,7 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
             icon={<IconAlertCircle size={16} className={ICON_CLASSES.error} />}
             title="Analysis Error"
             color="background-error"
+            styles={errorAlertStyles}
           >
             {analysisError}
           </Alert>
@@ -282,8 +298,9 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
         {executionError && (
           <Alert
             icon={<IconAlertCircle size={16} className={ICON_CLASSES.error} />}
-            title={<Text c="text-error">Execution Error</Text>}
-            color="text-error"
+            title="Execution Error"
+            color="background-error"
+            styles={errorAlertStyles}
           >
             {executionError}
           </Alert>

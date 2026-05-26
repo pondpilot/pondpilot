@@ -363,6 +363,40 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
     expect(connections[1].calls).toContain("ATTACH IF NOT EXISTS 'md:'");
   });
 
+  it('replays registered MotherDuck database ATTACH statements for later pinned script connections', async () => {
+    const { pool, connections } = makePool(4, 1);
+
+    pool.registerGlobalAttach('md:', "ATTACH IF NOT EXISTS 'md:'");
+    pool.registerGlobalAttach('pp_db2', "ATTACH IF NOT EXISTS 'md:pp_db2'");
+    await pool.query('SELECT 0');
+
+    const pinned = await pool.pinForTab(tabId('tab-a'));
+    await pinned.query('SELECT 1');
+    await pinned.close();
+
+    const handshakeIndex = connections[1].calls.indexOf("ATTACH IF NOT EXISTS 'md:'");
+    const dbAttachIndex = connections[1].calls.indexOf("ATTACH IF NOT EXISTS 'md:pp_db2'");
+    expect(handshakeIndex).toBeGreaterThanOrEqual(0);
+    expect(dbAttachIndex).toBeGreaterThan(handshakeIndex);
+  });
+
+  it('does not detach an already-attached MotherDuck database while reconciling', async () => {
+    const { pool, connections } = makePool(4, 1);
+
+    const background = await pool.getBackgroundConnection();
+    connections[0].databases.add('my_db');
+    connections[0].currentDatabase = 'my_db';
+    await background.close();
+
+    pool.registerGlobalAttach('my_db', "ATTACH IF NOT EXISTS 'md:my_db'");
+    await pool.query('SELECT 1');
+
+    expect(connections[0].calls).not.toContain('USE memory;');
+    expect(connections[0].calls).not.toContain('DETACH my_db');
+    expect(connections[0].calls).not.toContain("ATTACH IF NOT EXISTS 'md:my_db'");
+    expect(connections[0].currentDatabase).toBe('my_db');
+  });
+
   it('does not replay a registered ATTACH on the connection that already ran it', async () => {
     const { pool, connections } = makePool(4, 1);
 

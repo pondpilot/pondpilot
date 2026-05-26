@@ -1,5 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { attachAllMotherDuckDatabases, withMotherDuckConnection } from '@utils/motherduck';
+import {
+  attachAllMotherDuckDatabases,
+  registerMotherDuckDatabaseAttaches,
+  withMotherDuckConnection,
+} from '@utils/motherduck';
 
 jest.mock('@utils/duckdb/identifier', () => ({
   toDuckDBIdentifier: jest.fn((str: string) =>
@@ -9,13 +13,10 @@ jest.mock('@utils/duckdb/identifier', () => ({
 
 type FakeQuery = (sql: string) => Promise<{ toArray: () => unknown[] }>;
 
-function makePool(memoryPresent: boolean) {
+function makePool() {
   const calls: string[] = [];
   const query = jest.fn<FakeQuery>(async (sql: string) => {
     calls.push(sql);
-    if (sql.includes("database_name = 'memory'")) {
-      return { toArray: () => (memoryPresent ? [{ ok: 1 }] : []) };
-    }
     return { toArray: () => [] };
   });
   const close = jest.fn<() => Promise<void>>(async () => {});
@@ -26,8 +27,8 @@ function makePool(memoryPresent: boolean) {
 }
 
 describe('withMotherDuckConnection', () => {
-  it('detaches the memory catalog around the sequence and restores it, on one connection', async () => {
-    const { pool, calls, getBackgroundConnection, close } = makePool(true);
+  it('runs the sequence on a single pooled connection and releases it', async () => {
+    const { pool, calls, getBackgroundConnection, close } = makePool();
 
     const result = await withMotherDuckConnection(pool, async (conn) => {
       await conn.query('LIST_MD');
@@ -35,36 +36,28 @@ describe('withMotherDuckConnection', () => {
     });
 
     expect(result).toBe('done');
-    // The whole sequence runs on a single pooled connection.
+    // The whole sequence runs on a single pooled connection, released after.
     expect(getBackgroundConnection).toHaveBeenCalledTimes(1);
-    // memory is detached before the MotherDuck work and restored afterward.
-    expect(calls).toEqual([
-      "SELECT 1 FROM duckdb_databases() WHERE database_name = 'memory'",
-      'USE pondpilot;',
-      'DETACH memory;',
-      'LIST_MD',
-      "ATTACH IF NOT EXISTS ':memory:' AS memory;",
-    ]);
+    expect(calls).toEqual(['LIST_MD', 'USE memory;']);
     expect(close).toHaveBeenCalledTimes(1);
   });
 
-  it('skips detach/restore when no memory catalog is attached', async () => {
-    const { pool, calls, close } = makePool(false);
+  it('never detaches the shared memory catalog', async () => {
+    // Detaching `memory` is catalog-global on the shared DuckDB-WASM instance and
+    // breaks every other pooled connection mid-query (it is their default
+    // database). The sequence must leave it attached.
+    const { pool, calls } = makePool();
 
     await withMotherDuckConnection(pool, async (conn) => {
       await conn.query('LIST_MD');
     });
 
-    expect(calls).toEqual([
-      "SELECT 1 FROM duckdb_databases() WHERE database_name = 'memory'",
-      'LIST_MD',
-    ]);
     expect(calls).not.toContain('DETACH memory;');
-    expect(close).toHaveBeenCalledTimes(1);
+    expect(calls).not.toContain("ATTACH IF NOT EXISTS ':memory:' AS memory;");
   });
 
-  it('restores the memory catalog and releases the connection even if the sequence throws', async () => {
-    const { pool, calls, close } = makePool(true);
+  it('releases the connection even if the sequence throws', async () => {
+    const { pool, calls, close } = makePool();
 
     await expect(
       withMotherDuckConnection(pool, async () => {
@@ -72,8 +65,8 @@ describe('withMotherDuckConnection', () => {
       }),
     ).rejects.toThrow('boom');
 
-    // memory is restored and the connection released despite the failure.
-    expect(calls).toContain("ATTACH IF NOT EXISTS ':memory:' AS memory;");
+    // The connection is released despite the failure.
+    expect(calls).toContain('USE memory;');
     expect(close).toHaveBeenCalledTimes(1);
   });
 });
@@ -117,5 +110,38 @@ describe('attachAllMotherDuckDatabases', () => {
     const names = await attachAllMotherDuckDatabases({ query } as any);
 
     expect(names).toEqual(['my_db']);
+  });
+});
+
+describe('registerMotherDuckDatabaseAttaches', () => {
+  it('registers the MotherDuck handshake and each discovered database globally', () => {
+    const registerGlobalAttach = jest.fn();
+    const pool = { registerGlobalAttach } as any;
+
+    registerMotherDuckDatabaseAttaches(pool, [
+      'my_db',
+      'pp_db2',
+      "quote'db",
+      '',
+      'md_information_schema',
+    ]);
+
+    expect(registerGlobalAttach).toHaveBeenCalledTimes(4);
+    expect(registerGlobalAttach).toHaveBeenNthCalledWith(1, 'md:', "ATTACH IF NOT EXISTS 'md:'");
+    expect(registerGlobalAttach).toHaveBeenNthCalledWith(
+      2,
+      'my_db',
+      "ATTACH IF NOT EXISTS 'md:my_db'",
+    );
+    expect(registerGlobalAttach).toHaveBeenNthCalledWith(
+      3,
+      'pp_db2',
+      "ATTACH IF NOT EXISTS 'md:pp_db2'",
+    );
+    expect(registerGlobalAttach).toHaveBeenNthCalledWith(
+      4,
+      "quote'db",
+      "ATTACH IF NOT EXISTS 'md:quote''db'",
+    );
   });
 });
