@@ -477,12 +477,16 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             // out of this bump: re-creating the reader to free the shared
             // connection is not a logical source change, so the grid must keep
             // its page and column summaries stay valid.
-            if (options.bumpDataSourceVersion ?? true) {
+            const isLogicalReload = options.bumpDataSourceVersion ?? true;
+            if (isLogicalReload) {
               setDataSourceVersion((prev) => prev + 1);
             }
 
-            // Send row count fetching to background if we do not have it already
-            if (!rowCountInfo.realRowCount) {
+            // Send row count fetching to background if we do not have it
+            // already. A transparent reader restore cannot change the row count,
+            // so skip the extra COUNT round-trip on the shared (pinned)
+            // connection in that case.
+            if (isLogicalReload && !rowCountInfo.realRowCount) {
               fetchRowCount();
             }
           }
@@ -1231,19 +1235,29 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
   );
 
-  const cancelDataRead = useCallback(async () => {
-    // this will ensure that fetching doesn't resume
-    fetchTo.current = actualData.current.length;
-    dataReadCancelled.current = true;
-    abortDataFetch();
-    setLastSortSafe(sort);
+  const cancelDataRead = useCallback(
+    async ({ releaseReader = false }: { releaseReader?: boolean } = {}) => {
+      // this will ensure that fetching doesn't resume
+      fetchTo.current = actualData.current.length;
+      dataReadCancelled.current = true;
+      abortDataFetch();
+      setLastSortSafe(sort);
 
-    const curReader = mainDataReaderRef.current;
-    if (curReader) {
-      mainDataReaderRef.current = null;
-      await curReader.cancel();
-    }
-  }, [abortDataFetch, setLastSortSafe, sort]);
+      // The script-run path (script-tab-view) must fully release the reader so
+      // the tab-pinned connection is freed before it re-pins the tab. The user
+      // Stop button must NOT release it: the read is only paused and the next
+      // scroll/page resumes it per this method's contract, which a closed
+      // reader would silently break.
+      if (releaseReader) {
+        const curReader = mainDataReaderRef.current;
+        if (curReader) {
+          mainDataReaderRef.current = null;
+          await curReader.cancel();
+        }
+      }
+    },
+    [abortDataFetch, setLastSortSafe, sort],
+  );
 
   const ackDataReadCancelled = useCallback(() => {
     dataReadCancelled.current = false;

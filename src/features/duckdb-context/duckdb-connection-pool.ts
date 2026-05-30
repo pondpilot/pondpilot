@@ -1411,12 +1411,11 @@ export class AsyncDuckDBConnectionPool {
     const { conn, index } = await this._getConnection('background');
 
     try {
-      // run the query
-      const res = await conn.query<T>(text);
-      this._recordGlobalCatalogMutation(text, conn);
-
-      // Return the result
-      return res;
+      // Reaching here means `_isCatalogMutation(text)` was false above, so this
+      // statement registers no global catalog mutation (real ATTACH/DETACH is
+      // registered on the serialized branch). Skip the redundant re-parse that
+      // `_recordGlobalCatalogMutation` would do on every non-mutation query.
+      return await conn.query<T>(text);
     } finally {
       // Release the connection back to the pool
       this._releaseConnection(index);

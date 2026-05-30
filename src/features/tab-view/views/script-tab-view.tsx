@@ -208,7 +208,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // (notably after reload with a restored script tab). Close it before taking the
       // tab-pinned connection for a new script run, otherwise pin acquisition can wait
       // on our own idle reader until the pool timeout fires.
-      await dataAdapter.cancelDataRead();
+      await dataAdapter.cancelDataRead({ releaseReader: true });
 
       // Create/reuse the tab-pinned connection so session state is isolated per script tab.
       const conn = await pool.pinForTab(tab.id).catch((error) => {

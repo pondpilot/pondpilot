@@ -284,10 +284,14 @@ export interface DataAdapterApi {
   copyToParquet: ((tempFileName: string, compression: string) => Promise<void>) | null;
 
   /**
-   * Cancels the current data read and prevents further reads
-   * until user asks for more data by paging/scrolling
+   * Cancels the current data read.
+   *
+   * By default the read is only paused and resumes when the user pages or
+   * scrolls. Pass `releaseReader: true` to also close the underlying reader
+   * (used by the script-run path to free the tab-pinned connection); a released
+   * read does not resume on scroll and requires a reset/re-run.
    */
-  cancelDataRead: () => Promise<void>;
+  cancelDataRead: (options?: { releaseReader?: boolean }) => Promise<void>;
 
   /**
    * Resets the data read cancelled state. This is used to
