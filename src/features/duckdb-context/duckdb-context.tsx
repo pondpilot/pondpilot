@@ -16,6 +16,7 @@ import { v4 } from 'uuid';
 
 import { setCurrentDuckDBConnectionPool } from './current-pool';
 import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
+import { buildDuckDBWorkerBootstrap } from './worker-log-filter';
 
 class DuckDBInitializationCancelledError extends Error {
   constructor(message = 'DuckDB initialization cancelled') {
@@ -286,9 +287,14 @@ export const DuckDBConnectionPoolProvider = ({
 
         ensureNotCancelled();
 
-        // Create a blob URL for the worker script
+        // Create a blob URL for the worker script. The bootstrap installs a
+        // console filter that drops known-noisy MotherDuck wasm_extension logs
+        // before loading the real DuckDB worker.
+        if (!bundle.mainWorker) {
+          throw new Error('Selected DuckDB bundle is missing a worker URL.');
+        }
         const worker_url = URL.createObjectURL(
-          new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' }),
+          new Blob([buildDuckDBWorkerBootstrap(bundle.mainWorker)], { type: 'text/javascript' }),
         );
 
         // Store the URL in the ref for cleanup on unmount
