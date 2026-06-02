@@ -16,6 +16,21 @@ const REMOTE_OPTIMIZER_INFO =
 const GENUINE_WASM_ERROR =
   '{"message":"Authentication failed: invalid token","log_level":"ERROR","service":"wasm_extension"}';
 
+// A one-time MotherDuck connect-handshake line (INFO) that should be filtered.
+const WELCOME_PACK_INFO =
+  '{"message":"Fetching Welcome Pack (extension version: \'v1.5.2\')","log_level":"INFO","service":"wasm_extension","md.client.duckdb_id":"abc"}';
+
+// A wasm_extension WARN that is not one of the known patterns — must be kept.
+const OTHER_WASM_WARN =
+  '{"message":"Transient retry while attaching database","log_level":"WARN","service":"wasm_extension"}';
+
+// The successful-connect analytics line (native_extension) — must be kept.
+const CONNECTED_NATIVE =
+  '{"event_name":"client_connected","message":"Successfully connected to MotherDuck.","service":"native_extension"}';
+
+// OPFS buffer-cache miss chatter printed by the WASM runtime — should be filtered.
+const OPFS_BUFFERING = 'Buffering missing file: opfs:/pondpilot.db';
+
 describe('worker-log-filter', () => {
   describe('shouldDropWasmExtensionLog', () => {
     it('drops the background catalog long-poll warning', () => {
@@ -26,8 +41,21 @@ describe('worker-log-filter', () => {
       expect(shouldDropWasmExtensionLog(REMOTE_OPTIMIZER_INFO)).toBe(true);
     });
 
-    it('keeps other wasm_extension lines, including genuine errors', () => {
+    it('keeps wasm_extension WARN/ERROR that are not known patterns', () => {
       expect(shouldDropWasmExtensionLog(GENUINE_WASM_ERROR)).toBe(false);
+      expect(shouldDropWasmExtensionLog(OTHER_WASM_WARN)).toBe(false);
+    });
+
+    it('drops one-time connect-handshake INFO lines', () => {
+      expect(shouldDropWasmExtensionLog(WELCOME_PACK_INFO)).toBe(true);
+    });
+
+    it('keeps the native_extension connect-success line', () => {
+      expect(shouldDropWasmExtensionLog(CONNECTED_NATIVE)).toBe(false);
+    });
+
+    it('drops OPFS buffer-miss chatter from the runtime', () => {
+      expect(shouldDropWasmExtensionLog(OPFS_BUFFERING)).toBe(true);
     });
 
     it('keeps a noisy phrase that is not tagged as wasm_extension', () => {
@@ -98,13 +126,22 @@ describe('worker-log-filter', () => {
       const run = new Function('console', 'importScripts', bootstrap);
       run(fakeConsole, () => {});
 
-      fakeConsole.warn(BACKGROUND_CATALOG_WARN);
-      fakeConsole.info(REMOTE_OPTIMIZER_INFO);
-      fakeConsole.error(GENUINE_WASM_ERROR);
-      fakeConsole.log('Loading DuckDB... 42%');
+      fakeConsole.warn(BACKGROUND_CATALOG_WARN); // dropped (repeating pattern)
+      fakeConsole.info(REMOTE_OPTIMIZER_INFO); // dropped (repeating pattern)
+      fakeConsole.info(WELCOME_PACK_INFO); // dropped (connect handshake INFO)
+      fakeConsole.log(OPFS_BUFFERING); // dropped (OPFS chatter)
+      fakeConsole.warn(OTHER_WASM_WARN); // kept (non-pattern WARN)
+      fakeConsole.log(CONNECTED_NATIVE); // kept (native_extension)
+      fakeConsole.error(GENUINE_WASM_ERROR); // kept (ERROR)
+      fakeConsole.log('Loading DuckDB... 42%'); // kept (app log)
 
-      // The two noisy lines are dropped; the genuine error and the app log pass.
-      expect(emitted).toEqual([`error:${GENUINE_WASM_ERROR}`, 'log:Loading DuckDB... 42%']);
+      // Noise is dropped; warnings, errors, connect-success, and app logs pass.
+      expect(emitted).toEqual([
+        `warn:${OTHER_WASM_WARN}`,
+        `log:${CONNECTED_NATIVE}`,
+        `error:${GENUINE_WASM_ERROR}`,
+        'log:Loading DuckDB... 42%',
+      ]);
     });
   });
 });
