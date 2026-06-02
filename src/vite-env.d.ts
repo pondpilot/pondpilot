@@ -26,6 +26,9 @@ interface ImportMetaEnv {
   /** Allows unsigned DuckDB-WASM extensions when set to "true". */
   readonly VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS?: string;
 
+  /** Logs every DuckDB query to the console in dev when set to "true". */
+  readonly VITE_DUCKDB_LOG_QUERIES?: string;
+
   /** Optional read_stat extension artifact URL used to test newer compatible builds. */
   readonly VITE_READ_STAT_EXTENSION_URL?: string;
 

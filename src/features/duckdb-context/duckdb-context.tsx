@@ -141,8 +141,15 @@ export const DuckDBConnectionPoolProvider = ({
   })();
 
   // create a logger
+  //
+  // DuckDB-WASM logs one INFO entry per query (ASYNC_DUCKDB/QUERY/RUN). That is
+  // useful for tracing but floods the dev console on startup, so it is opt-in:
+  // dev defaults to WARNING and only drops to INFO when VITE_DUCKDB_LOG_QUERIES
+  // is set. Production is always WARNING.
+  const logQueries =
+    import.meta.env.DEV && import.meta.env.VITE_DUCKDB_LOG_QUERIES === 'true';
   const logger = new duckdb.ConsoleLogger(
-    import.meta.env.DEV ? duckdb.LogLevel.INFO : duckdb.LogLevel.WARNING,
+    logQueries ? duckdb.LogLevel.INFO : duckdb.LogLevel.WARNING,
   );
 
   // duckdb worker and blob URL references
