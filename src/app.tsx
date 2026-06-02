@@ -28,7 +28,7 @@ export default function App() {
   });
 
   return (
-    <MantineProvider theme={theme}>
+    <MantineProvider theme={theme} defaultColorScheme="auto">
       <ModalsProvider>
         <ModifierProvider>
           <TabCoordinationProvider>
