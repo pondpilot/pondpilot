@@ -81,7 +81,8 @@ describe('worker-log-filter', () => {
 
   describe('buildDuckDBWorkerBootstrap', () => {
     it('loads the real worker via importScripts with the given URL', () => {
-      const url = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js';
+      const url =
+        'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js';
       const bootstrap = buildDuckDBWorkerBootstrap(url);
 
       expect(bootstrap).toContain(`importScripts(${JSON.stringify(url)});`);

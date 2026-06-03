@@ -146,8 +146,7 @@ export const DuckDBConnectionPoolProvider = ({
   // useful for tracing but floods the dev console on startup, so it is opt-in:
   // dev defaults to WARNING and only drops to INFO when VITE_DUCKDB_LOG_QUERIES
   // is set. Production is always WARNING.
-  const logQueries =
-    import.meta.env.DEV && import.meta.env.VITE_DUCKDB_LOG_QUERIES === 'true';
+  const logQueries = import.meta.env.DEV && import.meta.env.VITE_DUCKDB_LOG_QUERIES === 'true';
   const logger = new duckdb.ConsoleLogger(
     logQueries ? duckdb.LogLevel.INFO : duckdb.LogLevel.WARNING,
   );
