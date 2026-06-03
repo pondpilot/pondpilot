@@ -26,7 +26,7 @@ export async function extractFlatFileSchema(
 
   try {
     // Query the schema information with timeout
-    const pooledConn = await pool.getPooledConnection();
+    const pooledConn = await pool.getBackgroundConnection();
     try {
       // Set up query with timeout
       const queryPromise = pooledConn.query(`

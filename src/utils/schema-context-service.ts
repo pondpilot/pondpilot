@@ -30,7 +30,7 @@ export class SchemaContextService {
 
     try {
       // Use DuckDB's getTableNames API to get accurate table references
-      const pooledConn = await conn.getPooledConnection();
+      const pooledConn = await conn.getBackgroundConnection();
       try {
         const tableNames = await pooledConn.getTableNames(sqlStatement);
 

@@ -9,8 +9,10 @@ import {
   loadMotherDuckExtension,
   connectMotherDuck,
   detachMotherDuckDatabases,
-  listMotherDuckDatabases,
+  attachAllMotherDuckDatabases,
   getMotherDuckDatabaseModel,
+  registerMotherDuckDatabaseAttaches,
+  withMotherDuckConnection,
 } from '@utils/motherduck';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { useState, useCallback, useRef } from 'react';
@@ -39,8 +41,12 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
       };
 
       try {
-        await loadMotherDuckExtension(pool);
-        await connectMotherDuck(pool, token);
+        // Validate the token on a single connection (the handshake fails fast
+        // if the token is invalid).
+        await withMotherDuckConnection(pool, async (conn) => {
+          await loadMotherDuckExtension(conn);
+          await connectMotherDuck(conn, token);
+        });
 
         // Clean up test connection
         await detachMotherDuckDatabases(pool);
@@ -106,9 +112,27 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
           secretRef: secretRefId,
         };
 
-        // Load extension and connect
-        await loadMotherDuckExtension(pool);
-        await connectMotherDuck(pool, token);
+        // Load extension, connect, and discover databases on ONE connection so
+        // the databases attached by the ATTACH 'md:' handshake are visible to
+        // the discovery and metadata queries.
+        const discovery = await withMotherDuckConnection(pool, async (conn) => {
+          await loadMotherDuckExtension(conn);
+          await connectMotherDuck(conn, token);
+          let dbNames: string[] = [];
+          try {
+            dbNames = await attachAllMotherDuckDatabases(conn);
+            if (dbNames.length > 0) {
+              return {
+                dbNames,
+                metadata: await getMotherDuckDatabaseModel(conn, dbNames),
+              };
+            }
+          } catch (metadataError) {
+            console.error('Failed to load MotherDuck metadata:', metadataError);
+          }
+          return { dbNames, metadata: null };
+        });
+        registerMotherDuckDatabaseAttaches(pool, discovery.dbNames);
 
         connection.connectionState = 'connected';
 
@@ -116,31 +140,17 @@ export function useMotherDuckConnection(pool: AsyncDuckDBConnectionPool | null) 
         const newDataSources = new Map(dataSources);
         newDataSources.set(connection.id, connection);
 
-        // Load metadata for discovered MotherDuck databases
-        try {
-          const mdDatabases = await listMotherDuckDatabases(pool);
-          const dbNames = mdDatabases.map((db) => db.name);
-
-          if (dbNames.length > 0) {
-            const remoteMetadata = await getMotherDuckDatabaseModel(pool, dbNames);
-            const newMetadata = new Map(databaseMetadata);
-            for (const [dbName, dbModel] of remoteMetadata) {
-              newMetadata.set(dbName, dbModel);
-            }
-            useAppStore.setState(
-              { dataSources: newDataSources, databaseMetadata: newMetadata },
-              false,
-              'DatasourceWizard/addMotherDuck',
-            );
-          } else {
-            useAppStore.setState(
-              { dataSources: newDataSources },
-              false,
-              'DatasourceWizard/addMotherDuck',
-            );
+        if (discovery.metadata) {
+          const newMetadata = new Map(databaseMetadata);
+          for (const [dbName, dbModel] of discovery.metadata) {
+            newMetadata.set(dbName, dbModel);
           }
-        } catch (metadataError) {
-          console.error('Failed to load MotherDuck metadata:', metadataError);
+          useAppStore.setState(
+            { dataSources: newDataSources, databaseMetadata: newMetadata },
+            false,
+            'DatasourceWizard/addMotherDuck',
+          );
+        } else {
           useAppStore.setState(
             { dataSources: newDataSources },
             false,

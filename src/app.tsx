@@ -24,7 +24,13 @@ import { Router } from './router/router';
 export default function App() {
   const [connectionPoolSize] = useLocalStorage({
     key: LOCAL_STORAGE_KEYS.MAX_CONNECTION_POOL_SIZE,
-    defaultValue: 30,
+    defaultValue: 50,
+    // Read the stored value synchronously on first render. The connection pool
+    // is created once during DuckDB init, so deferring the read to an effect
+    // (Mantine's default) means the pool is always built with the default size
+    // and a user's configured size never takes effect. This app is a
+    // client-only SPA, so there is no SSR hydration concern.
+    getInitialValueInEffect: false,
   });
 
   return (

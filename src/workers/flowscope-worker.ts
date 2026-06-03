@@ -18,6 +18,22 @@ import {
 } from '@pondpilot/flowscope-core';
 import wasmUrl from '@pondpilot/flowscope-core/wasm/flowscope_wasm_bg.wasm?url';
 
+// Suppress a wasm-bindgen deprecation warning emitted from inside
+// @pondpilot/flowscope-core's initWasm, which calls the generated __wbg_init
+// positionally. The proper fix is a one-liner in flowscope-core's wasm-loader
+// (pass `{ module_or_path }`); until that ships, drop just this one line so it
+// does not spam the worker console on startup.
+const originalFlowScopeWarn = console.warn.bind(console);
+console.warn = (...args: Parameters<typeof console.warn>): void => {
+  if (
+    typeof args[0] === 'string' &&
+    args[0].includes('using deprecated parameters for the initialization function')
+  ) {
+    return;
+  }
+  originalFlowScopeWarn(...args);
+};
+
 export type FlowScopeRequestType = 'analyze' | 'split' | 'completionItems';
 
 export interface FlowScopeAnalyzeRequest {

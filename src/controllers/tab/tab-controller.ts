@@ -2,6 +2,7 @@
 // By convetion the order should follow CRUD groups!
 import { createScriptVersionController } from '@controllers/script-version';
 import { sanitizeChartLabel } from '@features/chart-view/utils/sanitize-label';
+import { getCurrentDuckDBConnectionPool } from '@features/duckdb-context/current-pool';
 import { ChartConfig, ViewMode } from '@models/chart';
 import {
   AnyFlatFileDataSource,
@@ -1173,6 +1174,20 @@ export const deleteTab = async (tabIds: TabId[]) => {
               console.error('Failed to save version before closing tab:', result.error);
             }
           }
+        }
+      }
+    }
+
+    const pool = getCurrentDuckDBConnectionPool();
+    if (pool) {
+      const scriptTabIds = tabIds.filter((id) => tabs.get(id)?.type === 'script');
+      // allSettled, not all: one unpin rejecting (e.g. a slot raced by a
+      // concurrent eviction) must not abandon the sibling unpins and leak
+      // their pinned connection slots.
+      const unpinResults = await Promise.allSettled(scriptTabIds.map((id) => pool.unpinTab(id)));
+      for (const result of unpinResults) {
+        if (result.status === 'rejected') {
+          console.error('Failed to unpin tab connection during tab deletion:', result.reason);
         }
       }
     }

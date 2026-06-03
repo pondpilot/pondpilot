@@ -61,3 +61,85 @@ export function toDuckDBIdentifier(str: string): string {
 export function isReservedDuckDBKeyword(str: string): boolean {
   return DUCKDB_RESERVED_KEYWORDS.has(str.toLowerCase());
 }
+
+/**
+ * Builds a single DuckDB `USE` statement for the given catalog/schema. When
+ * both are present the fully-qualified form `USE "catalog"."schema"` is
+ * emitted in one statement so the schema is resolved unambiguously against
+ * the named catalog (rather than DuckDB's current default).
+ *
+ * Returns `null` if neither catalog nor schema is supplied.
+ */
+export function buildUseStatement(
+  catalog: string | null | undefined,
+  schema: string | null | undefined,
+): string | null {
+  if (catalog && schema) {
+    return `USE ${toDuckDBIdentifier(catalog)}.${toDuckDBIdentifier(schema)}`;
+  }
+  if (catalog) {
+    return `USE ${toDuckDBIdentifier(catalog)}`;
+  }
+  if (schema) {
+    return `USE ${toDuckDBIdentifier(schema)}`;
+  }
+  return null;
+}
+
+/**
+ * Builds a `SET search_path` statement that restores a previously captured
+ * search path verbatim. The value is the raw string returned by
+ * `current_setting('search_path')`, so it is replayed as a single string
+ * literal (single quotes doubled) rather than re-parsed into identifiers —
+ * DuckDB produced the string, so it round-trips without re-quoting.
+ *
+ * `USE` collapses the search path to a single schema, so this is applied on top
+ * of `buildUseStatement` to restore a multi-entry path (e.g. set via
+ * `SET search_path TO s1, s2`) after a connection is replaced or restored from
+ * persistence.
+ *
+ * Returns `null` when there is no path to restore.
+ */
+export function buildSearchPathStatement(searchPath: string | null | undefined): string | null {
+  if (!searchPath) return null;
+  const trimmed = searchPath.trim();
+  if (!trimmed) return null;
+  const escaped = trimmed.replace(/'/g, "''");
+  return `SET search_path = '${escaped}'`;
+}
+
+/**
+ * A catalog/schema selection applied to a connection via `buildUseStatement`,
+ * plus the optional full `search_path` captured after a run so a multi-entry
+ * path can be restored via `buildSearchPathStatement`.
+ */
+export interface CatalogSchemaSelection {
+  catalog: string | null;
+  schema: string | null;
+  searchPath?: string | null;
+}
+
+/**
+ * Whether the desired catalog/schema/search_path differs from what was last
+ * applied to a connection and therefore needs a fresh `USE` (and search_path)
+ * statement.
+ *
+ * Callers cache the last selection per connection and only re-issue `USE` when
+ * this returns `true`. Re-applying when unchanged would reset the connection's
+ * catalog/schema and collapse richer interim session state (e.g. a script's
+ * multi-entry search_path) on every reuse of the connection.
+ *
+ * A missing `previous` (e.g. a freshly created or replaced connection) always
+ * needs application.
+ */
+export function needsCatalogSchemaReapply(
+  previous: CatalogSchemaSelection | undefined,
+  next: CatalogSchemaSelection,
+): boolean {
+  if (!previous) return true;
+  return (
+    previous.catalog !== next.catalog ||
+    previous.schema !== next.schema ||
+    (previous.searchPath ?? null) !== (next.searchPath ?? null)
+  );
+}

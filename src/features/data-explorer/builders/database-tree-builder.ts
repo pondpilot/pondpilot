@@ -23,7 +23,9 @@ import { disconnectIcebergCatalog } from '@utils/iceberg-catalog';
 import {
   disconnectMotherDuckConnection,
   getMotherDuckDatabaseModel,
-  listMotherDuckDatabases,
+  attachAllMotherDuckDatabases,
+  registerMotherDuckDatabaseAttaches,
+  withMotherDuckConnection,
 } from '@utils/motherduck';
 import { getLocalDBDataSourceName } from '@utils/navigation';
 import {
@@ -692,25 +694,30 @@ export function buildMotherDuckConnectionNode(
     contextMenuItems.push({
       label: 'Refresh',
       onClick: async () => {
-        // Re-discover databases from MotherDuck to pick up newly created ones
-        const databases = await listMotherDuckDatabases(conn);
-        const dbNames = databases.map((db) => db.name);
-        const currentMetadata = useAppStore.getState().databaseMetadata;
-        const newMetadata = new Map(currentMetadata);
-        // Remove stale MotherDuck entries that no longer exist
-        for (const key of currentMetadata.keys()) {
-          const plainName = parseMotherDuckDbKey(key);
-          if (plainName && !dbNames.includes(plainName)) {
-            newMetadata.delete(key);
+        // Re-discover databases from MotherDuck on a SINGLE connection: the
+        // ATTACH 'md:' handshake attaches the databases connection-locally, so
+        // discovery and metadata (which uses USE) must share that connection.
+        await withMotherDuckConnection(conn, async (mdConn) => {
+          const dbNames = await attachAllMotherDuckDatabases(mdConn);
+          registerMotherDuckDatabaseAttaches(conn, dbNames);
+          const currentMetadata = useAppStore.getState().databaseMetadata;
+          const newMetadata = new Map(currentMetadata);
+          // Remove stale MotherDuck entries that no longer exist
+          for (const key of currentMetadata.keys()) {
+            const plainName = parseMotherDuckDbKey(key);
+            if (plainName && !dbNames.includes(plainName)) {
+              newMetadata.delete(key);
+              conn.registerGlobalDetach(plainName);
+            }
           }
-        }
-        if (dbNames.length > 0) {
-          const metadata = await getMotherDuckDatabaseModel(conn, dbNames);
-          for (const [key, model] of metadata) {
-            newMetadata.set(key, model);
+          if (dbNames.length > 0) {
+            const metadata = await getMotherDuckDatabaseModel(mdConn, dbNames);
+            for (const [key, model] of metadata) {
+              newMetadata.set(key, model);
+            }
           }
-        }
-        useAppStore.setState({ databaseMetadata: newMetadata }, false, 'MotherDuck/refresh');
+          useAppStore.setState({ databaseMetadata: newMetadata }, false, 'MotherDuck/refresh');
+        });
       },
     });
     contextMenuItems.push({

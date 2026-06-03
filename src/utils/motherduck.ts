@@ -14,6 +14,7 @@ import { deleteTab } from '@controllers/tab';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { MotherDuckConnection, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, DBColumn, DBSchema, DBTableOrView } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { AppIdbSchema } from '@models/persisted-store';
 import { TabId } from '@models/tab';
 import { getSecret } from '@services/secret-store';
@@ -30,10 +31,70 @@ import { IDBPDatabase } from 'idb';
 const MD_EXTENSION_VERSION_URL = 'https://api.motherduck.com/extension_version';
 
 /**
+ * A target for MotherDuck SQL: either the pool or a single pooled connection.
+ *
+ * MotherDuck setup is connection-local — `SET motherduck_token`, the `ATTACH 'md:'`
+ * handshake (which auto-attaches the user's databases on THAT connection), and
+ * `USE <db>` for metadata — so a connect/discover/metadata sequence MUST run on
+ * one connection. The pool spreads `pool.query()` calls across connections, so
+ * callers pass a single pooled connection acquired via `withMotherDuckConnection`.
+ */
+type MotherDuckQueryable = Pick<AsyncDuckDBConnectionPool, 'query'>;
+
+async function resetMotherDuckConnectionCatalog(conn: MotherDuckQueryable): Promise<void> {
+  try {
+    await conn.query('USE memory;');
+    return;
+  } catch {
+    // Fall back to the persistent catalog below.
+  }
+
+  try {
+    await conn.query(`USE ${toDuckDBIdentifier(PERSISTENT_DB_NAME)};`);
+  } catch (error) {
+    console.warn('Failed to reset MotherDuck pooled connection catalog:', error);
+  }
+}
+
+/**
+ * Acquire a single pooled connection, run `fn` against it, then release it.
+ * Use this to wrap any MotherDuck sequence that depends on connection-local
+ * state (token, `ATTACH 'md:'`, `USE`). Running such a sequence directly on the
+ * pool spreads it across connections and loses the state — e.g.
+ * `listMotherDuckDatabases` would not see the databases the handshake attached.
+ *
+ * This MUST NOT detach the shared `memory` catalog. All pooled connections share
+ * one DuckDB-WASM instance, so ATTACH/DETACH is catalog-global: detaching
+ * `memory` removes it for every connection, not just this one. `memory` is the
+ * default database of the other pooled connections, so detaching it for the
+ * duration of the MotherDuck handshake (seconds, including network retries)
+ * makes their in-flight queries fail with "There must be at least one attached
+ * databases!" — which surfaces as every tab failing to open a reader while a
+ * MotherDuck connection reconnects on startup.
+ *
+ * The handshake does not need `memory` gone: `ATTACH 'md:'` still attaches
+ * `md_information_schema`, and discovery is explicit — `attachAllMotherDuckDatabases`
+ * enumerates `md_information_schema.databases` and `ATTACH`es each account
+ * database by name, which works with `memory` attached.
+ */
+export async function withMotherDuckConnection<T>(
+  pool: AsyncDuckDBConnectionPool,
+  fn: (conn: MotherDuckQueryable) => Promise<T>,
+): Promise<T> {
+  const conn = await pool.getBackgroundConnection();
+  try {
+    return await fn(conn);
+  } finally {
+    await resetMotherDuckConnectionCatalog(conn);
+    await conn.close();
+  }
+}
+
+/**
  * Returns the DuckDB core version (e.g. "v1.5.1") by querying the running engine.
  * This keeps the MotherDuck API header in sync when the @duckdb/duckdb-wasm package is upgraded.
  */
-async function getDuckDBVersion(pool: AsyncDuckDBConnectionPool): Promise<string> {
+async function getDuckDBVersion(pool: MotherDuckQueryable): Promise<string> {
   const result = await pool.query('SELECT version() AS v');
   const version: string = result.toArray()[0]?.v;
   if (!version) {
@@ -59,9 +120,7 @@ export async function resolveMotherDuckToken(
 /**
  * Checks whether the motherduck extension is already loaded.
  */
-export async function isMotherDuckExtensionLoaded(
-  pool: AsyncDuckDBConnectionPool,
-): Promise<boolean> {
+export async function isMotherDuckExtensionLoaded(pool: MotherDuckQueryable): Promise<boolean> {
   try {
     const result = await pool.query(
       "SELECT extension_name FROM duckdb_extensions() WHERE extension_name = 'motherduck' AND loaded = true",
@@ -85,7 +144,7 @@ const MD_FETCH_TIMEOUT_MS = 15_000;
  * Requires SharedArrayBuffer (COOP/COEP headers must be set).
  * Throws on failure.
  */
-export async function loadMotherDuckExtension(pool: AsyncDuckDBConnectionPool): Promise<void> {
+export async function loadMotherDuckExtension(pool: MotherDuckQueryable): Promise<void> {
   if (typeof SharedArrayBuffer === 'undefined') {
     throw new Error(
       'MotherDuck requires SharedArrayBuffer. Ensure Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers are configured.',
@@ -151,10 +210,7 @@ export async function loadMotherDuckExtension(pool: AsyncDuckDBConnectionPool): 
  *
  * Throws on failure.
  */
-export async function connectMotherDuck(
-  pool: AsyncDuckDBConnectionPool,
-  token: string,
-): Promise<void> {
+export async function connectMotherDuck(pool: MotherDuckQueryable, token: string): Promise<void> {
   // Set the token — configures the credential for the MotherDuck extension.
   // DuckDB-WASM does not support parameterized SET statements, so we inline
   // the token as a string literal with single-quote escaping. The pool.query
@@ -216,7 +272,7 @@ export async function connectMotherDuck(
  * Their names are plain (e.g. 'my_db'), not prefixed with 'md:'.
  */
 export async function listMotherDuckDatabases(
-  pool: AsyncDuckDBConnectionPool,
+  pool: MotherDuckQueryable,
 ): Promise<{ name: string; type: string }[]> {
   const result = await pool.query(
     "SELECT database_name, type FROM duckdb_databases() WHERE type = 'motherduck'",
@@ -225,6 +281,53 @@ export async function listMotherDuckDatabases(
     name: row.database_name,
     type: row.type,
   }));
+}
+
+/**
+ * Enumerate every database in the connected MotherDuck account and attach each.
+ *
+ * `ATTACH 'md:'` only auto-attaches the account's default database, so the rest
+ * stay invisible to `duckdb_databases()`. `md_information_schema.databases`
+ * lists them all; we attach any that aren't already attached so their schemas
+ * become queryable for metadata. Returns the full set of database names.
+ *
+ * Must run on a connection that has completed the `ATTACH 'md:'` handshake (so
+ * `md_information_schema` is present). Falls back to the currently attached set
+ * if the catalog can't be read.
+ */
+export async function attachAllMotherDuckDatabases(conn: MotherDuckQueryable): Promise<string[]> {
+  let names: string[];
+  try {
+    const result = await conn.query('SELECT name FROM md_information_schema.databases');
+    names = result
+      .toArray()
+      .map((row: any) => row.name as string)
+      .filter((name) => Boolean(name) && name !== 'md_information_schema');
+  } catch (error) {
+    console.warn('Failed to enumerate MotherDuck databases; using attached set:', error);
+    return (await listMotherDuckDatabases(conn)).map((db) => db.name);
+  }
+
+  for (const name of names) {
+    try {
+      await conn.query(`ATTACH IF NOT EXISTS 'md:${escapeSqlStringValue(name)}'`);
+    } catch (error) {
+      console.warn(`Failed to attach MotherDuck database '${name}':`, error);
+    }
+  }
+  return names;
+}
+
+export function registerMotherDuckDatabaseAttaches(
+  pool: AsyncDuckDBConnectionPool,
+  dbNames: string[],
+): void {
+  pool.registerGlobalAttach('md:', "ATTACH IF NOT EXISTS 'md:'");
+
+  for (const dbName of dbNames) {
+    if (!dbName || dbName === 'md_information_schema') continue;
+    pool.registerGlobalAttach(dbName, `ATTACH IF NOT EXISTS 'md:${escapeSqlStringValue(dbName)}'`);
+  }
 }
 
 /**
@@ -245,7 +348,7 @@ export async function listMotherDuckDatabases(
  * collisions with local databases and to let the tree builder identify them.
  */
 export async function getMotherDuckDatabaseModel(
-  pool: AsyncDuckDBConnectionPool,
+  pool: MotherDuckQueryable,
   dbNames: string[],
 ): Promise<Map<string, DataBaseModel>> {
   const result = new Map<string, DataBaseModel>();
@@ -362,17 +465,27 @@ export async function getMotherDuckDatabaseModel(
  * cleared after being set. The token persists for the engine lifetime.
  */
 export async function detachMotherDuckDatabases(pool: AsyncDuckDBConnectionPool): Promise<void> {
-  // Find all MotherDuck databases (type='motherduck', plain names)
-  const databases = await listMotherDuckDatabases(pool);
-
-  // Detach each one using the plain database name
-  for (const db of databases) {
-    try {
-      await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(db.name)}`);
-    } catch (error) {
-      console.warn(`Failed to detach MotherDuck database '${db.name}':`, error);
+  // List + detach on a single connection: listMotherDuckDatabases only sees
+  // databases attached on the connection it runs against, so it must share a
+  // connection with the DETACH statements.
+  const databaseNames = await withMotherDuckConnection(pool, async (conn) => {
+    const databases = await listMotherDuckDatabases(conn);
+    for (const db of databases) {
+      try {
+        await conn.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(db.name)}`);
+      } catch (error) {
+        console.warn(`Failed to detach MotherDuck database '${db.name}':`, error);
+      }
     }
+    return databases.map((db) => db.name);
+  });
+
+  // Propagate the detaches globally so every pooled connection reconciles them
+  // away (and unregister the md: handshake itself).
+  for (const name of databaseNames) {
+    pool.registerGlobalDetach(name);
   }
+  pool.registerGlobalDetach('md:');
 }
 
 /**
@@ -412,37 +525,46 @@ export async function reconnectMotherDuck(
   try {
     updateMotherDuckConnectionState(connection.id, 'connecting');
 
-    await loadMotherDuckExtension(pool);
-    await connectMotherDuck(pool, token);
+    // Run the whole connect → discover → metadata sequence on ONE connection.
+    // The ATTACH 'md:' handshake attaches the user's databases on that
+    // connection, so the discovery and metadata queries must run on the same
+    // connection to see them (the multi-connection pool would otherwise spread
+    // them and find nothing).
+    await withMotherDuckConnection(pool, async (conn) => {
+      await loadMotherDuckExtension(conn);
+      await connectMotherDuck(conn, token);
 
-    // Load metadata for discovered databases via information_schema
-    const databases = await listMotherDuckDatabases(pool);
-    const dbNames = databases.map((db) => db.name);
+      // Enumerate and attach every account database, then load their metadata.
+      const dbNames = await attachAllMotherDuckDatabases(conn);
+      registerMotherDuckDatabaseAttaches(pool, dbNames);
 
-    const { databaseMetadata } = useAppStore.getState();
-    try {
-      const metadata = await getMotherDuckDatabaseModel(pool, dbNames);
-      const newMetadata = new Map(databaseMetadata);
-      const discoveredMetadataKeys = new Set(dbNames.map((name) => formatMotherDuckDbKey(name)));
+      const { databaseMetadata } = useAppStore.getState();
+      try {
+        const metadata = await getMotherDuckDatabaseModel(conn, dbNames);
+        const newMetadata = new Map(databaseMetadata);
+        const discoveredMetadataKeys = new Set(dbNames.map((name) => formatMotherDuckDbKey(name)));
 
-      // Remove stale MotherDuck databases that are no longer present after reconnect.
-      for (const key of databaseMetadata.keys()) {
-        if (isMotherDuckDbKey(key) && !discoveredMetadataKeys.has(key)) {
-          newMetadata.delete(key);
+        // Remove stale MotherDuck databases that are no longer present after reconnect.
+        for (const key of databaseMetadata.keys()) {
+          if (isMotherDuckDbKey(key) && !discoveredMetadataKeys.has(key)) {
+            newMetadata.delete(key);
+            const dbName = key.slice('md:'.length);
+            pool.registerGlobalDetach(dbName);
+          }
         }
-      }
 
-      for (const [dbName, dbModel] of metadata) {
-        newMetadata.set(dbName, dbModel);
+        for (const [dbName, dbModel] of metadata) {
+          newMetadata.set(dbName, dbModel);
+        }
+        useAppStore.setState(
+          { databaseMetadata: newMetadata },
+          false,
+          'MotherDuck/reconnectMetadata',
+        );
+      } catch (metadataError) {
+        console.error('Failed to load MotherDuck metadata after reconnection:', metadataError);
       }
-      useAppStore.setState(
-        { databaseMetadata: newMetadata },
-        false,
-        'MotherDuck/reconnectMetadata',
-      );
-    } catch (metadataError) {
-      console.error('Failed to load MotherDuck metadata after reconnection:', metadataError);
-    }
+    });
 
     updateMotherDuckConnectionState(connection.id, 'connected');
 
@@ -476,19 +598,20 @@ export async function disconnectMotherDuckConnection(
   connection: MotherDuckConnection,
 ): Promise<void> {
   try {
-    // Find all MotherDuck databases to clean up their metadata
-    const databases = await listMotherDuckDatabases(pool);
-
     await detachMotherDuckDatabases(pool);
 
     // Update connection state
     updateMotherDuckConnectionState(connection.id, 'disconnected');
 
-    // Remove metadata for MotherDuck databases
+    // Remove metadata for every MotherDuck database. Derive the keys from the
+    // store (md: prefixed) rather than a live query: the databases are now
+    // detached, and a live query on the multi-connection pool is unreliable.
     const currentMetadata = useAppStore.getState().databaseMetadata;
     const newMetadata = new Map(currentMetadata);
-    for (const db of databases) {
-      newMetadata.delete(formatMotherDuckDbKey(db.name));
+    for (const key of currentMetadata.keys()) {
+      if (isMotherDuckDbKey(key)) {
+        newMetadata.delete(key);
+      }
     }
     useAppStore.setState({ databaseMetadata: newMetadata }, false, 'MotherDuck/disconnect');
 

@@ -102,6 +102,18 @@ export interface DataAdapterApi {
   dataSourceVersion: number;
 
   /**
+   * An ever increasing number that is incremented whenever the data source is
+   * logically (re)loaded: a new source query, a re-run, or a sort change.
+   *
+   * Unlike `dataSourceVersion`, it is NOT bumped when the main reader is
+   * transparently paused and restored to free the shared connection for a
+   * helper query (column stats, chart aggregation, export). Derived views such
+   * as charts should react to this instead of `dataSourceVersion`/`isStale`, so
+   * that running their own aggregation does not re-trigger themselves.
+   */
+  chartSourceVersion: number;
+
+  /**
    * An ever increasing number that is incremented
    * whenever the data is changed. Use this in components
    * that sould react to all data changes and conversely
@@ -266,10 +278,20 @@ export interface DataAdapterApi {
   pool: AsyncDuckDBConnectionPool | null;
 
   /**
-   * Cancels the current data read and prevents further reads
-   * until user asks for more data by paging/scrolling
+   * Optional native Parquet COPY implementation for adapters that need
+   * session-aware execution, such as script tabs with pinned DuckDB sessions.
    */
-  cancelDataRead: () => void;
+  copyToParquet: ((tempFileName: string, compression: string) => Promise<void>) | null;
+
+  /**
+   * Cancels the current data read.
+   *
+   * By default the read is only paused and resumes when the user pages or
+   * scrolls. Pass `releaseReader: true` to also close the underlying reader
+   * (used by the script-run path to free the tab-pinned connection); a released
+   * read does not resume on scroll and requires a reset/re-run.
+   */
+  cancelDataRead: (options?: { releaseReader?: boolean }) => Promise<void>;
 
   /**
    * Resets the data read cancelled state. This is used to
@@ -304,6 +326,12 @@ export interface DataAdapterQueries {
    * Used by formats like Parquet that leverage DuckDB's native COPY TO.
    */
   sourceQuery?: string;
+
+  /**
+   * Optional native Parquet COPY implementation for data sources that must
+   * execute COPY in a particular connection/session.
+   */
+  copyToParquet?: (tempFileName: string, compression: string) => Promise<void>;
   /**
    * If data source supports quick precise row count retrieval, returns the count.
    */

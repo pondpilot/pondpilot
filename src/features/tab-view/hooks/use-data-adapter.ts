@@ -45,6 +45,27 @@ type UseDataAdapterProps = {
   sourceVersion: number;
 };
 
+type ResetOptions = {
+  /**
+   * When true, the reset is a transparent reader restore (e.g. resuming the
+   * main reader after pausing it for a helper query) rather than a logical
+   * reload, so `chartSourceVersion` is not bumped. Derived views like charts
+   * therefore do not re-trigger off their own paused-reader restore.
+   */
+  silentForChart?: boolean;
+  /**
+   * When true, the reset does not abort in-flight user tasks (column
+   * copy/export/aggregate). A transparent reader restore runs from inside such
+   * a user task's `finally`, and a concurrently queued user task may already
+   * hold a live abort signal; aborting it here would cancel the very operation
+   * the restore exists to support. The main reader is governed by the
+   * data-fetch signal, which is still cancelled.
+   */
+  preserveUserTasks?: boolean;
+};
+
+type ResetFn = (newSortParams: ColumnSortSpecList | null, options?: ResetOptions) => Promise<void>;
+
 export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): DataAdapterApi => {
   const pool = useInitializedDuckDBConnectionPool();
 
@@ -90,9 +111,19 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // This is used to allow downstream components to subscribe
   // and react only to data source changes, but not to intermediate
   // data changes. Think, every time `mainDataReader` is created
-  // or reset, we increment this number.
+  // or reset for a logical reload, we increment this number. A transparent
+  // pause/restore of the reader (see `runWithMainReaderPaused`) does NOT bump
+  // it: that is not a source change, and bumping it would reset the grid to
+  // page 0 and invalidate cached column summaries.
   // This is strictly inreasing number.
   const [dataSourceVersion, setDataSourceVersion] = useState<number>(0);
+
+  // Like `dataSourceVersion`, but only bumped on logical reloads (new source
+  // query, re-run, sort change) and NOT when the main reader is transparently
+  // paused/restored to free the shared connection for a helper query (see
+  // `runWithMainReaderPaused`). Derived views such as charts react to this so
+  // running their own aggregation does not re-trigger themselves in a loop.
+  const [chartSourceVersion, setChartSourceVersion] = useState<number>(0);
 
   // Actual data schema
   const [actualDataSchema, setActualDataSchema] = useState<DBTableOrViewSchema>([]);
@@ -193,13 +224,22 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // Holds the current connection to the database
   const mainDataReaderRef = useRef<DataAdapterStreamReader<any> | null>(null);
 
+  // Serializes operations that pause the main reader (column copy/export,
+  // column aggregate summaries). Each such operation cancels the tab's single
+  // pinned-connection reader, runs its query, then re-opens the main reader in
+  // its `finally`. Running two concurrently lets one operation's main-reader
+  // re-open re-claim the pinned connection while the other is still waiting to
+  // claim it, deadlocking until the pool timeout. Chaining keeps each
+  // pause/run/restore cycle atomic with respect to the others.
+  const pausedReaderOpChainRef = useRef<Promise<unknown>>(Promise.resolve());
+
   // Holds the data read from the data source. We use ref to allow efficient
   // appends instead of re-writing, what can be a huge array every time.
   const actualData = useRef<DataTable>([]);
   const terminalSchemaErrorRef = useRef<string | null>(null);
-  const resetRef = useRef<((newSortParams: ColumnSortSpecList | null) => Promise<void>) | null>(
-    null,
-  );
+  const resetRef = useRef<ResetFn | null>(null);
+  const sortRef = useRef(sort);
+  const dataSourceExhaustedRef = useRef(dataSourceExhausted);
 
   // We need a non-reactive ref to be able to handle multiple
   // parallel fetch calls, such that to the end user it seems that
@@ -411,7 +451,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   ]);
 
   const getNewReader = useCallback(
-    async (newSortParams: ColumnSortSpecList, options = { retry_with_file_sync: true }) => {
+    async (
+      newSortParams: ColumnSortSpecList,
+      options: { retry_with_file_sync?: boolean; bumpDataSourceVersion?: boolean } = {
+        retry_with_file_sync: true,
+      },
+    ) => {
       try {
         if (queries.getReader || queries.getSortableReader) {
           // Get the abort signal
@@ -428,10 +473,20 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           if (newReader !== null) {
             terminalSchemaErrorRef.current = null;
             mainDataReaderRef.current = newReader;
-            setDataSourceVersion((prev) => prev + 1);
+            // A transparent reader restore (see `runWithMainReaderPaused`) opts
+            // out of this bump: re-creating the reader to free the shared
+            // connection is not a logical source change, so the grid must keep
+            // its page and column summaries stay valid.
+            const isLogicalReload = options.bumpDataSourceVersion ?? true;
+            if (isLogicalReload) {
+              setDataSourceVersion((prev) => prev + 1);
+            }
 
-            // Send row count fetching to background if we do not have it already
-            if (!rowCountInfo.realRowCount) {
+            // Send row count fetching to background if we do not have it
+            // already. A transparent reader restore cannot change the row count,
+            // so skip the extra COUNT round-trip on the shared (pinned)
+            // connection in that case.
+            if (isLogicalReload && !rowCountInfo.realRowCount) {
               fetchRowCount();
             }
           }
@@ -502,8 +557,18 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    * 2. When the sort changes - `newSortParams` are, well, the new sort params
    */
   const reset = useCallback(
-    async (newSortParams: ColumnSortSpecList | null) => {
+    async (
+      newSortParams: ColumnSortSpecList | null,
+      { silentForChart = false, preserveUserTasks = false }: ResetOptions = {},
+    ) => {
       // Reset a bunch of things.
+
+      // A logical reload (new source, re-run, sort change) should refresh
+      // derived views; a transparent reader restore should not (otherwise a
+      // chart that paused the reader to aggregate would re-trigger itself).
+      if (!silentForChart) {
+        setChartSourceVersion((prev) => prev + 1);
+      }
 
       let lastAvailableRowCount = 0;
 
@@ -524,8 +589,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         lastAvailableRowCount = staleData.data.length + staleData.rowOffset;
       }
 
-      // Cancel any pending fetches, and background tasks & readers
-      cancelAllDataOperations();
+      // Cancel any pending fetches, and background tasks & readers. A
+      // transparent restore (preserveUserTasks) leaves in-flight user tasks
+      // alone — see `ResetOptions.preserveUserTasks`.
+      if (preserveUserTasks) {
+        abortDataFetch();
+        abortBackgroundTasks();
+      } else {
+        cancelAllDataOperations();
+      }
 
       // Cancel the main data reader before creating a new one
       const curReader = mainDataReaderRef.current;
@@ -570,13 +642,30 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // Save new sort params
       setSort(newSortParams);
 
-      // And let the new reader be created in the background
-      await getNewReader(newSortParams);
+      // And let the new reader be created in the background. A transparent
+      // reader restore (silentForChart) is not a logical source change, so it
+      // must not bump `dataSourceVersion` — mirroring how `chartSourceVersion`
+      // above is left untouched. Otherwise the grid would jump to page 0.
+      await getNewReader(newSortParams, {
+        retry_with_file_sync: true,
+        bumpDataSourceVersion: !silentForChart,
+      });
     },
-    [actualDataSchema, cancelAllDataOperations, getNewReader, staleData, setLastSortSafe, sort],
+    [
+      actualDataSchema,
+      cancelAllDataOperations,
+      abortDataFetch,
+      abortBackgroundTasks,
+      getNewReader,
+      staleData,
+      setLastSortSafe,
+      sort,
+    ],
   );
 
   resetRef.current = reset;
+  sortRef.current = sort;
+  dataSourceExhaustedRef.current = dataSourceExhausted;
 
   /**
    * -------------------------------------------------------------
@@ -945,6 +1034,55 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     [currentSchema, fetchData, sort, isStale, staleData],
   );
 
+  const runWithMainReaderPaused = useCallback(
+    <T>(
+      operation: () => Promise<T>,
+      { resetAfter = true }: { resetAfter?: boolean } = {},
+    ): Promise<T> => {
+      const runPaused = async (): Promise<T> => {
+        const curReader = mainDataReaderRef.current;
+        const shouldResetReader =
+          curReader !== null && !curReader.closed && !dataSourceExhaustedRef.current;
+
+        if (shouldResetReader) {
+          abortDataFetch();
+          mainDataReaderRef.current = null;
+          await curReader.cancel();
+        }
+
+        try {
+          return await operation();
+        } finally {
+          if (shouldResetReader && resetAfter) {
+            // Transparent restore of the main reader we paused above. Not a
+            // logical reload, so it must not bump `chartSourceVersion` — that is
+            // what would otherwise re-trigger the caller (e.g. chart aggregation)
+            // and spin into an aggregate/reset loop. It must also not abort
+            // in-flight user tasks: a serialized copy/aggregate queued behind
+            // this one already holds a live signal we would otherwise cancel.
+            await resetRef.current?.(sortRef.current, {
+              silentForChart: true,
+              preserveUserTasks: true,
+            });
+          }
+        }
+      };
+
+      // Serialize against any other paused-reader operation in flight so their
+      // pause → run → reader-restore cycles never interleave on the tab's
+      // single pinned connection (see `pausedReaderOpChainRef`).
+      const run = pausedReaderOpChainRef.current.then(runPaused, runPaused);
+      // Keep the chain alive regardless of this operation's outcome, so a
+      // failed/cancelled operation doesn't wedge later ones.
+      pausedReaderOpChainRef.current = run.then(
+        () => undefined,
+        () => undefined,
+      );
+      return run;
+    },
+    [abortDataFetch],
+  );
+
   const getAllTableData = useCallback(
     async (columns: DBColumn[] | null): Promise<DataTable> => {
       // Figure out if it is more efficient and possible to read
@@ -969,7 +1107,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // Get new abort signal
         const signal = getUserTasksAbortSignal();
 
-        const { value, aborted } = await queries.getColumnsData(columns, signal);
+        const { value, aborted } = await runWithMainReaderPaused(() =>
+          queries.getColumnsData!(columns, signal),
+        );
 
         if (aborted) {
           throw new CancelledOperation({
@@ -1001,6 +1141,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       abortUserTasks,
       getUserTasksAbortSignal,
       fetchData,
+      runWithMainReaderPaused,
       sort,
     ],
   );
@@ -1034,7 +1175,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // Get new abort signal
       const signal = getUserTasksAbortSignal();
 
-      const { value, aborted } = await queries.getColumnAggregate(columnName, aggType, signal);
+      const { value, aborted } = await runWithMainReaderPaused(() =>
+        queries.getColumnAggregate!(columnName, aggType, signal),
+      );
 
       if (aborted) {
         throw new CancelledOperation({
@@ -1045,7 +1188,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       return value;
     },
-    [queries, abortUserTasks, getUserTasksAbortSignal],
+    [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
   );
 
   const getChartAggregatedData = useCallback(
@@ -1068,14 +1211,16 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // Get new abort signal
       const signal = getUserTasksAbortSignal();
 
-      const { value, aborted } = await queries.getChartAggregatedData(
-        xColumn,
-        yColumn,
-        aggregation,
-        groupByColumn,
-        sortBy,
-        sortOrder,
-        signal,
+      const { value, aborted } = await runWithMainReaderPaused(() =>
+        queries.getChartAggregatedData!(
+          xColumn,
+          yColumn,
+          aggregation,
+          groupByColumn,
+          sortBy,
+          sortOrder,
+          signal,
+        ),
       );
 
       if (aborted) {
@@ -1087,16 +1232,32 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       return value;
     },
-    [queries, abortUserTasks, getUserTasksAbortSignal],
+    [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
   );
 
-  const cancelDataRead = useCallback(() => {
-    // this will ensure that fetching doesn't resume
-    fetchTo.current = actualData.current.length;
-    dataReadCancelled.current = true;
-    abortDataFetch();
-    setLastSortSafe(sort);
-  }, [abortDataFetch, setLastSortSafe, sort]);
+  const cancelDataRead = useCallback(
+    async ({ releaseReader = false }: { releaseReader?: boolean } = {}) => {
+      // this will ensure that fetching doesn't resume
+      fetchTo.current = actualData.current.length;
+      dataReadCancelled.current = true;
+      abortDataFetch();
+      setLastSortSafe(sort);
+
+      // The script-run path (script-tab-view) must fully release the reader so
+      // the tab-pinned connection is freed before it re-pins the tab. The user
+      // Stop button must NOT release it: the read is only paused and the next
+      // scroll/page resumes it per this method's contract, which a closed
+      // reader would silently break.
+      if (releaseReader) {
+        const curReader = mainDataReaderRef.current;
+        if (curReader) {
+          mainDataReaderRef.current = null;
+          await curReader.cancel();
+        }
+      }
+    },
+    [abortDataFetch, setLastSortSafe, sort],
+  );
 
   const ackDataReadCancelled = useCallback(() => {
     dataReadCancelled.current = false;
@@ -1132,6 +1293,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
   return {
     dataSourceVersion,
+    chartSourceVersion,
     dataVersion,
     currentSchema,
     isStale,
@@ -1145,6 +1307,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     dataReadCancelled: dataReadCancelled.current,
     sourceQuery: queries.sourceQuery ?? null,
     pool,
+    copyToParquet: queries.copyToParquet
+      ? (tempFileName, compression) =>
+          runWithMainReaderPaused(() => queries.copyToParquet!(tempFileName, compression))
+      : null,
     reset: resetApi,
     getDataTableSlice,
     getAllTableData,

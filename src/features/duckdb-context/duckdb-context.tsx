@@ -1,14 +1,22 @@
+import { showWarning } from '@components/app-notifications';
 import { configureConnectionForHttpfs } from '@controllers/db/httpfs-extension-controller';
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
-import { setAppLoadState } from '@store/app-store';
+import { markTransient, setAppLoadState, useAppStore } from '@store/app-store';
+import {
+  buildSearchPathStatement,
+  buildUseStatement,
+  CatalogSchemaSelection,
+} from '@utils/duckdb/identifier';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { v4 } from 'uuid';
 
+import { setCurrentDuckDBConnectionPool } from './current-pool';
 import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
+import { buildDuckDBWorkerBootstrap } from './worker-log-filter';
 
 class DuckDBInitializationCancelledError extends Error {
   constructor(message = 'DuckDB initialization cancelled') {
@@ -85,8 +93,8 @@ export const DuckDBConnectionPoolProvider = ({
 
   const [connectionPool, setConnectionPool] = useState<AsyncDuckDBConnectionPool | null>(null);
 
-  const DEFAULT_MAX_POOL_SIZE = 30;
-  const normalizedPoolSize = Math.max(5, Math.min(maxPoolSize || DEFAULT_MAX_POOL_SIZE, 50));
+  const DEFAULT_MAX_POOL_SIZE = 50;
+  const normalizedPoolSize = Math.max(5, Math.min(maxPoolSize || DEFAULT_MAX_POOL_SIZE, 100));
 
   // Get persistence state from context
   const { persistenceState, updatePersistenceState } = useDuckDBPersistence();
@@ -133,8 +141,14 @@ export const DuckDBConnectionPoolProvider = ({
   })();
 
   // create a logger
+  //
+  // DuckDB-WASM logs one INFO entry per query (ASYNC_DUCKDB/QUERY/RUN). That is
+  // useful for tracing but floods the dev console on startup, so it is opt-in:
+  // dev defaults to WARNING and only drops to INFO when VITE_DUCKDB_LOG_QUERIES
+  // is set. Production is always WARNING.
+  const logQueries = import.meta.env.DEV && import.meta.env.VITE_DUCKDB_LOG_QUERIES === 'true';
   const logger = new duckdb.ConsoleLogger(
-    import.meta.env.DEV ? duckdb.LogLevel.INFO : duckdb.LogLevel.WARNING,
+    logQueries ? duckdb.LogLevel.INFO : duckdb.LogLevel.WARNING,
   );
 
   // duckdb worker and blob URL references
@@ -211,6 +225,7 @@ export const DuckDBConnectionPoolProvider = ({
             console.error('Failed to close DuckDB connection pool during cleanup:', error);
           } finally {
             setConnectionPool(null);
+            setCurrentDuckDBConnectionPool(null);
           }
         }
 
@@ -278,9 +293,14 @@ export const DuckDBConnectionPoolProvider = ({
 
         ensureNotCancelled();
 
-        // Create a blob URL for the worker script
+        // Create a blob URL for the worker script. The bootstrap installs a
+        // console filter that drops known-noisy MotherDuck wasm_extension logs
+        // before loading the real DuckDB worker.
+        if (!bundle.mainWorker) {
+          throw new Error('Selected DuckDB bundle is missing a worker URL.');
+        }
         const worker_url = URL.createObjectURL(
-          new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' }),
+          new Blob([buildDuckDBWorkerBootstrap(bundle.mainWorker)], { type: 'text/javascript' }),
         );
 
         // Store the URL in the ref for cleanup on unmount
@@ -424,7 +444,81 @@ export const DuckDBConnectionPoolProvider = ({
               // Only log checkpoints in development mode
               logCheckpoints: import.meta.env.DEV,
             },
-            configureConnectionForHttpfs,
+            async (conn) => {
+              await configureConnectionForHttpfs(conn);
+              try {
+                await conn.query("ATTACH IF NOT EXISTS ':memory:' AS memory;");
+              } catch (error) {
+                console.warn('Failed to attach per-connection memory catalog:', error);
+              }
+            },
+            {
+              onBeforeTabConnectionUse: async (tabId, conn) => {
+                const tab = useAppStore.getState().tabs.get(tabId);
+                if (tab?.type !== 'script') return;
+
+                const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
+                const next: CatalogSchemaSelection = session
+                  ? {
+                      catalog: session.currentCatalog,
+                      schema: session.currentSchema,
+                      searchPath: session.searchPath ?? null,
+                    }
+                  : {
+                      catalog: PERSISTENT_DB_NAME,
+                      schema: 'main',
+                      searchPath: null,
+                    };
+
+                const useStmt = buildUseStatement(next.catalog, next.schema);
+                if (useStmt) {
+                  try {
+                    await conn.query(useStmt);
+                  } catch (error) {
+                    throw new Error(
+                      `Failed to restore DuckDB script session (${next.catalog ?? 'default'}${
+                        next.schema ? `.${next.schema}` : ''
+                      }). Select another session or reconnect the data source before running.`,
+                      { cause: error },
+                    );
+                  }
+                }
+                // Restore a multi-entry search_path captured after the run.
+                // USE collapses the path to a single schema, so re-apply the
+                // full path on top. Best-effort: a value DuckDB can't round-
+                // trip must not abort the run — we keep the single schema USE
+                // already set.
+                const searchPathStmt = buildSearchPathStatement(next.searchPath);
+                if (searchPathStmt) {
+                  try {
+                    await conn.query(searchPathStmt);
+                  } catch (error) {
+                    console.warn('Failed to restore DuckDB search_path for script session:', error);
+                  }
+                }
+
+                // Note: the transient flag is intentionally NOT cleared here.
+                // This hook fires on every connection claim, including the
+                // background re-read that happens when a user switches to an
+                // evicted tab. Clearing it here would hide the "session
+                // evicted" badge the instant the tab is viewed. The badge is
+                // cleared at the start of the next run instead (see
+                // script-tab-view), matching the eviction notice that catalog
+                // and schema are restored on the next run.
+              },
+              onTabEvicted: (tabId) => {
+                const tab = useAppStore.getState().tabs.get(tabId);
+                if (tab?.type !== 'script') return;
+
+                markTransient(tab.sqlScriptId, true);
+                showWarning({
+                  id: `duckdb-session-evicted-${tabId}`,
+                  title: 'Script session evicted',
+                  message:
+                    'This tab was inactive long enough for DuckDB to reuse its connection. Catalog and schema will be restored on the next run, but temp tables and SET values are not preserved.',
+                });
+              },
+            },
           );
 
           /**
@@ -515,6 +609,7 @@ export const DuckDBConnectionPoolProvider = ({
           ensureNotCancelled();
 
           setConnectionPool(pool);
+          setCurrentDuckDBConnectionPool(pool);
           memoizedStatusUpdate({
             state: 'ready',
             message: 'DuckDB is ready with OPFS persistence!',

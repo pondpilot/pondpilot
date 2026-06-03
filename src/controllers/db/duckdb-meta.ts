@@ -39,7 +39,7 @@ export async function getLocalDBs(
 ): Promise<string[] | null> {
   const sql = `
     SELECT database_name 
-    FROM duckdb_databases
+    FROM duckdb_databases()
     ${excludeSystem ? 'WHERE NOT internal' : ''}
   `;
 
@@ -312,7 +312,7 @@ export async function getObjectModels(
 export async function getDuckDBFunctions(
   pool: AsyncDuckDBConnectionPool,
 ): Promise<DBFunctionsMetadata[]> {
-  const conn = await pool.getPooledConnection();
+  const conn = await pool.getBackgroundConnection();
   try {
     const sql =
       'SELECT DISTINCT ON(function_name) function_name, description, parameters, examples, internal FROM duckdb_functions()';

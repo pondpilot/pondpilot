@@ -372,7 +372,7 @@ export const DataViewInfoPane = ({
           )}
           {statusMessage}
           {showCancelButton && (
-            <ActionIcon size={16} onClick={dataAdapter.cancelDataRead}>
+            <ActionIcon size={16} onClick={() => dataAdapter.cancelDataRead()}>
               <IconX />
             </ActionIcon>
           )}

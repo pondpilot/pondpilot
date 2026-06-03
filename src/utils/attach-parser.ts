@@ -10,11 +10,108 @@
  *
  * Capture groups:
  * 1: The database URL (required, quoted)
- * 2: Optional opening quote for the database name (captures " or empty string)
- * 3: The database name (required, optionally quoted)
+ * 2: Double-quoted database name
+ * 3: Single-quoted database name
+ * 4: Unquoted database name
  */
 export const ATTACH_STATEMENT_REGEX =
-  /ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?['"]([^'"]+)['"]\s+AS\s+(['"]?)([^'"\s]+)\2/i;
+  /^\s*ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?['"]([^'"]+)['"]\s+AS\s+(?:"([^"]+)"|'([^']+)'|([^'"\s;]+))(?:\s*\([^)]*\))?\s*;?\s*$/i;
+
+function stripLeadingSqlComments(statement: string): string {
+  let index = 0;
+
+  while (index < statement.length) {
+    const char = statement[index];
+    const next = statement[index + 1];
+
+    if (/\s/.test(char)) {
+      index += 1;
+      continue;
+    }
+
+    if (char === '-' && next === '-') {
+      const lineEnd = statement.indexOf('\n', index + 2);
+      if (lineEnd < 0) return '';
+      index = lineEnd + 1;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      const commentEnd = statement.indexOf('*/', index + 2);
+      if (commentEnd < 0) return '';
+      index = commentEnd + 2;
+      continue;
+    }
+
+    break;
+  }
+
+  return statement.slice(index);
+}
+
+function findLineCommentOutsideQuotes(line: string): number {
+  let quote: '"' | "'" | null = null;
+
+  for (let index = 0; index < line.length - 1; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+
+    if (quote) {
+      if (char === quote) {
+        if (next === quote) {
+          index += 1;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (char === '-' && next === '-') {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function stripTrailingSqlComments(statement: string): string {
+  let end = statement.length;
+
+  while (end > 0) {
+    while (end > 0 && /\s/.test(statement[end - 1])) {
+      end -= 1;
+    }
+
+    if (statement.slice(0, end).endsWith('*/')) {
+      const commentStart = statement.lastIndexOf('/*', end - 2);
+      if (commentStart >= 0) {
+        end = commentStart;
+        continue;
+      }
+    }
+
+    const lineStart = statement.lastIndexOf('\n', end - 1) + 1;
+    const commentStart = findLineCommentOutsideQuotes(statement.slice(lineStart, end));
+    if (commentStart >= 0) {
+      end = lineStart + commentStart;
+      continue;
+    }
+
+    break;
+  }
+
+  return statement.slice(0, end).trimEnd();
+}
+
+function normalizeStatementForCatalogParsing(statement: string): string {
+  return stripTrailingSqlComments(stripLeadingSqlComments(statement)).trim();
+}
 
 /**
  * Parsed ATTACH statement information
@@ -26,6 +123,37 @@ export interface ParsedAttachStatement {
   dbName: string;
   /** The original SQL statement */
   statement: string;
+}
+
+/**
+ * Parse MotherDuck's AS-less attach forms:
+ *   ATTACH IF NOT EXISTS 'md:'          -- handshake, attaches the default database
+ *   ATTACH IF NOT EXISTS 'md:my_db'     -- attaches a specific account database
+ *
+ * The aliased form (`ATTACH 'md:my_db' AS foo`) is left to `parseAttachStatement`.
+ */
+export function parseMotherDuckAttachStatement(statement: string): ParsedAttachStatement | null {
+  const normalizedStatement = normalizeStatementForCatalogParsing(statement);
+  const match = normalizedStatement.match(
+    /^\s*ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?(['"])md:([^'"]*)\1\s*;?\s*$/i,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  // The bare `md:` handshake attaches the account's default database and is
+  // registered globally under the literal `md:` key (see the reconcile
+  // fast-path in the connection pool and `registerMotherDuckDatabaseAttaches`).
+  // The `md:<name>` form attaches that catalog under its plain name (e.g.
+  // `my_db` in `duckdb_databases()`), so report that name — that is the key the
+  // pool reconciles and replays against on every other connection.
+  const dbName = match[2];
+  return {
+    rawUrl: dbName ? `md:${dbName}` : 'md:',
+    dbName: dbName || 'md:',
+    statement,
+  };
 }
 
 /**
@@ -50,7 +178,8 @@ export interface ParsedAttachStatement {
  * // Returns: { rawUrl: 's3://bucket/db.duckdb', dbName: 'my_db', statement: '...' }
  */
 export function parseAttachStatement(statement: string): ParsedAttachStatement | null {
-  const match = statement.match(ATTACH_STATEMENT_REGEX);
+  const normalizedStatement = normalizeStatementForCatalogParsing(statement);
+  const match = normalizedStatement.match(ATTACH_STATEMENT_REGEX);
 
   if (!match) {
     return null;
@@ -58,9 +187,9 @@ export function parseAttachStatement(statement: string): ParsedAttachStatement |
 
   // Extract capture groups
   // Group 1: URL (required)
-  // Group 2: Quote character for database name (optional, used for backreference)
-  // Group 3: Database name (required)
-  const [, rawUrl, , dbName] = match;
+  // Groups 2-4: Database name in double quotes, single quotes, or unquoted.
+  const [, rawUrl, doubleQuotedDbName, singleQuotedDbName, unquotedDbName] = match;
+  const dbName = doubleQuotedDbName ?? singleQuotedDbName ?? unquotedDbName;
 
   // DuckDB doesn't allow semicolons in unquoted identifiers, but scripts often
   // terminate statements with `;` without whitespace ("AS mydb;"). Strip the
@@ -120,7 +249,7 @@ export interface ParsedIcebergAttachStatement {
  * (URLs, identifiers, regions) and acceptable for the current use case.
  */
 const ICEBERG_ATTACH_REGEX =
-  /ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?['"]([^'"]+)['"]\s+AS\s+(?:"([^"]+)"|(\w+))\s*\(([^)]+)\)/i;
+  /^\s*ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?['"]([^'"]+)['"]\s+AS\s+(?:"([^"]+)"|(\w+))\s*\(([^)]+)\)\s*;?\s*$/i;
 
 /**
  * Parse an Iceberg ATTACH statement to extract warehouse, alias, and options.
@@ -137,7 +266,8 @@ const ICEBERG_ATTACH_REGEX =
 export function parseIcebergAttachStatement(
   statement: string,
 ): ParsedIcebergAttachStatement | null {
-  const match = statement.match(ICEBERG_ATTACH_REGEX);
+  const normalizedStatement = normalizeStatementForCatalogParsing(statement);
+  const match = normalizedStatement.match(ICEBERG_ATTACH_REGEX);
   if (!match) {
     return null;
   }
@@ -268,15 +398,18 @@ export function parseCreateSecretStatement(statement: string): ParsedCreateSecre
 }
 
 export function parseDetachStatement(statement: string): string | null {
-  // Match DETACH followed by optional DATABASE keyword, then the database name
-  // Ensure the database name is not the DATABASE keyword itself
-  const match = statement.match(/DETACH\s+(?:DATABASE\s+)?(\w+)/i);
+  const normalizedStatement = normalizeStatementForCatalogParsing(statement);
+  // Match DETACH followed by optional DATABASE and IF EXISTS keywords, then
+  // the database name.
+  const match = normalizedStatement.match(
+    /^\s*DETACH\s+(?:DATABASE\s+)?(?:IF\s+EXISTS\s+)?(?:"([^"]+)"|(\w+))\s*;?\s*$/i,
+  );
 
   if (!match) {
     return null;
   }
 
-  const dbName = match[1];
+  const dbName = match[1] ?? match[2];
 
   // Return null if the captured name is just the keyword DATABASE
   if (dbName.toUpperCase() === 'DATABASE') {

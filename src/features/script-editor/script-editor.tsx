@@ -25,6 +25,7 @@ import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { ScriptVersion } from '@models/script-version';
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
+import { TabId } from '@models/tab';
 import { useAppStore, useDuckDBFunctions } from '@store/app-store';
 import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
@@ -35,6 +36,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 
 import { ScriptEditorDataStatePane } from './components';
 import { VersionHistorySidebar, VersionDiffEditor } from './components/version-history';
+import { ScriptSessionSelector } from './script-session-selector';
 
 // Version tracking state - tracks content and timing for version creation
 interface VersionTrackingState {
@@ -79,6 +81,7 @@ function versionTrackingReducer(
 
 interface ScriptEditorProps {
   id: SQLScriptId;
+  tabId: TabId;
   scriptState: ScriptExecutionState;
 
   active?: boolean;
@@ -88,6 +91,7 @@ interface ScriptEditorProps {
 
 export const ScriptEditor = ({
   id: scriptId,
+  tabId,
   active,
   runScriptQuery,
   scriptState,
@@ -99,7 +103,7 @@ export const ScriptEditor = ({
 
   const sqlScript = useAppStore((state) => state.sqlScripts.get(scriptId)!);
   const databaseMetadata = useAppStore.use.databaseMetadata();
-  const databaseModelsArray = Array.from(databaseMetadata.values());
+  const scriptSession = useAppStore((state) => state.sqlScriptSessions.get(scriptId));
   const iDbConn = useAppStore((state) => state._iDbConn);
 
   /**
@@ -209,19 +213,13 @@ export const ScriptEditor = ({
     return {};
   }, [duckDBFunctions]);
 
-  // Get the tab ID from the script
-  const tabId = useAppStore((state) => {
-    for (const [tId, tab] of state.tabs) {
-      if (tab.type === 'script' && tab.sqlScriptId === scriptId) {
-        return tId;
-      }
-    }
-    return null;
-  });
-
   const schema = useMemo(
-    () => convertToFlowScopeSchema(databaseModelsArray),
-    [databaseModelsArray],
+    () =>
+      convertToFlowScopeSchema(Array.from(databaseMetadata.values()), {
+        defaultCatalog: scriptSession?.currentCatalog,
+        defaultSchema: scriptSession?.currentSchema,
+      }),
+    [databaseMetadata, scriptSession?.currentCatalog, scriptSession?.currentSchema],
   );
 
   /**
@@ -598,6 +596,7 @@ export const ScriptEditor = ({
           onEnterHistoryMode={shouldShowVersionHistory ? handleEnterHistoryMode : undefined}
           onExitHistoryMode={handleExitHistoryMode}
           selectedVersion={selectedVersionForDiff}
+          sessionSelector={<ScriptSessionSelector scriptId={scriptId} tabId={tabId} />}
           onRestoreVersion={handleRestoreVersion}
           onRenameVersion={handleRenameVersion}
         />

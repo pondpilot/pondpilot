@@ -569,6 +569,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       promise: Promise<Span[]> | null;
     }>({ sql: '', spans: [], promise: null });
     const statementAnalysisCacheRef = useRef(new Map<string, StatementAnalysisCacheEntry>());
+    const schemaRef = useRef(schema);
+    schemaRef.current = schema;
     const cursorOffsetRef = useRef(0);
     const mountedRef = useRef(true);
     const [assistantVisible, setAssistantVisible] = useState(false);
@@ -1458,7 +1460,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             const result = await client.completionItems(
               statementContext.sql,
               statementContext.cursorOffset,
-              schema,
+              schemaRef.current,
             );
             debugLog(
               'completion: completionItems() took',

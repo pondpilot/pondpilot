@@ -43,8 +43,11 @@ export function useSmallMultiplesData(
 
   // Destructure to get stable function reference (from useCallback in use-data-adapter)
   // Using the whole dataAdapter object in dependencies causes re-renders to recreate callbacks
-  const { getChartAggregatedData, currentSchema, isStale, dataVersion } = dataAdapter;
-  const hasData = currentSchema.length > 0 && !isStale;
+  const { getChartAggregatedData, currentSchema, chartSourceVersion } = dataAdapter;
+  // Aggregation is server-side and re-queries the source, so it only needs the
+  // schema (column list). Keying off the in-memory `isStale` flag would
+  // re-trigger whenever the main reader is paused/restored, looping forever.
+  const hasSchema = currentSchema.length > 0;
 
   const { xAxisColumn, yAxisColumn, additionalYColumns, aggregation, sortBy, sortOrder } =
     chartConfig;
@@ -63,7 +66,7 @@ export function useSmallMultiplesData(
   // Fetch data for a single Y column
   const fetchColumnData = useCallback(
     async (yCol: string, isCancelled?: () => boolean) => {
-      if (!hasData || !xAxisColumn) {
+      if (!hasSchema || !xAxisColumn) {
         return;
       }
 
@@ -146,7 +149,7 @@ export function useSmallMultiplesData(
         }
       }
     },
-    [getChartAggregatedData, hasData, xAxisColumn, aggregation, sortBy, apiSortOrder],
+    [getChartAggregatedData, hasSchema, xAxisColumn, aggregation, sortBy, apiSortOrder],
   );
 
   // Fetch all columns when config changes
@@ -159,7 +162,7 @@ export function useSmallMultiplesData(
       return;
     }
 
-    if (!hasData || !xAxisColumn) {
+    if (!hasSchema || !xAxisColumn) {
       // Clear data when not in small multiples mode
       setDataMap(new Map());
       setLoadingSet(new Set());
@@ -199,7 +202,16 @@ export function useSmallMultiplesData(
     return () => {
       isCancelled = true;
     };
-  }, [allYColumns, isSmallMultiplesMode, fetchColumnData, dataVersion, hasData, xAxisColumn]);
+    // `chartSourceVersion` triggers a refresh on logical source reloads without
+    // reacting to the reader pause/restore that our own aggregation causes.
+  }, [
+    allYColumns,
+    isSmallMultiplesMode,
+    fetchColumnData,
+    hasSchema,
+    xAxisColumn,
+    chartSourceVersion,
+  ]);
 
   // Transform aggregated data into Recharts format for each column
   const multiplesData = useMemo((): SmallMultipleData[] => {

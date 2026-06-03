@@ -214,7 +214,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
 
       // Verify the database is attached by checking the catalog
       // This replaces the arbitrary 1-second delay with a proper readiness check
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(remoteDb.dbName)}'`;
+      const checkQuery = `SELECT database_name FROM duckdb_databases() WHERE database_name = '${escapeSqlStringValue(remoteDb.dbName)}'`;
 
       let dbFound = false;
       let attempts = 0;
