@@ -1,5 +1,6 @@
+import { PROVIDER_IDS } from '@consts/ai';
+
 import { getJSONCookie, setJSONCookie } from './cookies';
-import { PROVIDER_IDS } from '../constants/ai';
 import {
   AIServiceConfig,
   DEFAULT_AI_CONFIG,
