@@ -14,6 +14,7 @@ export default defineConfig({
   testDir: './tests/integration',
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
   workers: parsedWorkersOverride ?? (process.env.CI ? 1 : '80%'),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */

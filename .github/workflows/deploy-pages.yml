@@ -24,6 +24,7 @@ jobs:
     if: github.repository == 'pondpilot/pondpilot' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     name: Lint & Build
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +78,7 @@ jobs:
     if: github.repository == 'pondpilot/pondpilot' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     name: Deploy
+    timeout-minutes: 30
     needs: lint-and-build-prod
     permissions:
       contents: read
@@ -102,6 +104,7 @@ jobs:
     if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request'
     name: Lookup Conclusion of Workflow_Run Event
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       conclusion: ${{ steps.get_conclusion.outputs.result }}
     steps:
@@ -124,6 +127,7 @@ jobs:
     needs: get_workflow_conclusion
     runs-on: ubuntu-latest
     name: Deploy
+    timeout-minutes: 30
     permissions:
       contents: read
       deployments: write

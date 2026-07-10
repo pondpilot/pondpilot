@@ -14,6 +14,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Audit dependencies
+        run: yarn npm audit --environment production --severity high
+
       - name: Type check
         run: yarn typecheck
 
@@ -55,6 +59,7 @@ jobs:
   build-test:
     name: Build & Test
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
