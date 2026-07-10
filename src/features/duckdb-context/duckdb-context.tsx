@@ -15,7 +15,14 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { v4 } from 'uuid';
 
 import { setCurrentDuckDBConnectionPool } from './current-pool';
+import {
+  isCoiBundleSelection,
+  recommendedThreadCount,
+  resolveDuckDBBundles,
+  withoutCoiBundle,
+} from './duckdb-bundles';
 import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
+import { isWalReplayFailure, planOpfsDatabaseRegistration } from './opfs-database-files';
 import { buildDuckDBWorkerBootstrap } from './worker-log-filter';
 
 class DuckDBInitializationCancelledError extends Error {
@@ -99,46 +106,17 @@ export const DuckDBConnectionPoolProvider = ({
   // Get persistence state from context
   const { persistenceState, updatePersistenceState } = useDuckDBPersistence();
 
-  // Use static cdn hosted bundles by default. Allow tests/preview builds to
-  // point at newer DuckDB-WASM artifacts before an npm package is published.
-  const JSDELIVR_BUNDLES = (() => {
-    const defaultBundles = duckdb.getJsDelivrBundles();
-    const mainModule = import.meta.env.VITE_DUCKDB_WASM_MAIN_MODULE;
-    const mainWorker = import.meta.env.VITE_DUCKDB_WASM_MAIN_WORKER;
-    const pthreadWorker = import.meta.env.VITE_DUCKDB_WASM_PTHREAD_WORKER;
-    const forceMvp = import.meta.env.VITE_DUCKDB_WASM_FORCE_MVP === 'true';
-
-    if (mainModule || mainWorker || pthreadWorker || forceMvp) {
-      const ehModuleFallback = !mainModule && !defaultBundles.eh?.mainModule;
-      const ehWorkerFallback = !mainWorker && !defaultBundles.eh?.mainWorker;
-      if (!forceMvp && (ehModuleFallback || ehWorkerFallback)) {
-        console.warn(
-          'DuckDB-WASM exception-handling (EH) bundle unavailable; falling back to MVP build. ' +
-            'EH-only features will be disabled.',
-        );
-      }
-      const overriddenBundles: duckdb.DuckDBBundles = {
-        mvp: {
-          mainModule: mainModule || defaultBundles.mvp.mainModule,
-          mainWorker: mainWorker || defaultBundles.mvp.mainWorker,
-        },
-        ...(forceMvp
-          ? {}
-          : {
-              eh: {
-                mainModule:
-                  mainModule || defaultBundles.eh?.mainModule || defaultBundles.mvp.mainModule,
-                mainWorker:
-                  mainWorker || defaultBundles.eh?.mainWorker || defaultBundles.mvp.mainWorker,
-                ...(pthreadWorker ? { pthreadWorker } : {}),
-              },
-            }),
-      };
-      return overriddenBundles;
-    }
-
-    return defaultBundles;
-  })();
+  // Use static cdn hosted bundles by default, optionally extended with the
+  // multithreaded COI bundle (opt-in; see duckdb-bundles.ts for why). Allow
+  // tests/preview builds to point at newer DuckDB-WASM artifacts before an
+  // npm package is published.
+  const JSDELIVR_BUNDLES = resolveDuckDBBundles(duckdb.getJsDelivrBundles(), {
+    mainModule: import.meta.env.VITE_DUCKDB_WASM_MAIN_MODULE,
+    mainWorker: import.meta.env.VITE_DUCKDB_WASM_MAIN_WORKER,
+    pthreadWorker: import.meta.env.VITE_DUCKDB_WASM_PTHREAD_WORKER,
+    forceMvp: import.meta.env.VITE_DUCKDB_WASM_FORCE_MVP === 'true',
+    enableCoi: import.meta.env.VITE_DUCKDB_WASM_ENABLE_COI === 'true',
+  });
 
   // create a logger
   //
@@ -151,9 +129,12 @@ export const DuckDBConnectionPoolProvider = ({
     logQueries ? duckdb.LogLevel.INFO : duckdb.LogLevel.WARNING,
   );
 
-  // duckdb worker and blob URL references
+  // duckdb worker and blob URL references. The pthread worker blob (COI
+  // bundle only) must stay alive for the lifetime of the database: Emscripten
+  // spawns pthread workers lazily, long after instantiation.
   const worker = useRef<Worker | null>(null);
   const workerBlobUrl = useRef<string | null>(null);
+  const pthreadWorkerBlobUrl = useRef<string | null>(null);
   const cancelTokenRef = useRef(0);
   const isCleaningUpRef = useRef(false);
   const ALLOW_UNSIGNED_EXTENSIONS =
@@ -179,7 +160,12 @@ export const DuckDBConnectionPoolProvider = ({
       URL.revokeObjectURL(workerBlobUrl.current);
       workerBlobUrl.current = null;
     }
-  }, [worker, workerBlobUrl]);
+
+    if (pthreadWorkerBlobUrl.current != null) {
+      URL.revokeObjectURL(pthreadWorkerBlobUrl.current);
+      pthreadWorkerBlobUrl.current = null;
+    }
+  }, [worker, workerBlobUrl, pthreadWorkerBlobUrl]);
 
   // terminate worker and revoke blob URL on unmount
   useEffect(
@@ -288,262 +274,470 @@ export const DuckDBConnectionPoolProvider = ({
 
         ensureNotCancelled();
 
-        // Resolve bundle
+        // The boot sequence for one selected bundle: worker creation, WASM
+        // instantiation and database open. Extracted so a failed COI
+        // (multithreaded) boot can retry with the single-threaded EH bundle.
+        // `reportErrors` suppresses terminal error status updates while a
+        // fallback attempt remains; console diagnostics are always emitted.
+        const bootDatabase = async (
+          bundle: duckdb.DuckDBBundle,
+          reportErrors: boolean,
+        ): Promise<duckdb.AsyncDuckDB> => {
+          // Create a blob URL for the worker script. The bootstrap installs a
+          // console filter that drops known-noisy MotherDuck wasm_extension logs
+          // before loading the real DuckDB worker.
+          if (!bundle.mainWorker) {
+            throw new Error('Selected DuckDB bundle is missing a worker URL.');
+          }
+          const worker_url = URL.createObjectURL(
+            new Blob([buildDuckDBWorkerBootstrap(bundle.mainWorker)], { type: 'text/javascript' }),
+          );
+
+          // Store the URL in the ref for cleanup on unmount
+          workerBlobUrl.current = worker_url;
+
+          // The COI bundle's pthread workers are spawned from inside the main
+          // DuckDB worker via `new Worker(pthreadWorkerUrl)`. Workers cannot be
+          // constructed from a cross-origin CDN URL, so wrap the pthread worker
+          // in the same same-origin blob bootstrap as the main worker (this also
+          // installs the console filter in every pthread worker).
+          let pthreadWorkerUrl: string | null = null;
+          if (bundle.pthreadWorker) {
+            pthreadWorkerUrl = URL.createObjectURL(
+              new Blob([buildDuckDBWorkerBootstrap(bundle.pthreadWorker)], {
+                type: 'text/javascript',
+              }),
+            );
+            pthreadWorkerBlobUrl.current = pthreadWorkerUrl;
+          }
+
+          // Create worker and database
+          let bootedDb: duckdb.AsyncDuckDB;
+          try {
+            worker.current = new Worker(worker_url);
+            bootedDb = new duckdb.AsyncDuckDB(logger, worker.current);
+            memoizedStatusUpdate({
+              state: 'loading',
+              message: 'Loading DuckDB... 0%',
+            });
+          } catch (e: any) {
+            const errorMessage = `Error setting up DuckDB worker: ${e.toString()}`;
+            console.error(errorMessage);
+            if (reportErrors) {
+              memoizedStatusUpdate({
+                state: 'error',
+                message: import.meta.env.DEV
+                  ? errorMessage
+                  : 'Failed to initialize database worker',
+              });
+            }
+            throw e; // Rethrow to trigger error handler
+          }
+
+          ensureNotCancelled();
+
+          // Instantiate DuckDB
+          try {
+            await bootedDb.instantiate(
+              bundle.mainModule,
+              pthreadWorkerUrl,
+              (p: duckdb.InstantiationProgress) => {
+                if (p.bytesLoaded > 0) {
+                  // Do not ask why * 10.0... taken from duckdb-wasm-shell, looks like either of the two
+                  // values have incorrect magnitude
+                  const progress = Math.max(
+                    Math.min(Math.ceil((p.bytesLoaded / p.bytesTotal) * 10.0), 100.0),
+                    0.0,
+                  );
+                  try {
+                    memoizedStatusUpdate({
+                      state: 'loading',
+                      message: `Loading DuckDB... ${progress}%`,
+                    });
+                  } catch (e: any) {
+                    console.warn(`progress handler failed with error: ${e.toString()}`);
+                  }
+                } else {
+                  memoizedStatusUpdate({
+                    state: 'loading',
+                    message: 'Loading DuckDB...',
+                  });
+                }
+              },
+            );
+          } catch (e: any) {
+            const errorMessage = `Error instantiating DuckDB: ${e.toString()}`;
+            console.error(errorMessage);
+            if (reportErrors) {
+              memoizedStatusUpdate({
+                state: 'error',
+                message: import.meta.env.DEV ? errorMessage : 'Failed to initialize database',
+              });
+            }
+            throw e; // Rethrow to trigger error handler
+          }
+
+          ensureNotCancelled();
+
+          // Open a database with the OPFS path - no fallback to in-memory
+          try {
+            memoizedStatusUpdate({
+              state: 'loading',
+              message: 'Opening persistent database...',
+            });
+
+            // Ensure the path format is correct and safe
+            let { dbPath } = persistenceState;
+
+            // Make sure the path starts with opfs://
+            if (!dbPath.startsWith('opfs://')) {
+              dbPath = `opfs://${dbPath.replace(/^opfs:/, '')}`;
+            }
+
+            // Validate the path to prevent path traversal attacks
+            if (!isSafeOpfsPath(dbPath)) {
+              const normalizedPath = normalizeOpfsPath(dbPath);
+              console.error('Invalid or unsafe database path detected');
+              throw new Error(
+                import.meta.env.DEV
+                  ? `Invalid or unsafe database path: ${normalizedPath}`
+                  : 'Invalid database configuration',
+              );
+            }
+
+            // Direct `opfs://` opens are not durable on the current
+            // duckdb-wasm version (upstream #2192) — register the OPFS file
+            // handles ourselves and open by registered name instead. See
+            // opfs-database-files.ts for the full background.
+            const registrationPlan = planOpfsDatabaseRegistration(dbPath);
+            if (!registrationPlan) {
+              console.warn(
+                `OPFS database path ${dbPath} is not eligible for direct file registration; ` +
+                  'falling back to opfs:// path handling, which is NOT durable on the current DuckDB-WASM version.',
+              );
+            }
+
+            // Log the path for debugging
+            if (import.meta.env.DEV) {
+              // eslint-disable-next-line no-console
+              console.debug(
+                'Opening DuckDB with path:',
+                dbPath,
+                registrationPlan ? `(registered as ${registrationPlan.registeredDbPath})` : '',
+              );
+            }
+
+            const openConfig: duckdb.DuckDBConfig = {
+              path: registrationPlan ? registrationPlan.registeredDbPath : dbPath,
+              accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
+              allowUnsignedExtensions: ALLOW_UNSIGNED_EXTENSIONS,
+              // Required with registered OPFS handles so a fresh, empty file
+              // is treated as a new database instead of failing validation.
+              ...(registrationPlan ? { useDirectIO: true } : {}),
+              // Multithreaded (COI) engine only: DuckDB-WASM defaults to 4
+              // threads regardless of available cores.
+              ...(bundle.pthreadWorker
+                ? { maximumThreads: recommendedThreadCount(navigator.hardwareConcurrency) }
+                : {}),
+              query: {
+                // Enable Apache Arrow type and value patching DECIMAL -> DOUBLE on query materialization
+                // https://github.com/apache/arrow/issues/37920
+                castDecimalToDouble: true,
+              },
+            };
+
+            // A previous DuckDB worker (bundle-fallback retry, remount, or a
+            // just-closed tab) may still hold the OPFS sync access handle —
+            // Chromium releases a terminated worker's handles asynchronously.
+            // Retry this specific contention briefly instead of failing.
+            const OPEN_LOCK_RETRIES = 10;
+            const OPEN_LOCK_RETRY_DELAY_MS = 300;
+            for (let attempt = 1; ; attempt += 1) {
+              try {
+                if (registrationPlan) {
+                  const opfsRoot = await navigator.storage.getDirectory();
+                  const [dbFile, ...companionFiles] = registrationPlan.files;
+                  const dbFileHandle = await opfsRoot.getFileHandle(dbFile.opfsFileName, {
+                    create: true,
+                  });
+                  // Reset the WAL and checkpoint companions before every open.
+                  // DuckDB deletes the WAL file after a checkpoint, but the
+                  // WASM runtime's removeFile is a no-op — stale WAL
+                  // generations accumulate and a later open can abort with
+                  // "Invalid WAL entry type" while replaying the garbage tail
+                  // (or, for files from the broken opfs:// era, resurrect
+                  // ghost tables). WAL replay does not work in DuckDB-WASM
+                  // OPFS anyway (verified back to 1.33.1-dev20.0), so a
+                  // session always resumes from the last checkpoint.
+                  for (const companion of companionFiles) {
+                    await opfsRoot.removeEntry(companion.opfsFileName).catch(() => {});
+                  }
+                  await bootedDb.registerFileHandle(
+                    dbFile.registeredName,
+                    dbFileHandle,
+                    duckdb.DuckDBDataProtocol.BROWSER_FSACCESS,
+                    true,
+                  );
+                  for (const companion of companionFiles) {
+                    const companionHandle = await opfsRoot.getFileHandle(companion.opfsFileName, {
+                      create: true,
+                    });
+                    await bootedDb.registerFileHandle(
+                      companion.registeredName,
+                      companionHandle,
+                      duckdb.DuckDBDataProtocol.BROWSER_FSACCESS,
+                      true,
+                    );
+                  }
+                }
+                await bootedDb.open(openConfig);
+                break;
+              } catch (e: any) {
+                const message = e instanceof Error ? e.message : String(e);
+                const isHandleContention = /Access Handles cannot be created/i.test(message);
+                // Backstop for WAL states the pre-open reset cannot fix in
+                // place (e.g. the engine buffered the corrupt WAL before
+                // failing): drop and retry — the next attempt starts from
+                // freshly reset companions.
+                const isWalFailure = registrationPlan != null && isWalReplayFailure(message);
+                if ((!isHandleContention && !isWalFailure) || attempt >= OPEN_LOCK_RETRIES) {
+                  throw e;
+                }
+                if (isWalFailure) {
+                  console.warn(
+                    'DuckDB WAL was invalid and has been discarded; the database resumes from its last checkpoint.',
+                  );
+                }
+                // Release any partially-acquired handles from this attempt so
+                // the retry does not contend with itself.
+                await bootedDb.dropFiles().catch(() => {});
+                await new Promise((resolve) => {
+                  setTimeout(resolve, OPEN_LOCK_RETRY_DELAY_MS);
+                });
+                ensureNotCancelled();
+              }
+            }
+          } catch (e: any) {
+            // Handle connection error - no fallback to in-memory mode
+            const errorMessage = `Error opening persistent database: ${e.toString()}`;
+            console.error(errorMessage);
+            if (reportErrors) {
+              memoizedStatusUpdate({
+                state: 'error',
+                message: import.meta.env.DEV ? errorMessage : 'Failed to open persistent database',
+              });
+            }
+            throw e; // Rethrow to trigger error handler
+          }
+
+          return bootedDb;
+        };
+
+        // Resolve bundle — selectBundle prefers the multithreaded COI build
+        // when the page is cross-origin isolated and the browser supports WASM
+        // threads, exceptions and SIMD; otherwise it picks EH, then MVP.
         const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
 
         ensureNotCancelled();
 
-        // Create a blob URL for the worker script. The bootstrap installs a
-        // console filter that drops known-noisy MotherDuck wasm_extension logs
-        // before loading the real DuckDB worker.
-        if (!bundle.mainWorker) {
-          throw new Error('Selected DuckDB bundle is missing a worker URL.');
-        }
-        const worker_url = URL.createObjectURL(
-          new Blob([buildDuckDBWorkerBootstrap(bundle.mainWorker)], { type: 'text/javascript' }),
-        );
+        // Establishes a usable pool for one bundle: full database boot plus
+        // pool construction and the first (write-mode) queries. Grouped into
+        // one retryable unit because per-connection extension loading (httpfs)
+        // runs on first pool use — under COI a broken threaded extension build
+        // only surfaces there, after a successful boot.
+        const establishPool = async (
+          bootBundle: duckdb.DuckDBBundle,
+          reportErrors: boolean,
+        ): Promise<AsyncDuckDBConnectionPool> => {
+          const bootedDb = await bootDatabase(bootBundle, reportErrors);
 
-        // Store the URL in the ref for cleanup on unmount
-        workerBlobUrl.current = worker_url;
+          ensureNotCancelled();
 
-        // Create worker and database
-        let newDb: duckdb.AsyncDuckDB;
-        try {
-          worker.current = new Worker(worker_url);
-          newDb = new duckdb.AsyncDuckDB(logger, worker.current);
-          memoizedStatusUpdate({
-            state: 'loading',
-            message: 'Loading DuckDB... 0%',
-          });
-        } catch (e: any) {
-          const errorMessage = `Error setting up DuckDB worker: ${e.toString()}`;
-          console.error(errorMessage);
-          memoizedStatusUpdate({
-            state: 'error',
-            message: import.meta.env.DEV ? errorMessage : 'Failed to initialize database worker',
-          });
-          throw e; // Rethrow to trigger error handler
-        }
+          let bootedPool: AsyncDuckDBConnectionPool | null = null;
+          try {
+            // Create a connection pool with the update state callback (always persistent)
+            memoizedStatusUpdate({
+              state: 'loading',
+              message: 'Initializing connection pool...',
+            });
 
-        ensureNotCancelled();
-
-        // Instantiate DuckDB
-        try {
-          await newDb.instantiate(
-            bundle.mainModule,
-            bundle.pthreadWorker,
-            (p: duckdb.InstantiationProgress) => {
-              if (p.bytesLoaded > 0) {
-                // Do not ask why * 10.0... taken from duckdb-wasm-shell, looks like either of the two
-                // values have incorrect magnitude
-                const progress = Math.max(
-                  Math.min(Math.ceil((p.bytesLoaded / p.bytesTotal) * 10.0), 100.0),
-                  0.0,
-                );
+            // Create a connection pool with configurable checkpoint settings
+            bootedPool = new AsyncDuckDBConnectionPool(
+              bootedDb,
+              normalizedPoolSize,
+              updatePersistenceState, // Always use the persistence callback
+              {
+                // Default configuration that balances performance and data safety
+                throttleMs: import.meta.env.DEV ? 5000 : 10000, // More frequent in dev, less in prod
+                maxChangesBeforeForce: 100,
+                checkpointOnClose: true,
+                // Only log checkpoints in development mode
+                logCheckpoints: import.meta.env.DEV,
+                // Always checkpoint the persistent database by name: pooled
+                // connections may sit on another catalog (MotherDuck flows
+                // reset theirs to `USE memory`), and a bare FORCE CHECKPOINT
+                // would silently no-op for the persistent database.
+                checkpointDatabase: PERSISTENT_DB_NAME,
+              },
+              async (conn) => {
+                await configureConnectionForHttpfs(conn);
                 try {
-                  memoizedStatusUpdate({
-                    state: 'loading',
-                    message: `Loading DuckDB... ${progress}%`,
-                  });
-                } catch (e: any) {
-                  console.warn(`progress handler failed with error: ${e.toString()}`);
+                  await conn.query("ATTACH IF NOT EXISTS ':memory:' AS memory;");
+                } catch (error) {
+                  console.warn('Failed to attach per-connection memory catalog:', error);
                 }
-              } else {
-                memoizedStatusUpdate({
-                  state: 'loading',
-                  message: 'Loading DuckDB...',
-                });
-              }
-            },
-          );
-        } catch (e: any) {
-          const errorMessage = `Error instantiating DuckDB: ${e.toString()}`;
-          console.error(errorMessage);
-          memoizedStatusUpdate({
-            state: 'error',
-            message: import.meta.env.DEV ? errorMessage : 'Failed to initialize database',
-          });
-          throw e; // Rethrow to trigger error handler
-        }
+              },
+              {
+                onBeforeTabConnectionUse: async (tabId, conn) => {
+                  const tab = useAppStore.getState().tabs.get(tabId);
+                  if (tab?.type !== 'script') return;
 
-        ensureNotCancelled();
+                  const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
+                  const next: CatalogSchemaSelection = session
+                    ? {
+                        catalog: session.currentCatalog,
+                        schema: session.currentSchema,
+                        searchPath: session.searchPath ?? null,
+                      }
+                    : {
+                        catalog: PERSISTENT_DB_NAME,
+                        schema: 'main',
+                        searchPath: null,
+                      };
 
-        // Open a database with the OPFS path - no fallback to in-memory
-        try {
-          memoizedStatusUpdate({
-            state: 'loading',
-            message: 'Opening persistent database...',
-          });
+                  const useStmt = buildUseStatement(next.catalog, next.schema);
+                  if (useStmt) {
+                    try {
+                      await conn.query(useStmt);
+                    } catch (error) {
+                      throw new Error(
+                        `Failed to restore DuckDB script session (${next.catalog ?? 'default'}${
+                          next.schema ? `.${next.schema}` : ''
+                        }). Select another session or reconnect the data source before running.`,
+                        { cause: error },
+                      );
+                    }
+                  }
+                  // Restore a multi-entry search_path captured after the run.
+                  // USE collapses the path to a single schema, so re-apply the
+                  // full path on top. Best-effort: a value DuckDB can't round-
+                  // trip must not abort the run — we keep the single schema USE
+                  // already set.
+                  const searchPathStmt = buildSearchPathStatement(next.searchPath);
+                  if (searchPathStmt) {
+                    try {
+                      await conn.query(searchPathStmt);
+                    } catch (error) {
+                      console.warn(
+                        'Failed to restore DuckDB search_path for script session:',
+                        error,
+                      );
+                    }
+                  }
 
-          // Ensure the path format is correct and safe
-          let { dbPath } = persistenceState;
+                  // Note: the transient flag is intentionally NOT cleared here.
+                  // This hook fires on every connection claim, including the
+                  // background re-read that happens when a user switches to an
+                  // evicted tab. Clearing it here would hide the "session
+                  // evicted" badge the instant the tab is viewed. The badge is
+                  // cleared at the start of the next run instead (see
+                  // script-tab-view), matching the eviction notice that catalog
+                  // and schema are restored on the next run.
+                },
+                onTabEvicted: (tabId) => {
+                  const tab = useAppStore.getState().tabs.get(tabId);
+                  if (tab?.type !== 'script') return;
 
-          // Make sure the path starts with opfs://
-          if (!dbPath.startsWith('opfs://')) {
-            dbPath = `opfs://${dbPath.replace(/^opfs:/, '')}`;
+                  markTransient(tab.sqlScriptId, true);
+                  showWarning({
+                    id: `duckdb-session-evicted-${tabId}`,
+                    title: 'Script session evicted',
+                    message:
+                      'This tab was inactive long enough for DuckDB to reuse its connection. Catalog and schema will be restored on the next run, but temp tables and SET values are not preserved.',
+                  });
+                },
+              },
+            );
+
+            /**
+             * WORKAROUND: Addresses an issue with OPFS (Origin Private File System) and write mode
+             * after a page reload in DuckDB-WASM.
+             *
+             * @problem When using DuckDB-WASM with OPFS for persistence, a problem arises where,
+             * after a page reload, the OPFS database, even if opened in READ_WRITE mode,
+             * does not always correctly restore its write-enabled state. This leads to an
+             * "Error: TransactionContext Error: Failed to commit: File is not opened in write mode"
+             * when attempting write operations (e.g., CREATE TABLE, INSERT) after the reload.
+             *
+             * @workaround To forcibly activate the write mode for OPFS during each
+             * initialization (including those after a page reload), a harmless sequence of write
+             * operations is performed: a temporary table with a unique name is created and
+             * then immediately dropped. This ensures that the connection to OPFS is genuinely
+             * ready for write operations before the application attempts any actual data-modifying queries.
+             *
+             * This workaround is a temporary measure pending a fix at the duckdb-wasm library level
+             * (see related issue, PR https://github.com/duckdb/duckdb-wasm/pull/1962).
+             */
+            const name = v4();
+            await bootedPool.query(`CREATE OR REPLACE TABLE "${name}" as select 1;`);
+            await bootedPool.query(`DROP TABLE "${name}";`);
+
+            return bootedPool;
+          } catch (e: any) {
+            // Stop the pool's checkpoint timers before the worker goes away.
+            try {
+              await bootedPool?.close();
+            } catch {
+              // best-effort cleanup of a half-initialized pool
+            }
+            const errorMessage = `Error getting DuckDB connection: ${e.toString()}`;
+            console.error(errorMessage);
+            if (reportErrors) {
+              memoizedStatusUpdate({
+                state: 'error',
+                message: import.meta.env.DEV
+                  ? errorMessage
+                  : 'Failed to initialize connection pool',
+              });
+            }
+            throw e; // Rethrow to trigger error handler
           }
+        };
 
-          // Validate the path to prevent path traversal attacks
-          if (!isSafeOpfsPath(dbPath)) {
-            const normalizedPath = normalizeOpfsPath(dbPath);
-            console.error('Invalid or unsafe database path detected');
-            throw new Error(
-              import.meta.env.DEV
-                ? `Invalid or unsafe database path: ${normalizedPath}`
-                : 'Invalid database configuration',
+        const usingCoi = isCoiBundleSelection(bundle, JSDELIVR_BUNDLES);
+        let pool: AsyncDuckDBConnectionPool;
+        try {
+          pool = await establishPool(bundle, !usingCoi);
+          if (usingCoi) {
+            // eslint-disable-next-line no-console
+            console.info(
+              `DuckDB-WASM running multithreaded (COI bundle, up to ${recommendedThreadCount(
+                navigator.hardwareConcurrency,
+              )} threads)`,
             );
           }
-
-          // Log the path for debugging
-          if (import.meta.env.DEV) {
-            // eslint-disable-next-line no-console
-            console.debug('Opening DuckDB with path:', dbPath);
+        } catch (e) {
+          // A COI initialization can fail for reasons the EH bundle does not
+          // share (pthread spawning, OPFS with threads, threaded extension
+          // builds), so retry once single-threaded rather than failing the app.
+          if (e instanceof DuckDBInitializationCancelledError || !usingCoi) {
+            throw e;
           }
-
-          await newDb.open({
-            path: dbPath,
-            accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
-            allowUnsignedExtensions: ALLOW_UNSIGNED_EXTENSIONS,
-            query: {
-              // Enable Apache Arrow type and value patching DECIMAL -> DOUBLE on query materialization
-              // https://github.com/apache/arrow/issues/37920
-              castDecimalToDouble: true,
-            },
-          });
-        } catch (e: any) {
-          // Handle connection error - no fallback to in-memory mode
-          const errorMessage = `Error opening persistent database: ${e.toString()}`;
-          console.error(errorMessage);
-          memoizedStatusUpdate({
-            state: 'error',
-            message: import.meta.env.DEV ? errorMessage : 'Failed to open persistent database',
-          });
-          throw e; // Rethrow to trigger error handler
+          console.warn(
+            'Multithreaded DuckDB (COI) initialization failed; retrying with the single-threaded EH bundle:',
+            e,
+          );
+          cleanupWorkerResources();
+          const fallbackBundle = await duckdb.selectBundle(withoutCoiBundle(JSDELIVR_BUNDLES));
+          ensureNotCancelled();
+          pool = await establishPool(fallbackBundle, true);
         }
 
         ensureNotCancelled();
 
-        // Finally, get the connection
+        // Finally, finish initialization: leftover cleanup, optional
+        // extensions, and publishing the pool to the app.
         try {
-          // Create a connection pool with the update state callback (always persistent)
-          memoizedStatusUpdate({
-            state: 'loading',
-            message: 'Initializing connection pool...',
-          });
-
-          // Create a connection pool with configurable checkpoint settings
-          const pool = new AsyncDuckDBConnectionPool(
-            newDb,
-            normalizedPoolSize,
-            updatePersistenceState, // Always use the persistence callback
-            {
-              // Default configuration that balances performance and data safety
-              throttleMs: import.meta.env.DEV ? 5000 : 10000, // More frequent in dev, less in prod
-              maxChangesBeforeForce: 100,
-              checkpointOnClose: true,
-              // Only log checkpoints in development mode
-              logCheckpoints: import.meta.env.DEV,
-            },
-            async (conn) => {
-              await configureConnectionForHttpfs(conn);
-              try {
-                await conn.query("ATTACH IF NOT EXISTS ':memory:' AS memory;");
-              } catch (error) {
-                console.warn('Failed to attach per-connection memory catalog:', error);
-              }
-            },
-            {
-              onBeforeTabConnectionUse: async (tabId, conn) => {
-                const tab = useAppStore.getState().tabs.get(tabId);
-                if (tab?.type !== 'script') return;
-
-                const session = useAppStore.getState().sqlScriptSessions.get(tab.sqlScriptId);
-                const next: CatalogSchemaSelection = session
-                  ? {
-                      catalog: session.currentCatalog,
-                      schema: session.currentSchema,
-                      searchPath: session.searchPath ?? null,
-                    }
-                  : {
-                      catalog: PERSISTENT_DB_NAME,
-                      schema: 'main',
-                      searchPath: null,
-                    };
-
-                const useStmt = buildUseStatement(next.catalog, next.schema);
-                if (useStmt) {
-                  try {
-                    await conn.query(useStmt);
-                  } catch (error) {
-                    throw new Error(
-                      `Failed to restore DuckDB script session (${next.catalog ?? 'default'}${
-                        next.schema ? `.${next.schema}` : ''
-                      }). Select another session or reconnect the data source before running.`,
-                      { cause: error },
-                    );
-                  }
-                }
-                // Restore a multi-entry search_path captured after the run.
-                // USE collapses the path to a single schema, so re-apply the
-                // full path on top. Best-effort: a value DuckDB can't round-
-                // trip must not abort the run — we keep the single schema USE
-                // already set.
-                const searchPathStmt = buildSearchPathStatement(next.searchPath);
-                if (searchPathStmt) {
-                  try {
-                    await conn.query(searchPathStmt);
-                  } catch (error) {
-                    console.warn('Failed to restore DuckDB search_path for script session:', error);
-                  }
-                }
-
-                // Note: the transient flag is intentionally NOT cleared here.
-                // This hook fires on every connection claim, including the
-                // background re-read that happens when a user switches to an
-                // evicted tab. Clearing it here would hide the "session
-                // evicted" badge the instant the tab is viewed. The badge is
-                // cleared at the start of the next run instead (see
-                // script-tab-view), matching the eviction notice that catalog
-                // and schema are restored on the next run.
-              },
-              onTabEvicted: (tabId) => {
-                const tab = useAppStore.getState().tabs.get(tabId);
-                if (tab?.type !== 'script') return;
-
-                markTransient(tab.sqlScriptId, true);
-                showWarning({
-                  id: `duckdb-session-evicted-${tabId}`,
-                  title: 'Script session evicted',
-                  message:
-                    'This tab was inactive long enough for DuckDB to reuse its connection. Catalog and schema will be restored on the next run, but temp tables and SET values are not preserved.',
-                });
-              },
-            },
-          );
-
-          /**
-           * WORKAROUND: Addresses an issue with OPFS (Origin Private File System) and write mode
-           * after a page reload in DuckDB-WASM.
-           *
-           * @problem When using DuckDB-WASM with OPFS for persistence, a problem arises where,
-           * after a page reload, the OPFS database, even if opened in READ_WRITE mode,
-           * does not always correctly restore its write-enabled state. This leads to an
-           * "Error: TransactionContext Error: Failed to commit: File is not opened in write mode"
-           * when attempting write operations (e.g., CREATE TABLE, INSERT) after the reload.
-           *
-           * @workaround To forcibly activate the write mode for OPFS during each
-           * initialization (including those after a page reload), a harmless sequence of write
-           * operations is performed: a temporary table with a unique name is created and
-           * then immediately dropped. This ensures that the connection to OPFS is genuinely
-           * ready for write operations before the application attempts any actual data-modifying queries.
-           *
-           * This workaround is a temporary measure pending a fix at the duckdb-wasm library level
-           * (see related issue, PR https://github.com/duckdb/duckdb-wasm/pull/1962).
-           */
-          const name = v4();
-          await pool.query(`CREATE OR REPLACE TABLE "${name}" as select 1;`);
-          await pool.query(`DROP TABLE "${name}";`);
-
           // Cleanup any leftover UUID-named temporary tables from previous sessions
           try {
             // Query to find all tables with UUID-like names (36 chars with dashes in specific positions)
@@ -663,6 +857,34 @@ export const DuckDBConnectionPoolProvider = ({
     isTabBlocked,
     cleanupWorkerResources,
   ]);
+
+  // Flush pending changes to OPFS when the page is being hidden or unloaded
+  // (refresh, navigation, tab close/switch). DuckDB-WASM does not replay the
+  // OPFS WAL on the next load, so anything not yet checkpointed at unload
+  // would be lost; this best-effort flush closes most of that window.
+  useEffect(() => {
+    if (!connectionPool) {
+      return undefined;
+    }
+
+    const flush = () => {
+      connectionPool.flushPendingChanges().catch((error) => {
+        console.warn('Failed to flush pending DuckDB changes on page hide:', error);
+      });
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flush();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [connectionPool]);
 
   useEffect(() => {
     if (!isTabBlocked) {

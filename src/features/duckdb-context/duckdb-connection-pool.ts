@@ -32,6 +32,12 @@ export interface CheckpointConfig {
   checkpointOnClose: boolean;
   // Whether to log checkpoint operations (in development mode)
   logCheckpoints: boolean;
+  // Database to checkpoint. A bare `FORCE CHECKPOINT;` only checkpoints the
+  // claimed connection's CURRENT database — pooled connections can sit on a
+  // different catalog (e.g. the MotherDuck flows reset their connections to
+  // `USE memory`), silently turning the checkpoint into a no-op for the
+  // persistent database. Always name the target explicitly when persisting.
+  checkpointDatabase?: string;
 }
 
 // Default checkpoint configuration
@@ -163,6 +169,62 @@ export class AsyncDuckDBConnectionPool {
   private _lastCheckpointTime: number = 0;
   private _changesSinceLastCheckpoint: number = 0;
   private _checkpointInProgress: boolean = false;
+  private _checkpointTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Schedules a deferred checkpoint for pending changes.
+   *
+   * Checkpoints normally run when a connection is released, but a write can
+   * be the last release of a session — the user then only browses on pinned
+   * connections or goes idle, so no further release ever crosses the
+   * throttle boundary. DuckDB-WASM does not replay the OPFS WAL on the next
+   * load, so changes that never reach a checkpoint are lost on reload. One
+   * coalesced timer guarantees an upper bound of ~throttleMs between any
+   * write and its checkpoint regardless of connection activity.
+   */
+  private _scheduleCheckpoint(delayMs: number): void {
+    if (this._checkpointTimer != null) {
+      return;
+    }
+    this._checkpointTimer = setTimeout(
+      () => {
+        this._checkpointTimer = null;
+        if (this._changesSinceLastCheckpoint <= 0) {
+          return;
+        }
+        this.forceCheckpoint().then((succeeded) => {
+          // A failed checkpoint (e.g. transient contention) keeps its pending
+          // changes — retry after another throttle interval.
+          if (!succeeded && this._changesSinceLastCheckpoint > 0) {
+            this._scheduleCheckpoint(this._checkpointConfig.throttleMs);
+          }
+        });
+      },
+      Math.max(delayMs, 0),
+    );
+  }
+
+  /**
+   * The checkpoint statement, targeting the configured database explicitly
+   * when one is set (see CheckpointConfig.checkpointDatabase).
+   */
+  private _checkpointStatement(): string {
+    const target = this._checkpointConfig.checkpointDatabase;
+    return target ? `FORCE CHECKPOINT ${toDuckDBIdentifier(target)};` : 'FORCE CHECKPOINT;';
+  }
+
+  /**
+   * Checkpoints immediately if any changes are pending.
+   *
+   * Used by page lifecycle hooks (visibility change / page hide) to shrink
+   * the window of WAL-only data before a reload or tab close.
+   */
+  public async flushPendingChanges(): Promise<boolean> {
+    if (this._changesSinceLastCheckpoint <= 0) {
+      return true;
+    }
+    return this.forceCheckpoint();
+  }
 
   private async _ensureConnectionInitialized(conn: AsyncDuckDBConnection): Promise<void> {
     if (!this._connectionInitializer) {
@@ -829,8 +891,12 @@ export class AsyncDuckDBConnectionPool {
     try {
       const conn = this._connections[index];
 
-      // If we're in persistent mode, handle potential checkpointing
-      if (this._updateStateCallback) {
+      // If we're in persistent mode, handle potential checkpointing.
+      // Releases made by a running checkpoint itself (forceCheckpoint
+      // releases its own connection) must not count as new changes — that
+      // would re-arm the deferred checkpoint timer after every checkpoint
+      // and run them in an endless loop.
+      if (this._updateStateCallback && !this._checkpointInProgress) {
         // Increment the changes counter
         this._changesSinceLastCheckpoint += 1;
 
@@ -861,7 +927,7 @@ export class AsyncDuckDBConnectionPool {
 
             // Create a checkpoint to ensure data is saved to disk
             // Use FORCE CHECKPOINT to wait for other transactions
-            await conn.query('FORCE CHECKPOINT;');
+            await conn.query(this._checkpointStatement());
 
             // Update persistence state
             await this._updateStateCallback();
@@ -873,11 +939,19 @@ export class AsyncDuckDBConnectionPool {
             console.error('Error during checkpoint or persistence state update:', error);
 
             // We don't rethrow the error to ensure the connection is always released,
-            // but at least the error is logged for debugging purposes
+            // but at least the error is logged for debugging purposes.
+            // The changes are still pending — make sure a retry happens even
+            // if no further connection release ever occurs.
+            this._scheduleCheckpoint(this._checkpointConfig.throttleMs);
           } finally {
             // Always mark checkpoint as no longer in progress
             this._checkpointInProgress = false;
           }
+        } else if (this._changesSinceLastCheckpoint > 0) {
+          // Throttled (or a checkpoint is already running): guarantee these
+          // changes still reach a checkpoint even if this was the session's
+          // last connection release.
+          this._scheduleCheckpoint(this._checkpointConfig.throttleMs - timeSinceLastCheckpoint);
         }
       }
     } catch (error) {
@@ -928,7 +1002,7 @@ export class AsyncDuckDBConnectionPool {
       try {
         // Create a checkpoint
         // Use FORCE CHECKPOINT to wait for other transactions
-        await conn.query('FORCE CHECKPOINT;');
+        await conn.query(this._checkpointStatement());
 
         // Update persistence state
         await this._updateStateCallback();
@@ -960,6 +1034,11 @@ export class AsyncDuckDBConnectionPool {
    * Performs a final checkpoint if configured to do so and there are pending changes.
    */
   public async close() {
+    if (this._checkpointTimer != null) {
+      clearTimeout(this._checkpointTimer);
+      this._checkpointTimer = null;
+    }
+
     for (const tabId of Array.from(this._pinnedTabs.keys())) {
       try {
         await this.unpinTab(tabId);
