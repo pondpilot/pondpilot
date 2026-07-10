@@ -13,6 +13,18 @@ module.exports = {
   },
   roots: ['<rootDir>/tests/unit'],
   setupFiles: ['<rootDir>/tests/unit/jest-setup.js'],
+  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts'],
+  coverageProvider: 'v8',
+  coverageReporters: ['text-summary', 'lcov'],
+  // This is a ratchet — raise it as coverage grows, never lower it.
+  coverageThreshold: {
+    global: {
+      statements: 50,
+      branches: 81,
+      functions: 38,
+      lines: 50,
+    },
+  },
   globals: {
     'import.meta.env.DEV': false,
     'import.meta.env.PROD': true,

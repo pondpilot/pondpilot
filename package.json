@@ -26,6 +26,7 @@
     "test:no-build": "playwright test",
     "test:docker": "./docker-playwright.sh test",
     "test:unit": "jest",
+    "test:unit:coverage": "jest --coverage",
     "test:all": "yarn test:unit && yarn test",
     "preview": "yarn build --mode int-test-build && vite preview",
     "typecheck": "tsc --noEmit",

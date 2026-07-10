@@ -90,7 +90,7 @@ jobs:
         run: yarn install --immutable
 
       - name: Run unit tests
-        run: yarn test:unit
+        run: yarn test:unit:coverage
         env:
           CI: true
 
