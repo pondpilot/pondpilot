@@ -1,7 +1,7 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntryId } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import { findUniqueName } from '@utils/helpers';
 

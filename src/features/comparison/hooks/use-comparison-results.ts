@@ -1,5 +1,5 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useState, useEffect } from 'react';
 
 export interface ComparisonResultRow {

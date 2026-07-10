@@ -1,9 +1,9 @@
 import { registerAndAttachDatabase } from '@controllers/db/data-source';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import type { ComparisonId, ComparisonSourceStat } from '@models/comparison';
 import { AnyFlatFileDataSource, SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { DataSourceLocalFile, LocalEntry } from '@models/file-system';
 import { ComparisonSource, SchemaComparisonResult } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import { setComparisonSourceStats } from '@store/comparison-metadata';
 import { quote } from '@utils/helpers';

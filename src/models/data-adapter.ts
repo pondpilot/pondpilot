@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import type { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import type * as arrow from 'apache-arrow';
 
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';

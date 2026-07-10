@@ -1,5 +1,5 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { SegmentedControl, Stack, Text } from '@mantine/core';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 

@@ -1,8 +1,8 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { describe, expect, it, jest } from '@jest/globals';
 import { DataAdapterStreamReader } from '@models/data-adapter';
 import { DuckLakeCatalog, PersistentDataSourceId, QuackConnection } from '@models/data-source';
 import { LocalDBDataTab, TabReactiveState } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { getFileDataAdapterQueries } from '@utils/data-adapter';
 
 function makeStreamReader(batchRowCounts: number[]): DataAdapterStreamReader<any> {

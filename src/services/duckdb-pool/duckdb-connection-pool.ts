@@ -1,5 +1,8 @@
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import type { TabId } from '@models/tab';
+import { AsyncDuckDBPooledConnection } from '@services/duckdb-pool/duckdb-pooled-connection';
+import { AsyncDuckDBPooledStreamReader } from '@services/duckdb-pool/duckdb-pooled-streaming-reader';
+import { PoolTimeoutError } from '@services/duckdb-pool/timeout-error';
 import { toAbortablePromise } from '@utils/abort';
 import {
   parseAttachStatement,
@@ -11,10 +14,6 @@ import { toDuckDBIdentifier, type CatalogSchemaSelection } from '@utils/duckdb/i
 import { getViteEnv } from '@utils/env';
 import { quote } from '@utils/helpers';
 import * as arrow from 'apache-arrow';
-
-import { AsyncDuckDBPooledConnection } from './duckdb-pooled-connection';
-import { AsyncDuckDBPooledStreamReader } from './duckdb-pooled-streaming-reader';
-import { PoolTimeoutError } from './timeout-error';
 
 // Optional callback to update persistence state after operations
 type UpdateStateFn = () => Promise<void>;

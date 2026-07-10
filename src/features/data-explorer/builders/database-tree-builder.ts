@@ -2,7 +2,6 @@ import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
 import {
   DuckLakeCatalog,
@@ -15,6 +14,7 @@ import {
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { isMotherDuckDbKey, parseMotherDuckDbKey } from '@utils/data-source';

@@ -1,7 +1,7 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Modal, Stack, TextInput, PasswordInput, Text, Button, Group, Select } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { IcebergAuthType, IcebergCatalog } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { reconnectIcebergCatalog, IcebergCredentials } from '@utils/iceberg-catalog';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';

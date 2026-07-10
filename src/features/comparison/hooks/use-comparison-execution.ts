@@ -1,5 +1,4 @@
 import { dropComparisonResultsTable } from '@controllers/comparison/table-utils';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   COMPARISON_EXECUTION_STAGE,
   ComparisonExecutionProgress,
@@ -7,6 +6,7 @@ import {
   ComparisonId,
 } from '@models/comparison';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import {
   clearComparisonExecutionProgress,
   markComparisonCancelRequested,

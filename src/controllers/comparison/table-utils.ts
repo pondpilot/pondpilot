@@ -1,5 +1,5 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { isComparisonResultsTableName } from '@utils/comparison';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 

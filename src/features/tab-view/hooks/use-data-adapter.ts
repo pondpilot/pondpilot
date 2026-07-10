@@ -1,7 +1,6 @@
 import { syncFiles } from '@controllers/file-system';
 import { updateTabDataViewStaleDataCache } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { PoolTimeoutError } from '@features/duckdb-context/timeout-error';
 import { useAbortController } from '@hooks/use-abort-controller';
 import { useDidUpdate } from '@mantine/hooks';
 import {
@@ -17,6 +16,7 @@ import {
 } from '@models/data-adapter';
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { AnyTab, MAX_PERSISTED_STALE_DATA_ROWS, StaleData, TabReactiveState } from '@models/tab';
+import { PoolTimeoutError } from '@services/duckdb-pool/timeout-error';
 import { useAppStore } from '@store/app-store';
 import { convertArrowTable, getArrowTableSchema } from '@utils/arrow';
 import {

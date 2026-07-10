@@ -2,12 +2,12 @@ import { showError, showWarning } from '@components/app-notifications';
 import { installCorsProxyMacros } from '@controllers/db/cors-proxy-macros-controller';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
 import { AnyDataSource } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';

@@ -6,8 +6,8 @@
  */
 
 import { showAlert } from '@components/app-notifications';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
+import { AsyncDuckDBPooledConnection } from '@services/duckdb-pool/duckdb-pooled-connection';
 import * as arrow from 'apache-arrow';
 
 import { rewriteAttachUrl, isAttachStatement } from './attach-cors-rewriter';

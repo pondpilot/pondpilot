@@ -11,10 +11,10 @@ import {
   buildDatabaseFileNode,
 } from '@features/data-explorer/builders/file-system-node-builder';
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '@features/data-explorer/model';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { AnyFlatFileDataSource, XlsxSheetView, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFolder, LocalFile } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { copyToClipboard } from '@utils/clipboard';
 import {
   getFlatFileDataSourceIcon,

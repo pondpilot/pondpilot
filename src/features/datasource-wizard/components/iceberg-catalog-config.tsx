@@ -1,5 +1,4 @@
 import { showError } from '@components/app-notifications';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   Stack,
   TextInput,
@@ -13,6 +12,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IcebergAuthType } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
 import { setDataTestId } from '@utils/test-id';
 import { useState, useCallback, type ChangeEvent } from 'react';

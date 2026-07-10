@@ -12,7 +12,6 @@ import {
   detachAndUnregisterDatabase,
 } from '@controllers/db/data-source';
 import { getLocalDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, CSV_MAX_LINE_SIZE_MB } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -25,6 +24,7 @@ import {
 } from '@models/file-system';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import {
   addLocalDB,
