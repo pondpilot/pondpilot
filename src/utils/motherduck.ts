@@ -11,12 +11,12 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { deleteTab } from '@controllers/tab';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { MotherDuckConnection, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, DBColumn, DBSchema, DBTableOrView } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { AppIdbSchema } from '@models/persisted-store';
 import { TabId } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { getSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { formatMotherDuckDbKey, isMotherDuckDbKey } from '@utils/data-source';

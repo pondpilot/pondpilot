@@ -15,12 +15,12 @@ import {
   deleteTabByDataSourceId,
 } from '@controllers/tab';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
 import { DBColumn, DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { ExportFormat } from '@models/export-options';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import {

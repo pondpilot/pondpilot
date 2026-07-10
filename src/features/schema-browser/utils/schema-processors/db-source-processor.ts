@@ -1,4 +1,3 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   DuckLakeCatalog,
   IcebergCatalog,
@@ -10,6 +9,7 @@ import {
 } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { SchemaBrowserTab } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { formatMotherDuckDbKey, getDatabaseIdentifier } from '@utils/data-source';
 
 import { dbColumnToSchemaColumn, SchemaGraph, SchemaNodeData, SchemaColumnData } from '../../model';

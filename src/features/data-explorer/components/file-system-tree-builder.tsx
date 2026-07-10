@@ -1,8 +1,8 @@
 import { TreeNodeData } from '@components/explorer-tree';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useMemo } from 'react';
 
 import {

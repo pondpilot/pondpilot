@@ -1,6 +1,6 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
 import { LocalDB } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useMemo } from 'react';
 
 import { buildDatabaseNode } from '../builders/database-tree-builder';

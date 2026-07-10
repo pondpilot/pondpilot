@@ -2,7 +2,6 @@
 // By convetion the order should follow CRUD groups!
 import { createScriptVersionController } from '@controllers/script-version';
 import { sanitizeChartLabel } from '@features/chart-view/utils/sanitize-label';
-import { getCurrentDuckDBConnectionPool } from '@features/duckdb-context/current-pool';
 import { ChartConfig, ViewMode } from '@models/chart';
 import {
   AnyFlatFileDataSource,
@@ -27,6 +26,7 @@ import {
   TabDataViewStateCache,
   TabId,
 } from '@models/tab';
+import { getCurrentDuckDBConnectionPool } from '@services/duckdb-pool/current-pool';
 import { useAppStore } from '@store/app-store';
 import {
   ensureDatabaseDataSource,

@@ -1,7 +1,7 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
 import { AnyFlatFileDataSource, MotherDuckConnection } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useMemo } from 'react';
 
 import { buildMotherDuckConnectionNode } from '../builders/database-tree-builder';

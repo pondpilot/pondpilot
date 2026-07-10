@@ -1,9 +1,9 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PersistentDataSourceId, QuackConnection } from '@models/data-source';
 import { DataBaseModel, DBColumn, DBTableOrView } from '@models/db';
 import { AppIdbSchema } from '@models/persisted-store';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { getSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makePersistentDataSourceId } from '@utils/data-source';

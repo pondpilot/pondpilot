@@ -12,12 +12,12 @@ import {
 } from '@controllers/tab';
 import { useChartData, useSmallMultiplesData } from '@features/chart-view';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { ChartConfig, DEFAULT_CHART_CONFIG, DEFAULT_VIEW_MODE, ViewMode } from '@models/chart';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
+import { AsyncDuckDBPooledPreparedStatement } from '@services/duckdb-pool/duckdb-pooled-prepared-stmt';
 import {
   clearTransient,
   setScriptSession,

@@ -5,7 +5,6 @@ import { showWarning } from '@components/app-notifications';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   Comparison,
   ComparisonId,
@@ -15,6 +14,7 @@ import {
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { COMPARISON_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { ComparisonTab, TabId } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import { setComparisonPartialResults } from '@store/comparison-metadata';
 import { ensureComparison, makeComparisonId } from '@utils/comparison';

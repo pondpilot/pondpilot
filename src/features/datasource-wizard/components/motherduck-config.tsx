@@ -1,6 +1,6 @@
 import { showError } from '@components/app-notifications';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Stack, PasswordInput, Text, Button, Group, Anchor } from '@mantine/core';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 

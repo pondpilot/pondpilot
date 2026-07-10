@@ -4,6 +4,8 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { setCurrentDuckDBConnectionPool } from '@services/duckdb-pool/current-pool';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { markTransient, setAppLoadState, useAppStore } from '@store/app-store';
 import {
   buildSearchPathStatement,
@@ -14,14 +16,12 @@ import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { v4 } from 'uuid';
 
-import { setCurrentDuckDBConnectionPool } from './current-pool';
 import {
   isCoiBundleSelection,
   recommendedThreadCount,
   resolveDuckDBBundles,
   withoutCoiBundle,
 } from './duckdb-bundles';
-import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
 import { isWalReplayFailure, planOpfsDatabaseRegistration } from './opfs-database-files';
 import { buildDuckDBWorkerBootstrap } from './worker-log-filter';
 

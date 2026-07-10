@@ -1,8 +1,8 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Button, Group, Stack, Text, TextInput, Textarea, Checkbox } from '@mantine/core';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 

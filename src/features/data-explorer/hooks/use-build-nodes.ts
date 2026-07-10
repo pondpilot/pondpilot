@@ -1,4 +1,3 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
 import {
   DuckLakeCatalog,
@@ -8,6 +7,7 @@ import {
   QuackConnection,
   RemoteDB,
 } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 import { DataExplorerNodeMap } from '../model';
 import { useDuckLakeCatalogNodes } from './use-ducklake-catalog-nodes';

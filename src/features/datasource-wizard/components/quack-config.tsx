@@ -1,5 +1,4 @@
 import { showError, showSuccess } from '@components/app-notifications';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   Alert,
   Button,
@@ -12,6 +11,7 @@ import {
 } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { deleteSecret, makeSecretId, putSecret, SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { IconAlertCircle } from '@tabler/icons-react';

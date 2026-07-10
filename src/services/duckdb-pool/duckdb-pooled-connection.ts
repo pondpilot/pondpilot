@@ -1,8 +1,7 @@
 import type { AsyncDuckDBConnection, AsyncPreparedStatement } from '@duckdb/duckdb-wasm';
+import { AsyncDuckDBPooledPreparedStatement } from '@services/duckdb-pool/duckdb-pooled-prepared-stmt';
+import { AsyncDuckDBPooledStreamReader } from '@services/duckdb-pool/duckdb-pooled-streaming-reader';
 import type * as arrow from 'apache-arrow';
-
-import { AsyncDuckDBPooledPreparedStatement } from './duckdb-pooled-prepared-stmt';
-import { AsyncDuckDBPooledStreamReader } from './duckdb-pooled-streaming-reader';
 
 /**
  * A wrapper around the DuckDB connection produced by our pool.

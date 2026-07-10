@@ -10,7 +10,6 @@ import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { persistAddLocalEntry } from '@controllers/file-system/persist';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison, ComparisonId } from '@models/comparison';
 import {
   AnyDataSource,
@@ -50,6 +49,7 @@ import {
 } from '@models/persisted-store';
 import { SQLScript, SQLScriptId, SQLScriptSession } from '@models/sql-script';
 import { ComparisonTab, TabId } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';

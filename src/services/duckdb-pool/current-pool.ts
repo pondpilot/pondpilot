@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 let currentConnectionPool: AsyncDuckDBConnectionPool | null = null;
 

@@ -1,5 +1,5 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 class FakeConnection {
   public readonly calls: string[] = [];

@@ -1,4 +1,3 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   Modal,
   Stack,
@@ -11,6 +10,7 @@ import {
   Center,
 } from '@mantine/core';
 import { MotherDuckConnection } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { reconnectMotherDuck, resolveMotherDuckToken } from '@utils/motherduck';

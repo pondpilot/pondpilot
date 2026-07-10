@@ -2,6 +2,8 @@
  * Widget-specific UI builders for AI Assistant components
  */
 
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
+
 import {
   createContainer,
   createTextarea,
@@ -16,7 +18,6 @@ import { TabExecutionError } from '../../../controllers/tab/tab-controller';
 import { AI_PROVIDERS, isPollyProvider } from '../../../models/ai-service';
 import { getAIConfig, isProviderConfigured } from '../../../utils/ai-config';
 import { navigateToSettings } from '../../../utils/route-navigation';
-import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
 /**
  * Creates a collapsible context section that combines SQL and Schema contexts

@@ -4,7 +4,7 @@
  * Utilities for managing database connections with timeouts and retries
  */
 
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 import { ConnectionTimeoutError, MaxRetriesExceededError } from './connection-errors';
 

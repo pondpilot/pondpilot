@@ -1,5 +1,5 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PersistentDataSourceId, AnyFlatFileDataSource } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 import { DEFAULT_NODE_POSITION } from '../../constants';
 import { SchemaGraph, SchemaNodeData } from '../../model';

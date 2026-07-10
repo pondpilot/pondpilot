@@ -4,10 +4,10 @@
  */
 
 import { showWarning, showAlert } from '@components/app-notifications';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFolder } from '@models/file-system';
 import { SESSION_STORAGE_KEYS } from '@models/local-storage';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import {
   pickDataSourceFiles,
   pickFolderForPondPilot,

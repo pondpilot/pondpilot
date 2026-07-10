@@ -9,10 +9,10 @@ import {
   handleMultiSelectShowSchema,
   getShowSchemaHandler,
 } from '@features/data-explorer/utils/multi-select-handlers';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { PersistentDataSourceId } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 // Mock external dependencies
 jest.mock('@components/app-notifications');
