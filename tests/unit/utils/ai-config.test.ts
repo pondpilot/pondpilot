@@ -28,7 +28,7 @@ jest.mock('@models/ai-service', () => ({
   isPollyProvider: () => false,
 }));
 
-jest.mock('../../../src/constants/ai', () => ({
+jest.mock('../../../src/consts/ai', () => ({
   PROVIDER_IDS: { CUSTOM: 'custom' },
 }));
 
