@@ -23,6 +23,14 @@ interface ImportMetaEnv {
   /** Forces the MVP DuckDB-WASM bundle when set to "true". */
   readonly VITE_DUCKDB_WASM_FORCE_MVP?: string;
 
+  /**
+   * Enables the multithreaded COI DuckDB-WASM bundle when set to "true".
+   * Experimental: dynamic extensions (httpfs, iceberg, motherduck) cannot
+   * load under it until upstream ships linkable wasm_threads artifacts; a
+   * failed COI initialization falls back to the single-threaded EH bundle.
+   */
+  readonly VITE_DUCKDB_WASM_ENABLE_COI?: string;
+
   /** Allows unsigned DuckDB-WASM extensions when set to "true". */
   readonly VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS?: string;
 
