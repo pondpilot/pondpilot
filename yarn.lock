@@ -2629,12 +2629,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@mantine/hooks@npm:^8.2.3":
-  version: 8.2.3
-  resolution: "@mantine/hooks@npm:8.2.3"
+"@mantine/hooks@npm:^9.4.1":
+  version: 9.4.1
+  resolution: "@mantine/hooks@npm:9.4.1"
   peerDependencies:
-    react: ^18.x || ^19.x
-  checksum: 10c0/ef32f7fc7693835b33b84f0642ab54b6a87a450a6d451e11f7398a9c1b1dded234081a29120386414066ede45924c3bf2a4b11e97c34eec3b72d239d25f85dc9
+    react: ^19.2.0
+  checksum: 10c0/6b07258de2bed3aa62090e95f57095dbafcbdb293105ef4b46431dfb41c1cc56b5daaa279b440ffa9716d18cc3eeaaff8a73bedd52064f07d558ac831c92a1fc
   languageName: node
   linkType: hard
 
@@ -10147,7 +10147,7 @@ __metadata:
     "@dnd-kit/utilities": "npm:^3.2.2"
     "@duckdb/duckdb-wasm": "npm:1.33.1-dev53.0"
     "@mantine/core": "npm:^8.2.3"
-    "@mantine/hooks": "npm:^8.2.3"
+    "@mantine/hooks": "npm:^9.4.1"
     "@mantine/modals": "npm:^8.2.3"
     "@mantine/notifications": "npm:^8.2.3"
     "@mantine/spotlight": "npm:^8.2.3"
