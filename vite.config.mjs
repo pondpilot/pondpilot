@@ -4,6 +4,53 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import { VitePWA } from 'vite-plugin-pwa';
 import svgr from 'vite-plugin-svgr';
 
+const getNodeModulesPackage = (id) => {
+  const normalizedId = id.replaceAll('\\', '/');
+  const nodeModulesIndex = normalizedId.lastIndexOf('/node_modules/');
+
+  if (nodeModulesIndex === -1) {
+    return undefined;
+  }
+
+  const [scopeOrName, scopedName] = normalizedId
+    .slice(nodeModulesIndex + '/node_modules/'.length)
+    .split('/');
+
+  return scopeOrName.startsWith('@')
+    ? `${scopeOrName}/${scopedName}`
+    : scopeOrName;
+};
+
+const manualChunks = (id) => {
+  const packageName = getNodeModulesPackage(id);
+
+  if (packageName === 'monaco-editor' || packageName === '@monaco-editor/react') {
+    return 'monaco';
+  }
+
+  if (packageName?.startsWith('@mantine/')) {
+    return 'mantine';
+  }
+
+  if (packageName === 'reactflow' || packageName === '@dagrejs/dagre') {
+    return 'flow';
+  }
+
+  if (packageName === 'recharts') {
+    return 'charts';
+  }
+
+  if (packageName === 'apache-arrow') {
+    return 'arrow';
+  }
+
+  if (packageName === '@duckdb/duckdb-wasm') {
+    return 'duckdb';
+  }
+
+  return undefined;
+};
+
 const getVersionInfo = () => {
   try {
     const packageJson = require('./package.json');
@@ -153,6 +200,11 @@ export default defineConfig(({ mode }) => {
 
     build: {
       sourcemap: mode === 'development',
+      rollupOptions: {
+        output: {
+          manualChunks,
+        },
+      },
     },
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm'],
