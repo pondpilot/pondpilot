@@ -88,8 +88,10 @@ function SingleChart({ data, yColumn, chartType, color, isFirst, isLast }: Singl
     },
     labelStyle: { color: chartTheme.tooltipText },
     itemStyle: { color: chartTheme.tooltipText },
-    formatter: (value: number | undefined, name: string | undefined) =>
-      [formatTooltipNumber(value), name ?? ''] as [string, string],
+    formatter: (
+      value: string | number | ReadonlyArray<string | number> | undefined,
+      name: string | number | undefined,
+    ): [string, string | number] => [formatTooltipNumber(value), name ?? ''],
   };
 
   // Tighter margins for stacked charts

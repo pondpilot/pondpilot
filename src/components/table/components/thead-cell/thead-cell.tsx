@@ -24,11 +24,10 @@ interface TableHeadCellProps {
   onHeadCellClick: (columnId: string, e: React.MouseEvent<Element, MouseEvent>) => void;
 }
 
-interface THeadTitleProps
-  extends Omit<
-    TableHeadCellProps,
-    'table' | 'index' | 'totalHeaders' | 'deltaOffset' | 'onHeadCellClick'
-  > {
+interface THeadTitleProps extends Omit<
+  TableHeadCellProps,
+  'table' | 'index' | 'totalHeaders' | 'deltaOffset' | 'onHeadCellClick'
+> {
   isIndex: boolean;
   isNumber: boolean;
   iconType: IconType;

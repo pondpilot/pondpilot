@@ -1,10 +1,5 @@
 export type BugReportCategory =
-  | 'crash'
-  | 'data-issue'
-  | 'ui-bug'
-  | 'performance'
-  | 'feature-request'
-  | 'other';
+  'crash' | 'data-issue' | 'ui-bug' | 'performance' | 'feature-request' | 'other';
 
 // Centralized category metadata to avoid duplication across UI and Slack service.
 export const BUG_REPORT_CATEGORY_META: Record<BugReportCategory, { label: string; emoji: string }> =

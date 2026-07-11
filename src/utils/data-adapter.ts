@@ -373,12 +373,7 @@ function getFlatFileDataAdapterQueries(
 function getDatabaseDataAdapterApi(
   pool: AsyncDuckDBConnectionPool,
   dataSource:
-    | LocalDB
-    | RemoteDB
-    | IcebergCatalog
-    | DuckLakeCatalog
-    | QuackConnection
-    | MotherDuckConnection,
+    LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection,
   tab: TabReactiveState<LocalDBDataTab>,
   options: {
     usePagedReader?: boolean;

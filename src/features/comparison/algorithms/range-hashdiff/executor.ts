@@ -28,13 +28,7 @@ type QueueEntry = HashSegment & {
 };
 
 export type RangeHashDiffProgressStage =
-  | 'queued'
-  | 'counting'
-  | 'splitting'
-  | 'inserting'
-  | 'bucket-complete'
-  | 'finalizing'
-  | 'done';
+  'queued' | 'counting' | 'splitting' | 'inserting' | 'bucket-complete' | 'finalizing' | 'done';
 
 export type RangeHashDiffProgressUpdate = {
   stage: RangeHashDiffProgressStage;

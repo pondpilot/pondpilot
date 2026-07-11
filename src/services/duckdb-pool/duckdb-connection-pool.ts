@@ -323,9 +323,9 @@ export class AsyncDuckDBConnectionPool {
   private _isCatalogMutation(sql: string): boolean {
     return Boolean(
       parseIcebergAttachStatement(sql)?.catalogAlias ??
-        parseAttachStatement(sql)?.dbName ??
-        parseMotherDuckAttachStatement(sql)?.dbName ??
-        parseDetachStatement(sql),
+      parseAttachStatement(sql)?.dbName ??
+      parseMotherDuckAttachStatement(sql)?.dbName ??
+      parseDetachStatement(sql),
     );
   }
 

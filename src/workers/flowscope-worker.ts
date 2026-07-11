@@ -62,9 +62,7 @@ export interface FlowScopeCompletionItemsRequest {
 }
 
 export type FlowScopeRequest =
-  | FlowScopeAnalyzeRequest
-  | FlowScopeSplitRequest
-  | FlowScopeCompletionItemsRequest;
+  FlowScopeAnalyzeRequest | FlowScopeSplitRequest | FlowScopeCompletionItemsRequest;
 
 export interface FlowScopeSuccessResponse<T> {
   id: number;

@@ -117,10 +117,10 @@ export function StackedBarChart({
           }}
           labelStyle={{ color: chartTheme.tooltipText }}
           itemStyle={{ color: chartTheme.tooltipText }}
-          formatter={(value: number | undefined, name: string | undefined) => [
-            formatTooltipNumber(value),
-            name ?? '',
-          ]}
+          formatter={(
+            value: string | number | ReadonlyArray<string | number> | undefined,
+            name: string | number | undefined,
+          ) => [formatTooltipNumber(value), name ?? '']}
         />
         <Legend
           wrapperStyle={{
