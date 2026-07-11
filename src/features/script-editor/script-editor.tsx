@@ -85,6 +85,7 @@ interface ScriptEditorProps {
   scriptState: ScriptExecutionState;
 
   active?: boolean;
+  databaseReady?: boolean;
 
   runScriptQuery: (query: string) => Promise<void>;
 }
@@ -93,6 +94,7 @@ export const ScriptEditor = ({
   id: scriptId,
   tabId,
   active,
+  databaseReady = true,
   runScriptQuery,
   scriptState,
 }: ScriptEditorProps) => {
@@ -290,6 +292,8 @@ export const ScriptEditor = ({
   );
 
   const handleRunQuery = async (mode?: RunScriptMode) => {
+    if (!databaseReady) return;
+
     const editorHandle = editorRef.current;
     const editor = editorHandle?.editor;
     const model = editor?.getModel();
@@ -591,12 +595,15 @@ export const ScriptEditor = ({
           dirty={dirty}
           handleRunQuery={handleRunQuery}
           scriptState={scriptState}
+          runDisabled={!databaseReady}
           onAIAssistantClick={handleAIAssistantClick}
           historyMode={historyMode}
           onEnterHistoryMode={shouldShowVersionHistory ? handleEnterHistoryMode : undefined}
           onExitHistoryMode={handleExitHistoryMode}
           selectedVersion={selectedVersionForDiff}
-          sessionSelector={<ScriptSessionSelector scriptId={scriptId} tabId={tabId} />}
+          sessionSelector={
+            databaseReady ? <ScriptSessionSelector scriptId={scriptId} tabId={tabId} /> : undefined
+          }
           onRestoreVersion={handleRestoreVersion}
           onRenameVersion={handleRenameVersion}
         />

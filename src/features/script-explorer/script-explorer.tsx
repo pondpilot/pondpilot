@@ -15,7 +15,7 @@ import {
   findTabFromComparison,
   getOrCreateTabFromComparison,
 } from '@controllers/tab/comparison-tab-controller';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { RenderTreeNodePayload as MantineRenderTreeNodePayload } from '@mantine/core';
 import { ComparisonId } from '@models/comparison';
 import { SQLScriptId } from '@models/sql-script';
@@ -170,8 +170,13 @@ export const ScriptExplorer = memo(() => {
    * Global state
    */
   const sqlScripts = useSqlScriptNameMap();
-  const comparisons = useComparisonsList();
-  const pool = useInitializedDuckDBConnectionPool();
+  const restoredComparisons = useComparisonsList();
+  const appReady = useAppStore.use.appLoadState() === 'ready';
+  const comparisons = useMemo(
+    () => (appReady ? restoredComparisons : []),
+    [appReady, restoredComparisons],
+  );
+  const pool = useDuckDBConnectionPool();
 
   const hasActiveElement = useAppStore((state) => {
     const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
@@ -250,6 +255,7 @@ export const ScriptExplorer = memo(() => {
   const handleNodeDelete = useCallback(
     (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>) => {
       if (isComparisonNode(node)) {
+        if (!pool) return;
         deleteComparisons([node.value], pool).catch(() => {
           // Ignored: error handling happens via global notifications
         });
@@ -392,6 +398,7 @@ export const ScriptExplorer = memo(() => {
         deleteSqlScripts(scriptIds);
       }
       if (comparisonIds.length > 0) {
+        if (!pool) return;
         deleteComparisons(comparisonIds, pool).catch(() => {
           // Ignored: error handling happens via global notifications
         });

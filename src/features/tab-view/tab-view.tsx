@@ -1,7 +1,9 @@
 import { deleteTab } from '@controllers/tab';
 import { ComparisonTabView } from '@features/comparison';
+import { ScriptEditor } from '@features/script-editor';
 import { Skeleton, Stack } from '@mantine/core';
-import { useAppStore, useTabTypeMap } from '@store/app-store';
+import { ScriptTab, TabId } from '@models/tab';
+import { useAppStore, useTabReactiveState, useTabTypeMap } from '@store/app-store';
 import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
@@ -10,6 +12,22 @@ import { useTabCache } from './hooks/use-tab-cache';
 import { FileDataSourceTabView, SchemaTabView, ScriptTabView } from './views';
 
 const TAB_CACHE_SIZE = 10;
+const ignoreRunUntilDatabaseReady = async () => {};
+
+const CoreReadyScriptTabView = ({ tabId, active }: { tabId: TabId; active: boolean }) => {
+  const tab = useTabReactiveState<ScriptTab>(tabId, 'script');
+
+  return (
+    <ScriptEditor
+      id={tab.sqlScriptId}
+      tabId={tab.id}
+      active={active}
+      runScriptQuery={ignoreRunUntilDatabaseReady}
+      scriptState="idle"
+      databaseReady={false}
+    />
+  );
+};
 
 export const TabView = () => {
   const tabToTypeMap = useTabTypeMap();
@@ -25,7 +43,9 @@ export const TabView = () => {
     addToCache(activeTabId);
   }, [activeTabId, addToCache]);
 
-  if (appLoadState !== 'ready') {
+  const appCoreReady = appLoadState === 'core-ready' || appLoadState === 'ready';
+
+  if (!appCoreReady) {
     return (
       <Stack className="h-full gap-0 p-4" justify="center" align="center">
         <Skeleton width="60%" height={24} />
@@ -51,7 +71,12 @@ export const TabView = () => {
                   deleteTab([activeTabId]);
                 }}
               >
-                {tabType === 'script' && <ScriptTabView tabId={tabId} active={isActive} />}
+                {tabType === 'script' &&
+                  (appLoadState === 'ready' ? (
+                    <ScriptTabView tabId={tabId} active={isActive} />
+                  ) : (
+                    <CoreReadyScriptTabView tabId={tabId} active={isActive} />
+                  ))}
                 {tabType === 'data-source' && (
                   <FileDataSourceTabView tabId={tabId} active={isActive} />
                 )}

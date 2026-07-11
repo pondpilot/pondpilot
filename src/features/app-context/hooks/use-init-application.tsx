@@ -10,7 +10,11 @@ import {
 import { AnyDataSource } from '@models/data-source';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore, setAppLoadState } from '@store/app-store';
-import { restoreAppDataFromIDB } from '@store/restore';
+import {
+  CoreAppDataSnapshot,
+  restoreAppDataFromIDB,
+  restoreCoreAppDataFromIDB,
+} from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry } from '@utils/connection-manager';
 import {
@@ -43,7 +47,7 @@ import {
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useShowPermsAlert } from './use-show-perm-alert';
 
@@ -274,14 +278,24 @@ export function useAppInitialization({
 
   const conn = useDuckDBConnectionPool();
   const connectDuckDb = useDuckDBInitializer();
+  const initializationRunRef = useRef<Promise<void> | null>(null);
+  const initializationGenerationRef = useRef(0);
 
-  const initAppData = async (resolvedConn: AsyncDuckDBConnectionPool) => {
+  const initAppData = async (
+    resolvedConn: AsyncDuckDBConnectionPool,
+    coreSnapshot: CoreAppDataSnapshot,
+    generation: number,
+  ) => {
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
     try {
-      const { discardedEntries, warnings } = await restoreAppDataFromIDB(resolvedConn, (_) =>
-        showPermsAlert(),
+      const { discardedEntries, warnings } = await restoreAppDataFromIDB(
+        resolvedConn,
+        (_) => showPermsAlert(),
+        coreSnapshot,
       );
+
+      if (generation !== initializationGenerationRef.current) return;
 
       // Report we're ready for user interactions now.
       setAppLoadState('ready');
@@ -383,18 +397,22 @@ export function useAppInitialization({
         });
       }
     } catch (error) {
+      if (generation !== initializationGenerationRef.current) return;
       const message = error instanceof Error ? error.message : String(error);
       console.error('Error restoring app data:', message);
       showError({
         title: 'Cannot restore app data',
         message: `Failed to restore app data. ${message}`,
       });
+      setAppLoadState('error');
     }
   };
 
   useEffect(() => {
     // Don't initialize DuckDB if this tab is blocked by another active tab
     if (isTabBlocked) {
+      initializationGenerationRef.current += 1;
+      initializationRunRef.current = null;
       setAppLoadState('init');
       return;
     }
@@ -403,17 +421,56 @@ export function useAppInitialization({
     // we are not initializing either in-memory DuckDB or the app data.
     if (!isFileAccessApiSupported || isMobileDevice) return;
 
-    if (useAppStore.getState().appLoadState === 'ready') {
+    if (useAppStore.getState().appLoadState === 'ready' || initializationRunRef.current) {
       return;
     }
 
-    // Start initialization of data when the database is ready
-    if (conn) {
-      setAppLoadState('init');
-      initAppData(conn);
-    } else {
-      setAppLoadState('init');
-      connectDuckDb();
-    }
-  }, [conn, isTabBlocked]);
+    const generation = ++initializationGenerationRef.current;
+    setAppLoadState('init');
+
+    const initializationRun = (async () => {
+      // Start the independent IDB read and DuckDB boot together. Core hydration
+      // publishes scripts first; the full restore waits for both dependencies.
+      const coreRestorePromise = restoreCoreAppDataFromIDB();
+      const connectionPromise = conn ? Promise.resolve(conn) : connectDuckDb();
+
+      try {
+        const coreSnapshot = await coreRestorePromise;
+        if (generation !== initializationGenerationRef.current) return;
+        setAppLoadState('core-ready');
+
+        const resolvedConn = await connectionPromise;
+        if (generation !== initializationGenerationRef.current) return;
+        if (!resolvedConn) {
+          setAppLoadState('error');
+          showError({
+            title: 'Cannot initialize database',
+            message: 'DuckDB failed to initialize. Reload the app to try again.',
+          });
+          return;
+        }
+
+        await initAppData(resolvedConn, coreSnapshot, generation);
+      } catch (error) {
+        if (generation !== initializationGenerationRef.current) return;
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('Error initializing app data:', message);
+        showError({
+          title: 'Cannot initialize app data',
+          message: `Failed to initialize app data. ${message}`,
+        });
+        setAppLoadState('error');
+      }
+    })();
+
+    initializationRunRef.current = initializationRun;
+    initializationRun.finally(() => {
+      if (initializationRunRef.current === initializationRun) {
+        initializationRunRef.current = null;
+      }
+    });
+    // initAppData intentionally belongs to this initialization generation. Adding
+    // its render-local identity would restart an in-flight boot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conn, connectDuckDb, isFileAccessApiSupported, isMobileDevice, isTabBlocked]);
 }

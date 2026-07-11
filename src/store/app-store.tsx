@@ -34,7 +34,7 @@ import { SpotlightView } from '../components/spotlight/model';
 import { TabExecutionError } from '../controllers/tab/tab-controller';
 import { SourceSelectionCallback } from '../features/comparison/hooks/use-comparison-source-selection';
 
-type AppLoadState = 'init' | 'ready' | 'error';
+type AppLoadState = 'init' | 'core-ready' | 'ready' | 'error';
 
 type AppStore = {
   /**
@@ -48,7 +48,8 @@ type AppStore = {
   _iDbConn: IDBPDatabase<AppIdbSchema> | null;
 
   /**
-   * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
+   * The current state of the app. Core-ready means persisted scripts are available,
+   * while DuckDB-backed features are still initializing.
    */
   appLoadState: AppLoadState;
 

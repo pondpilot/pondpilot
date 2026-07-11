@@ -31,6 +31,7 @@ export const RunQueryButton = ({ disabled, onRunClick }: RunQueryButtonProps) =>
     <Button.Group>
       <Button
         onClick={() => onRunClick(defaultOption)}
+        disabled={disabled}
         className="min-w-20"
         data-testid={setDataTestId('run-query-button')}
       >
@@ -45,7 +46,10 @@ export const RunQueryButton = ({ disabled, onRunClick }: RunQueryButtonProps) =>
         disabled={disabled}
       >
         <Menu.Target>
-          <div className="bg-backgroundAccent-light dark:bg-backgroundAccent-dark rounded-r-2xl border-l border-borderLight-light dark:border-borderLight-dark flex items-center justify-center cursor-pointer pr-2 pl-1">
+          <div
+            aria-disabled={disabled}
+            className="bg-backgroundAccent-light dark:bg-backgroundAccent-dark rounded-r-2xl border-l border-borderLight-light dark:border-borderLight-dark flex items-center justify-center cursor-pointer pr-2 pl-1"
+          >
             <IconChevronDown
               size={20}
               className="text-textContrast-light dark:text-textContrast-dark"

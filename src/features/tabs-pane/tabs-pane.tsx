@@ -53,7 +53,7 @@ export const TabsPane = memo(() => {
    * Store access
    */
   const appLoadState = useAppStore.use.appLoadState();
-  const appInitializing = appLoadState === 'init';
+  const appCoreReady = appLoadState === 'core-ready' || appLoadState === 'ready';
 
   const previewTabId = useAppStore.use.previewTabId();
   const activeTabId = useAppStore.use.activeTabId();
@@ -147,7 +147,7 @@ export const TabsPane = memo(() => {
           >
             <SortableContext items={orderedTabIds} strategy={horizontalListSortingStrategy}>
               <div className="flex items-center h-9" data-testid={setDataTestId('tabs-list')}>
-                {appInitializing ? (
+                {!appCoreReady ? (
                   <Skeleton className="ml-2" width={100} height={20} />
                 ) : (
                   orderedTabIds.map((tabId, idx) => {
@@ -181,7 +181,7 @@ export const TabsPane = memo(() => {
           </DndContext>
         </div>
       </ScrollArea>
-      <ActionIcon onClick={handleAddQuery} size={28} className="mx-2" disabled={appInitializing}>
+      <ActionIcon onClick={handleAddQuery} size={28} className="mx-2" disabled={!appCoreReady}>
         <IconPlus size={20} />
       </ActionIcon>
     </Group>
