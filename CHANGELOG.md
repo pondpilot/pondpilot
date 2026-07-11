@@ -8,6 +8,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- next-header -->
 ## ✨ Highlights
 
+This release is focused on reliability: your data now survives reloads, scripts get isolated sessions, and the app loads faster on repeat visits.
+
+- **💾 Reliable Persistence**: Fixed a critical issue where all locally persisted data could be lost on page reload (a regression in the underlying DuckDB-WASM engine, worked around client-side). Checkpointing is also hardened — writes now reach durable storage within seconds, including right before a reload or tab close.
+
+- **📑 Per-Tab Script Sessions**: Each script tab now runs in its own session with  support — switching the active database or schema in one tab no longer affects the others.
+
+- **⚡ Faster Repeat Loads**: The app bundle is now split into cache-friendly chunks, so returning visitors only download what actually changed instead of one monolithic bundle. A size budget in CI keeps it that way.
+
+- **🛡️ Clearer Errors & Hardened Security**: Data source operations (attach, detach, rename, delete) now surface clear error messages with automatic rollback instead of failing silently, and both hosted and Docker deployments ship aligned security headers with a Content-Security-Policy in report-only mode.
+
+## 🎯 What's Next
+
+- Smaller editor bundle and lazy-loaded features for faster first load
+- Enforcing the Content-Security-Policy after the observation period
+- Fixing comparison results persistence across reloads
+- Adopting the upstream DuckDB-WASM persistence fix once it ships
+
+## 📋 Changelog
+
+### 🚀 New
+
+- perf(build): split vendor chunks and enforce bundle size budget [#301](https://github.com/pondpilot/pondpilot/pull/301)
+- feat(duckdb): per-tab script sessions with USE support [#290](https://github.com/pondpilot/pondpilot/pull/290)
+
+### 🐛 Fixed
+
+- fix(db): handle data-source DDL failures instead of assuming success [#315](https://github.com/pondpilot/pondpilot/pull/315)
+- fix(duckdb): work around OPFS data loss on reload (upstream #<!---->2192) [#292](https://github.com/pondpilot/pondpilot/pull/292)
+- fix(theme): resolve auto color scheme to correct theme on first render [#291](https://github.com/pondpilot/pondpilot/pull/291)
+
+### 🔒 Security
+
+- fix(security): align nginx headers and add report-only CSP [#302](https://github.com/pondpilot/pondpilot/pull/302)
+
+**Full Changelog**: [v0.9.0...v0.10.0](https://github.com/pondpilot/pondpilot/compare/v0.9.0...v0.10.0)
+
+
+
+## ✨ Highlights
+
 This release adds four things: **MotherDuck**, **DuckLake**, **Quack**, and **SQL Linting**.
 
 - **☁️ MotherDuck**: Connect to MotherDuck cloud databases with a service token. The extension loads dynamically — no special build needed. The token is stored in the encrypted secret store and auto-reconnects on reload. COOP/COEP headers are now enabled in production so  is available for the extension.
