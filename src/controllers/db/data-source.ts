@@ -79,8 +79,9 @@ export async function registerFileSourceAndCreateView(
    */
   try {
     await db.dropFile(fileName);
-  } catch (error) {
-    throw withContext(`Failed to replace registered file "${fileName}"`, error);
+  } catch {
+    // First-time registration normally has nothing to drop. registerFileHandle below is the
+    // authoritative operation and will still fail if an existing registration cannot be replaced.
   }
 
   /**
@@ -247,8 +248,9 @@ export async function registerAndAttachDatabase(
    */
   try {
     await db.dropFile(fileName);
-  } catch (error) {
-    throw withContext(`Failed to replace registered database file "${fileName}"`, error);
+  } catch {
+    // First-time registration normally has nothing to drop. registerFileHandle below is the
+    // authoritative operation and will still fail if an existing registration cannot be replaced.
   }
 
   /**

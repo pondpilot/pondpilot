@@ -144,21 +144,21 @@ describe('data-source DDL error handling', () => {
     );
   });
 
-  it('adds context when replacing or registering a file fails', async () => {
-    const replacing = trackedPool();
-    replacing.bindings.dropFile.mockImplementationOnce(async () => {
-      throw new Error('drop failed');
+  it('tolerates a missing pre-registration file and adds context when registration fails', async () => {
+    const firstRegistration = trackedPool();
+    firstRegistration.bindings.dropFile.mockImplementationOnce(async () => {
+      throw new Error('file not found');
     });
 
-    await expect(
-      registerFileSourceAndCreateView(
-        replacing.pool,
-        makeHandle('people.csv'),
-        'csv',
-        'people.csv',
-        'people',
-      ),
-    ).rejects.toThrow('Failed to replace registered file "people.csv": drop failed');
+    await registerFileSourceAndCreateView(
+      firstRegistration.pool,
+      makeHandle('people.csv'),
+      'csv',
+      'people.csv',
+      'people',
+    );
+
+    expect(firstRegistration.bindings.registerFileHandle).toHaveBeenCalledTimes(1);
 
     const registering = trackedPool();
     registering.bindings.registerFileHandle.mockImplementationOnce(async () => {
@@ -379,20 +379,20 @@ describe('data-source DDL error handling', () => {
     );
   });
 
-  it('adds context when replacing or registering a database file fails', async () => {
-    const replacing = trackedPool();
-    replacing.bindings.dropFile.mockImplementationOnce(async () => {
-      throw new Error('drop failed');
+  it('tolerates a missing pre-registration database file and adds context when registration fails', async () => {
+    const firstRegistration = trackedPool();
+    firstRegistration.bindings.dropFile.mockImplementationOnce(async () => {
+      throw new Error('file not found');
     });
 
-    await expect(
-      registerAndAttachDatabase(
-        replacing.pool,
-        makeHandle('warehouse.duckdb'),
-        'warehouse.duckdb',
-        'warehouse',
-      ),
-    ).rejects.toThrow('Failed to replace registered database file "warehouse.duckdb": drop failed');
+    await registerAndAttachDatabase(
+      firstRegistration.pool,
+      makeHandle('warehouse.duckdb'),
+      'warehouse.duckdb',
+      'warehouse',
+    );
+
+    expect(firstRegistration.bindings.registerFileHandle).toHaveBeenCalledTimes(1);
 
     const registering = trackedPool();
     registering.bindings.registerFileHandle.mockImplementationOnce(async () => {
