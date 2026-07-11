@@ -16,6 +16,7 @@ import {
   Divider,
   Tooltip,
   SegmentedControl,
+  VisuallyHidden,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { ChartConfig, ViewMode } from '@models/chart';
@@ -428,7 +429,10 @@ export const DataViewInfoPane = ({
                 value: 'table',
                 label: (
                   <Tooltip label="Table" openDelay={400}>
-                    <IconTable size={16} stroke={1.5} />
+                    <span className="inline-flex items-center">
+                      <IconTable size={16} stroke={1.5} />
+                      <VisuallyHidden>Table</VisuallyHidden>
+                    </span>
                   </Tooltip>
                 ),
               },
@@ -436,7 +440,10 @@ export const DataViewInfoPane = ({
                 value: 'chart',
                 label: (
                   <Tooltip label="Chart" openDelay={400}>
-                    <IconChartBar size={16} stroke={1.5} />
+                    <span className="inline-flex items-center">
+                      <IconChartBar size={16} stroke={1.5} />
+                      <VisuallyHidden>Chart</VisuallyHidden>
+                    </span>
                   </Tooltip>
                 ),
               },
@@ -444,7 +451,10 @@ export const DataViewInfoPane = ({
                 value: 'metadata',
                 label: (
                   <Tooltip label="Metadata" openDelay={400}>
-                    <IconTableColumn size={16} stroke={1.5} />
+                    <span className="inline-flex items-center">
+                      <IconTableColumn size={16} stroke={1.5} />
+                      <VisuallyHidden>Metadata</VisuallyHidden>
+                    </span>
                   </Tooltip>
                 ),
               },
