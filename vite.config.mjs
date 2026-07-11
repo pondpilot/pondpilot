@@ -1,8 +1,12 @@
+import { createRequire } from 'node:module';
+
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { VitePWA } from 'vite-plugin-pwa';
 import svgr from 'vite-plugin-svgr';
+
+const require = createRequire(import.meta.url);
 
 const getNodeModulesPackage = (id) => {
   const normalizedId = id.replaceAll('\\', '/');
@@ -21,7 +25,7 @@ const getNodeModulesPackage = (id) => {
     : scopeOrName;
 };
 
-const manualChunks = (id) => {
+const getManualChunkName = (id) => {
   const packageName = getNodeModulesPackage(id);
 
   if (packageName === 'monaco-editor' || packageName === '@monaco-editor/react') {
@@ -106,10 +110,10 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         disable: mode !== 'production' || isDockerBuild, // Disable PWA for Docker builds
         registerType: 'autoUpdate',
-        clientsClaim: true,
-        skipWaiting: true,
-        cleanupOutdatedCaches: true,
         workbox: {
+          clientsClaim: true,
+          skipWaiting: true,
+          cleanupOutdatedCaches: true,
           maximumFileSizeToCacheInBytes: 25000000,
           // Cache duckdb CDN resources
           runtimeCaching: [
@@ -200,9 +204,15 @@ export default defineConfig(({ mode }) => {
 
     build: {
       sourcemap: mode === 'development',
-      rollupOptions: {
+      rolldownOptions: {
         output: {
-          manualChunks,
+          codeSplitting: {
+            groups: [
+              {
+                name: (id) => getManualChunkName(id) ?? null,
+              },
+            ],
+          },
         },
       },
     },
