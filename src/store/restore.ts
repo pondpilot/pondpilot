@@ -6,7 +6,7 @@ import {
   createXlsxSheetView,
   dropViewAndUnregisterFile,
 } from '@controllers/db/data-source';
-import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { hasDatabaseObjects } from '@controllers/db/duckdb-meta';
 import { persistAddLocalEntry } from '@controllers/file-system/persist';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
@@ -22,6 +22,7 @@ import {
   SYSTEM_DATABASE_NAME,
   SYSTEM_DATABASE_FILE_SOURCE_ID,
 } from '@models/data-source';
+import { DataBaseModel } from '@models/db';
 import {
   ignoredFolders,
   LocalEntry,
@@ -1090,8 +1091,11 @@ export const restoreAppDataFromIDB = async (
     await persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
   }
 
-  // Read database meta data
-  const databaseMetadata = await getDatabaseModel(conn);
+  // Restored script results that reference the system database are only valid
+  // when that database still has objects. Check that without loading full
+  // column metadata, which is hydrated after the app becomes ready.
+  const systemDatabaseHasObjects = await hasDatabaseObjects(conn, SYSTEM_DATABASE_NAME, 'main');
+  const databaseMetadata = new Map<string, DataBaseModel>();
 
   // Always add the PondPilot system database to dataSources
   // This ensures it's visible even when empty on fresh start
@@ -1126,7 +1130,7 @@ export const restoreAppDataFromIDB = async (
         return [tabId, tab];
       }
 
-      if (!shouldResetRestoredScriptQuery(tab.lastExecutedQuery, databaseMetadata)) {
+      if (!shouldResetRestoredScriptQuery(tab.lastExecutedQuery, !systemDatabaseHasObjects)) {
         return [tabId, tab];
       }
 

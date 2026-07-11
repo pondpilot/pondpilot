@@ -2,6 +2,7 @@ import { showError, showWarning } from '@components/app-notifications';
 import { installCorsProxyMacros } from '@controllers/db/cors-proxy-macros-controller';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
 import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
@@ -16,6 +17,7 @@ import {
   isRemoteDatabase,
   isIcebergCatalog,
   isDuckLakeCatalog,
+  isLocalDatabase,
   isMotherDuckConnection,
   isQuackConnection,
 } from '@utils/data-source';
@@ -285,6 +287,15 @@ export function useAppInitialization({
       setAppLoadState('ready');
 
       (async () => {
+        // Local sources are ready for queries as soon as restore completes.
+        // Hydrate their full table/column metadata in the background so it does
+        // not delay the app's ready state. Remote metadata remains owned by the
+        // reconnect flow below.
+        const localDatabaseNames = Array.from(useAppStore.getState().dataSources.values())
+          .filter(isLocalDatabase)
+          .map((dataSource) => dataSource.dbName);
+        void refreshDatabaseMetadata(resolvedConn, [...new Set(localDatabaseNames)]);
+
         try {
           // Load DuckDB functions into the store
           await loadDuckDBFunctions(resolvedConn);
