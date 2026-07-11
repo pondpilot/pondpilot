@@ -1,4 +1,4 @@
-import { showWarning } from '@components/app-notifications';
+import { showError, showWarning } from '@components/app-notifications';
 import { TreeNodeData } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
@@ -6,6 +6,7 @@ import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
 import { PersistentDataSourceId } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap, isDBNodeInfo } from '../model';
 
@@ -20,10 +21,10 @@ interface MultiSelectHandlerContext {
  * Handles deletion of multiple selected nodes in the data explorer
  * Separates database sources and folders, then deletes them appropriately
  */
-export function handleMultiSelectDelete(
+export async function handleMultiSelectDelete(
   nodes: TreeNodeData<DataExplorerNodeTypeMap>[],
   context: MultiSelectHandlerContext,
-): void {
+): Promise<void> {
   const { nodeMap, anyNodeIdToNodeTypeMap, conn } = context;
 
   const deletableDataSourceIds: PersistentDataSourceId[] = [];
@@ -72,12 +73,21 @@ export function handleMultiSelectDelete(
     }
   });
 
-  if (deletableDataSourceIds.length > 0) {
-    deleteDataSources(conn, deletableDataSourceIds);
-  }
+  try {
+    const deletions: Promise<void>[] = [];
+    if (deletableDataSourceIds.length > 0) {
+      deletions.push(Promise.resolve(deleteDataSources(conn, deletableDataSourceIds)));
+    }
 
-  if (folderIds.length > 0) {
-    deleteLocalFileOrFolders(conn, folderIds);
+    if (folderIds.length > 0) {
+      deletions.push(Promise.resolve(deleteLocalFileOrFolders(conn, folderIds)));
+    }
+    await Promise.all(deletions);
+  } catch (error) {
+    showError({
+      title: 'Failed to delete data sources',
+      message: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+    });
   }
 }
 

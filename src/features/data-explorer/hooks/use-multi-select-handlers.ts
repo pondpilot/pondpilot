@@ -52,7 +52,7 @@ export function useMultiSelectHandlers({
     }
 
     // Use the utility function
-    handleMultiSelectDelete(nodes, {
+    await handleMultiSelectDelete(nodes, {
       nodeMap,
       anyNodeIdToNodeTypeMap,
       conn,

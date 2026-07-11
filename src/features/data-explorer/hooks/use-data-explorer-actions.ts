@@ -26,7 +26,7 @@ export const useDataExplorerActions = ({
   flatFileSources,
 }: UseDataExplorerActionsProps) => {
   // Handle multi-select delete
-  const handleDeleteSelected = (nodeIds: string[]) => {
+  const handleDeleteSelected = async (nodeIds: string[]) => {
     // Build a flat list of all nodes for easier lookup
     const getAllNodes = (
       nodes: TreeNodeData<DataExplorerNodeTypeMap>[],
@@ -46,7 +46,7 @@ export const useDataExplorerActions = ({
       .map((id) => allNodes.find((node) => node.value === id))
       .filter((node): node is TreeNodeData<DataExplorerNodeTypeMap> => node !== undefined);
 
-    handleMultiSelectDelete(nodes, {
+    await handleMultiSelectDelete(nodes, {
       nodeMap,
       anyNodeIdToNodeTypeMap,
       conn,

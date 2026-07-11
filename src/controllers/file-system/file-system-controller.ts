@@ -34,6 +34,7 @@ import {
 } from '@utils/data-source';
 import { localEntryFromHandle } from '@utils/file-system';
 import { findUniqueName } from '@utils/helpers';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { makeSQLScriptId } from '@utils/sql-script';
 import { getXlsxSheetNames } from '@utils/xlsx';
 
@@ -119,36 +120,42 @@ export const addLocalFileOrFolders = async (
         // And save to new dbs as we'll need it later to get new metadata
         newDatabaseNames.push(dbSource.dbName);
 
-        // TODO: currently we assume this works, add proper error handling
-        const regFile = await registerAndAttachDatabase(
-          conn,
-          file.handle,
-          `${file.uniqueAlias}.${file.ext}`,
-          dbSource.dbName,
-        );
-
-        // Check if database is empty and skip it if it is
-        const isEmpty = await isDatabaseEmpty(dbSource.dbName);
-        if (isEmpty) {
-          // Track skipped empty database
-          skippedEmptyDatabases.push(file.name);
-          // Detach and unregister the empty database
-          await detachAndUnregisterDatabase(
+        try {
+          const regFile = await registerAndAttachDatabase(
             conn,
-            dbSource.dbName,
+            file.handle,
             `${file.uniqueAlias}.${file.ext}`,
+            dbSource.dbName,
           );
-          // Remove from reserved names
+
+          // Check if database is empty and skip it if it is
+          const isEmpty = await isDatabaseEmpty(dbSource.dbName);
+          if (isEmpty) {
+            skippedEmptyDatabases.push(file.name);
+            await detachAndUnregisterDatabase(
+              conn,
+              dbSource.dbName,
+              `${file.uniqueAlias}.${file.ext}`,
+            );
+            reservedDbs.delete(dbSource.dbName);
+            const idx = newDatabaseNames.indexOf(dbSource.dbName);
+            if (idx > -1) newDatabaseNames.splice(idx, 1);
+            return false;
+          }
+
+          newRegisteredFiles.push([file.id, regFile]);
+          newDataSources.push([dbSource.id, dbSource]);
+          return true;
+        } catch (error) {
           reservedDbs.delete(dbSource.dbName);
           const idx = newDatabaseNames.indexOf(dbSource.dbName);
           if (idx > -1) newDatabaseNames.splice(idx, 1);
-          // Don't add empty database to UI
+          const message = sanitizeErrorMessage(
+            error instanceof Error ? error.message : String(error),
+          );
+          errors.push(`Failed to import ${file.name}: ${message}`);
           return false;
         }
-
-        newRegisteredFiles.push([file.id, regFile]);
-        newDataSources.push([dbSource.id, dbSource]);
-        return true;
       }
       case 'xlsx': {
         // Excel file: only add if at least one sheet has data
@@ -484,7 +491,10 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
  * ------------------------------------------------------------
  */
 
-export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: LocalEntryId[]) => {
+export const deleteLocalFileOrFolders = async (
+  conn: AsyncDuckDBConnectionPool,
+  ids: LocalEntryId[],
+): Promise<void> => {
   const { dataSources, localEntries, _iDbConn: iDbConn } = useAppStore.getState();
 
   const folderChildren = new Map<LocalEntryId, LocalEntry[]>();
@@ -555,6 +565,11 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
     }
   }
 
+  // Delete associated DuckDB objects before mutating application state.
+  if (dataSourceIdsToDelete.length > 0) {
+    await deleteDataSources(conn, dataSourceIdsToDelete);
+  }
+
   // Delete folder entries from State
   const { localEntries: freshLocalEntries } = useAppStore.getState();
   const newLocalEntires = new Map(
@@ -567,11 +582,6 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
     undefined,
     'AppStore/deleteLocalFileOrFolders',
   );
-
-  // This one will delete all collected data sources and related state
-  if (dataSourceIdsToDelete.length > 0) {
-    deleteDataSources(conn, dataSourceIdsToDelete);
-  }
 
   // Delete folder entries from IDB
   if (iDbConn) {
@@ -692,7 +702,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
 
     // Delete data sources, this will also delete local file entries
     if (dataSourceIdsToDelete.size > 0) {
-      deleteDataSources(conn, Array.from(dataSourceIdsToDelete));
+      await deleteDataSources(conn, Array.from(dataSourceIdsToDelete));
     }
   }
 };

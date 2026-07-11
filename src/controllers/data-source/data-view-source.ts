@@ -158,44 +158,11 @@ export const deleteDataSources = async (
     Array.from(registeredFiles).filter(([id, _]) => !entryIdsToDelete.has(id)),
   );
 
-  // Update the store with the new state
-  useAppStore.setState(
-    {
-      dataSources: newDataSources,
-      dataSourceAccessTimes: newDataSourceAccessTimes,
-      tableAccessTimes: newTableAccessTimes,
-      localEntries: newLocalEntires,
-      registeredFiles: newRegisteredFiles,
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-      activeTabId: newActiveTabId,
-      previewTabId: newPreviewTabId,
-    },
-    undefined,
-    'AppStore/deleteDataSource',
-  );
-
-  if (iDbConn) {
-    // Delete data sources from IndexedDB
-    persistDeleteDataSource(iDbConn, dataSourceIds, entryIdsToDelete);
-
-    // Delete associated tabs from IndexedDB if any. For simplicty we do not bother
-    // doing this in a single transaction, highly unlikely to be a problem.
-    // This also takes care of the data view cache entries associated with the tabs
-    if (tabsToDelete.length) {
-      persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
-    }
-  }
-
   // Delete the data sources from the database
   for (const dataSource of deletedDataSources) {
     if (dataSource.type === 'iceberg-catalog') {
       // For Iceberg catalogs: detach, drop DuckDB secret, and remove encrypted secret
-      try {
-        detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.warehouseName);
-      } catch (detachError) {
-        console.warn('Failed to detach Iceberg catalog during deletion:', detachError);
-      }
+      await detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.warehouseName);
       try {
         const { buildDropSecretQuery } = await import('@utils/iceberg-sql-builder');
         await conn.query(buildDropSecretQuery(dataSource.secretName));
@@ -243,12 +210,12 @@ export const deleteDataSources = async (
 
     if (dataSource.type === 'remote-db') {
       // For remote databases, just detach
-      detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
+      await detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
       continue;
     }
 
     if (dataSource.type === 'quack') {
-      detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.uri);
+      await detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.uri);
       if (dataSource.secretRef) {
         try {
           const { _iDbConn } = useAppStore.getState();
@@ -265,11 +232,7 @@ export const deleteDataSources = async (
 
     if (dataSource.type === 'ducklake-catalog') {
       // For DuckLake catalogs, just detach
-      try {
-        detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.url);
-      } catch (detachError) {
-        console.warn('Failed to detach DuckLake catalog during deletion:', detachError);
-      }
+      await detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.url);
       continue;
     }
 
@@ -282,10 +245,35 @@ export const deleteDataSources = async (
       continue;
     }
     if (dataSource.type === 'attached-db') {
-      detachAndUnregisterDatabase(conn, dataSource.dbName, `${file.uniqueAlias}.${file.ext}`);
+      await detachAndUnregisterDatabase(conn, dataSource.dbName, `${file.uniqueAlias}.${file.ext}`);
     } else if ('viewName' in dataSource) {
       // Wait for the view to be dropped to get fresh views metadata after that
       await dropViewAndUnregisterFile(conn, dataSource.viewName, `${file.uniqueAlias}.${file.ext}`);
+    }
+  }
+
+  // Only remove application and persisted state after DuckDB cleanup succeeds.
+  useAppStore.setState(
+    {
+      dataSources: newDataSources,
+      dataSourceAccessTimes: newDataSourceAccessTimes,
+      tableAccessTimes: newTableAccessTimes,
+      localEntries: newLocalEntires,
+      registeredFiles: newRegisteredFiles,
+      tabs: newTabs,
+      tabOrder: newTabOrder,
+      activeTabId: newActiveTabId,
+      previewTabId: newPreviewTabId,
+    },
+    undefined,
+    'AppStore/deleteDataSource',
+  );
+
+  if (iDbConn) {
+    persistDeleteDataSource(iDbConn, dataSourceIds, entryIdsToDelete);
+
+    if (tabsToDelete.length) {
+      persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
     }
   }
 

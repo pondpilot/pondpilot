@@ -1,3 +1,4 @@
+import { showError } from '@components/app-notifications';
 import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
@@ -30,6 +31,7 @@ import {
   getLocalEntryIcon,
   getXlsxFileName,
 } from '@utils/navigation';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 import { buildComparisonMenuItems } from '../utils/comparison-menu-items';
@@ -45,6 +47,13 @@ interface FileSystemBuilderContext {
   nonLocalDBFileEntries: LocalEntry[];
   xlsxSheetsByFileId: Map<LocalEntryId, XlsxSheetView[]>;
 }
+
+const showFileOperationError = (title: string, error: unknown): void => {
+  showError({
+    title,
+    message: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+  });
+};
 
 /**
  * Builds a column node for a file in the file system tree
@@ -132,7 +141,13 @@ export function buildFolderNode(
     iconType: getLocalEntryIcon(entry),
     isDisabled: false,
     isSelectable: false,
-    onDelete: entry.userAdded ? () => deleteLocalFileOrFolders(conn, [entry.id]) : undefined,
+    onDelete: entry.userAdded
+      ? () => {
+          Promise.resolve(deleteLocalFileOrFolders(conn, [entry.id])).catch((error) =>
+            showFileOperationError('Failed to delete folder', error),
+          );
+        }
+      : undefined,
     contextMenu: [
       {
         children: [
@@ -273,7 +288,9 @@ export function buildXlsxFileNode(
       // No need to rename if the name has not been changed
       return;
     }
-    renameXlsxFile(thisEntry.id, newName, conn);
+    Promise.resolve(renameXlsxFile(thisEntry.id, newName, conn)).catch((error) =>
+      showFileOperationError('Failed to rename file', error),
+    );
   };
 
   // Sort sheets alphabetically for consistent display
@@ -294,7 +311,13 @@ export function buildXlsxFileNode(
       validateRename: (_, newName) => validateXlsxFileRename(newName, nonLocalDBFileEntries, entry),
       onRenameSubmit: (_, newName) => onXlsxFileRenameSubmit(newName, entry),
     },
-    onDelete: entry.userAdded ? () => deleteLocalFileOrFolders(conn, [entry.id]) : undefined,
+    onDelete: entry.userAdded
+      ? () => {
+          Promise.resolve(deleteLocalFileOrFolders(conn, [entry.id])).catch((error) =>
+            showFileOperationError('Failed to delete file', error),
+          );
+        }
+      : undefined,
     contextMenu: [
       {
         children: [
@@ -355,7 +378,9 @@ export function buildFileNode(
       // No need to rename if the name has not been changed
       return;
     }
-    renameFile(fileSource.id, newName, conn);
+    Promise.resolve(renameFile(fileSource.id, newName, conn)).catch((error) =>
+      showFileOperationError('Failed to rename file', error),
+    );
   };
 
   const label = getFlatFileDataSourceName(relatedSource, entry);
@@ -482,7 +507,9 @@ export function buildFileNode(
     onDelete: entry.userAdded
       ? // Only allow deleting explicitly user-added files
         () => {
-          deleteDataSources(conn, [relatedSource.id]);
+          Promise.resolve(deleteDataSources(conn, [relatedSource.id])).catch((error) =>
+            showFileOperationError('Failed to delete file', error),
+          );
         }
       : undefined,
     onNodeClick: (_node: any, _tree: any): void => {
