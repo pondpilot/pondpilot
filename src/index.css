@@ -194,6 +194,6 @@ body {
  */
 .monaco-statement-highlight {
   /* Fallback for browsers without color-mix() support */
-  background-color: rgba(34, 139, 230, 0.05);
+  background-color: rgb(34, 139, 230, 0.05);
   background-color: color-mix(in srgb, var(--mantine-color-blue-filled) 5%, transparent);
 }

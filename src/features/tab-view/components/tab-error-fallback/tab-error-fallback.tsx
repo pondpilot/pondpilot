@@ -6,6 +6,7 @@ import { FallbackProps } from 'react-error-boundary';
 
 export const TabErrorFallback = (props: FallbackProps) => {
   const { error, resetErrorBoundary } = props;
+  const normalizedError = error instanceof Error ? error : new Error(String(error));
 
   return (
     <div role="alert" data-testid={setDataTestId('error-fallback')}>
@@ -14,7 +15,7 @@ export const TabErrorFallback = (props: FallbackProps) => {
           Something went wrong 🤷‍♂️
         </Text>
 
-        <ErrorStackView error={error} />
+        <ErrorStackView error={normalizedError} />
 
         <Text size="xl" fw={700}>
           Follow these steps to recover:

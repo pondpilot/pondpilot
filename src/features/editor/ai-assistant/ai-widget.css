@@ -45,7 +45,7 @@
   border: 1px solid #d1d5db;
   border-radius: 12px;
   background-color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgb(0, 0, 0, 0.1);
   overflow: hidden;
   font-size: 14px;
   margin: 0;
@@ -56,7 +56,7 @@
 [data-mantine-color-scheme="dark"] .ai-widget-container {
   background-color: #2d2d2d;
   border-color: #404040;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 3px rgb(0, 0, 0, 0.4);
 }
 
 .ai-widget-close {
@@ -237,7 +237,7 @@
 
 .ai-widget-select:focus {
   border-color: #4957C1;
-  box-shadow: 0 0 0 2px rgba(73, 87, 193, 0.1);
+  box-shadow: 0 0 0 2px rgb(73, 87, 193, 0.1);
 }
 
 [data-mantine-color-scheme="dark"] .ai-widget-select {
@@ -253,7 +253,7 @@
 
 [data-mantine-color-scheme="dark"] .ai-widget-select:focus {
   border-color: #4C61FF;
-  box-shadow: 0 0 0 2px rgba(76, 97, 255, 0.1);
+  box-shadow: 0 0 0 2px rgb(76, 97, 255, 0.1);
 }
 
 .ai-widget-select optgroup {
@@ -498,7 +498,7 @@
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 6px -1px rgb(0, 0, 0, 0.1), 0 2px 4px -1px rgb(0, 0, 0, 0.06);
   max-height: 200px;
   overflow-y: auto;
   padding: 4px 0;
@@ -507,7 +507,7 @@
 [data-mantine-color-scheme="dark"] .ai-widget-mention-dropdown {
   background: #1f2937;
   border-color: #374151;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 6px -1px rgb(0, 0, 0, 0.4), 0 2px 4px -1px rgb(0, 0, 0, 0.3);
 }
 
 .ai-widget-mention-item {
@@ -524,7 +524,7 @@
 }
 
 .ai-widget-mention-item:hover {
-  background-color: rgba(33, 35, 40, 0.04);
+  background-color: rgb(33, 35, 40, 0.04);
 }
 
 .ai-widget-mention-item.selected {
@@ -537,7 +537,7 @@
 }
 
 [data-mantine-color-scheme="dark"] .ai-widget-mention-item:hover {
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: rgb(255, 255, 255, 0.04);
 }
 
 [data-mantine-color-scheme="dark"] .ai-widget-mention-item.selected {
@@ -628,7 +628,7 @@
   border: 1px solid #d1d5db;
   border-radius: 8px;
   background-color: #fff;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px rgb(0, 0, 0, 0.1);
   overflow-y: auto;
   font-size: 14px;
   box-sizing: border-box;
@@ -637,7 +637,7 @@
 [data-mantine-color-scheme="dark"] .structured-response-container {
   background-color: #2d2d2d;
   border-color: #404040;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 6px rgb(0, 0, 0, 0.4);
 }
 
 .structured-response-header {
@@ -667,9 +667,7 @@
   font-size: 14px;
   color: #6b7280;
   line-height: 1.5;
-  word-wrap: break-word;
   overflow-wrap: anywhere;
-  word-break: break-word;
   hyphens: auto;
   white-space: normal;
   max-width: 100%;
@@ -766,9 +764,7 @@
   margin-bottom: 8px;
   font-weight: 500;
   line-height: 1.5;
-  word-wrap: break-word;
   overflow-wrap: anywhere;
-  word-break: break-word;
   hyphens: auto;
   white-space: normal;
   max-width: 100%;
@@ -912,9 +908,7 @@
   font-size: 13px;
   color: #6b7280;
   line-height: 1.4;
-  word-wrap: break-word;
   overflow-wrap: anywhere;
-  word-break: break-word;
   hyphens: auto;
   white-space: normal;
   max-width: 100%;
