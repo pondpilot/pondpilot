@@ -24,6 +24,7 @@ interface ScriptEditorDataStatePaneProps {
   historyMode?: boolean;
   selectedVersion?: ScriptVersion | null;
   sessionSelector?: ReactNode;
+  runDisabled?: boolean;
 
   handleRunQuery: (mode?: 'all' | 'selection') => Promise<void>;
   onAIAssistantClick: () => void;
@@ -39,6 +40,7 @@ export const ScriptEditorDataStatePane = ({
   historyMode = false,
   selectedVersion,
   sessionSelector,
+  runDisabled = false,
   handleRunQuery,
   onAIAssistantClick,
   onEnterHistoryMode,
@@ -231,7 +233,7 @@ export const ScriptEditorDataStatePane = ({
             </ActionIcon>
           </Tooltip>
         </Group>
-        <RunQueryButton disabled={running} onRunClick={handleRunQuery} />
+        <RunQueryButton disabled={running || runDisabled} onRunClick={handleRunQuery} />
       </Group>
     </Group>
   );

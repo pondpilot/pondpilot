@@ -64,6 +64,7 @@ export const AccordionContent = () => {
   }, [dataExplorerHeight]);
 
   const appReady = appLoadState === 'ready';
+  const appCoreReady = appLoadState === 'core-ready' || appReady;
   const bothExpanded = sectionStates.dataExplorer && sectionStates.queries;
 
   const toggleSection = (section: keyof SectionState) => {
@@ -310,7 +311,7 @@ export const AccordionContent = () => {
               Queries
             </Text>
           </Group>
-          {appReady && (
+          {appCoreReady && (
             <Group gap={4}>
               <ActionIcon
                 data-testid={setDataTestId('script-explorer-add-script-button')}
@@ -328,18 +329,20 @@ export const AccordionContent = () => {
               >
                 <IconPlus />
               </ActionIcon>
-              <ActionIcon
-                data-testid={setDataTestId('create-comparison-tab-button')}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  createComparisonTab({ setActive: true });
-                }}
-                size={16}
-                title="Compare Datasets"
-                aria-label="Create comparison tab"
-              >
-                <IconScale />
-              </ActionIcon>
+              {appReady && (
+                <ActionIcon
+                  data-testid={setDataTestId('create-comparison-tab-button')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    createComparisonTab({ setActive: true });
+                  }}
+                  size={16}
+                  title="Compare Datasets"
+                  aria-label="Create comparison tab"
+                >
+                  <IconScale />
+                </ActionIcon>
+              )}
             </Group>
           )}
         </Group>
@@ -352,7 +355,7 @@ export const AccordionContent = () => {
             maxHeight: sectionStates.queries ? 'calc(100% - 36px)' : undefined, // Subtract header height
           }}
         >
-          {appReady ? (
+          {appCoreReady ? (
             <ScriptExplorer />
           ) : (
             <Stack gap={6} className="px-3 py-1.5">
