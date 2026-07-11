@@ -180,7 +180,7 @@ test.describe('Comparison', () => {
   }) => {
     await createComparisonFromSelectedFiles(page, selectMultipleFileNodes);
 
-    await page.getByRole('textbox', { name: 'Comparison method' }).click();
+    await page.getByRole('combobox', { name: 'Comparison method' }).click();
     await page.getByRole('option', { name: 'Full outer join', exact: true }).click();
     await runComparison(page);
 

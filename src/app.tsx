@@ -14,7 +14,7 @@ import { PersistenceConnector } from '@features/duckdb-persistence-context';
 import { FeatureProvider } from '@features/feature-context';
 import { InitModals } from '@features/init-modals';
 import { TabCoordinationProvider } from '@features/tab-coordination-context';
-import { MantineProvider } from '@mantine/core';
+import { MantineProvider, v8CssVariablesResolver } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
@@ -36,14 +36,18 @@ export default function App() {
   });
 
   return (
-    <MantineProvider theme={theme} defaultColorScheme="auto">
+    <MantineProvider
+      theme={theme}
+      defaultColorScheme="auto"
+      cssVariablesResolver={v8CssVariablesResolver}
+    >
       <ModalsProvider>
         <ModifierProvider>
           <TabCoordinationProvider>
             <FeatureProvider>
               <PersistenceConnector maxPoolSize={connectionPoolSize}>
                 <AppContextProvider>
-                  <Notifications />
+                  <Notifications pauseResetOnHover="notification" />
                   <AppState />
                   <Router />
                   <InitModals />

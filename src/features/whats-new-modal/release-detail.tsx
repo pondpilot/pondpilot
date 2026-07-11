@@ -49,7 +49,7 @@ export const ReleaseDetail = ({ release, isLoading }: ReleaseDetailProps) => {
             h3: ({ node, ...props }) => <Title className="py-2" order={3} {...props} />,
             h4: ({ node, ...props }) => <Title className="py-2" order={4} {...props} />,
             p: ({ node, ...props }) => <Text className="py-2" {...props} />,
-            ul: ({ node, ...props }) => (
+            ul: ({ node, ref, ...props }) => (
               <List
                 className="py-2 list-disc list-inside"
                 {...props}

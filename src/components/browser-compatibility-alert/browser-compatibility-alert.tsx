@@ -101,7 +101,7 @@ export function BrowserCompatibilityAlert() {
             For the best experience, we recommend using Google Chrome or Microsoft Edge.
           </Text>
 
-          <Collapse in={showDetails}>
+          <Collapse expanded={showDetails}>
             <Stack gap="md" mt="sm">
               {features.length > 0 && (
                 <div>

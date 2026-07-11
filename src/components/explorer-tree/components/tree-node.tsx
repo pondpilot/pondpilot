@@ -268,7 +268,6 @@ function arePropsEqual<NTypeToIdTypeMap extends Record<string, any>>(
     shallow(oldProps.elementProps.style, newProps.elementProps.style) &&
     oldProps.elementProps['data-selected'] === newProps.elementProps['data-selected'] &&
     oldProps.elementProps['data-value'] === newProps.elementProps['data-value'] &&
-    oldProps.elementProps['data-hovered'] === newProps.elementProps['data-hovered'] &&
     oldProps.isActive === newProps.isActive &&
     oldProps.isPrevActive === newProps.isPrevActive &&
     oldProps.isNextActive === newProps.isNextActive &&

@@ -237,7 +237,7 @@ export const JoinKeyMapper = ({
         </Group>
 
         {/* AUTO MODE */}
-        <Collapse in={!useCustomMapping}>
+        <Collapse expanded={!useCustomMapping}>
           <Stack gap="md">
             {suggestedKeys.length > 0 ? (
               <Text size="xs" c="dimmed">
@@ -302,7 +302,7 @@ export const JoinKeyMapper = ({
         </Collapse>
 
         {/* CUSTOM MODE */}
-        <Collapse in={useCustomMapping}>
+        <Collapse expanded={useCustomMapping}>
           <Stack gap="md">
             <Text size="xs" c="dimmed">
               Click a column in Source A, then click its match in Source B

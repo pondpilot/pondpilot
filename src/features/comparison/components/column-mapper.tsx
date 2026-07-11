@@ -268,7 +268,7 @@ export const ColumnMapper = ({
         </Group>
 
         {/* Mapping summary */}
-        <Collapse in={!showMappingUI}>
+        <Collapse expanded={!showMappingUI}>
           <Group gap="md">
             {mappedColumns.length > 0 && (
               <Text size="sm" c="dimmed">
@@ -299,7 +299,7 @@ export const ColumnMapper = ({
         </Collapse>
 
         {/* Custom mapping UI */}
-        <Collapse in={showMappingUI}>
+        <Collapse expanded={showMappingUI}>
           <Stack gap="md">
             <Text size="xs" c="dimmed">
               Click a column in Source A, then click its match in Source B

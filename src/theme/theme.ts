@@ -40,6 +40,10 @@ import textareaClasses from './Textarea.module.css';
 import textInputClasses from './TextInput.module.css';
 
 export const theme = createTheme({
+  defaultRadius: 'sm',
+  fontWeights: {
+    medium: '500',
+  },
   breakpoints: {
     desktop: '64em',
   },

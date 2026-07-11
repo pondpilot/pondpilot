@@ -7,7 +7,7 @@ import type { DragEvent } from 'react';
 import { DataExplorerNodeTypeMap, DataExplorerContext } from './model';
 
 const attachDragImage = (
-  event: DragEvent<HTMLDivElement>,
+  event: DragEvent<Element>,
   iconContainer: HTMLElement | null,
   label: string,
 ) => {
@@ -177,7 +177,7 @@ export const DataExplorerNode = (
     ...(canDrag
       ? {
           draggable: true,
-          onDragStart: (event: DragEvent<HTMLDivElement>) => {
+          onDragStart: (event: DragEvent<Element>) => {
             if (comparisonSource) {
               event.dataTransfer.setData(DATASET_DND_MIME_TYPE, JSON.stringify(comparisonSource));
               event.dataTransfer.effectAllowed = 'copy';
@@ -190,7 +190,7 @@ export const DataExplorerNode = (
               event.preventDefault();
             }
             if (typeof originalOnDragStart === 'function') {
-              (originalOnDragStart as (event: DragEvent<HTMLDivElement>) => void)(event);
+              (originalOnDragStart as (event: DragEvent<Element>) => void)(event);
             }
           },
         }
