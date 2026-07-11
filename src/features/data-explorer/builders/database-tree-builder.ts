@@ -1,3 +1,4 @@
+import { showError } from '@components/app-notifications';
 import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
@@ -34,6 +35,7 @@ import {
   refreshQuackMetadata,
 } from '@utils/quack';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 import { buildSchemaTreeNode } from './database-node-builder';
@@ -53,6 +55,13 @@ interface DatabaseTreeBuilderContext {
   comparisonTableNames?: Set<string>;
   comparisonByTableName?: Map<string, Comparison>;
 }
+
+const showDatabaseOperationError = (title: string, error: unknown): void => {
+  showError({
+    title,
+    message: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+  });
+};
 
 /**
  * Builds a complete database tree node with all schemas, tables, views, and columns
@@ -233,7 +242,9 @@ export function buildDatabaseNode(
       // No need to rename if the name is the same
       return;
     }
-    renameDB(db.id, newName, conn);
+    Promise.resolve(renameDB(db.id, newName, conn)).catch((error) =>
+      showDatabaseOperationError('Failed to rename database', error),
+    );
   };
 
   return {
@@ -256,7 +267,9 @@ export function buildDatabaseNode(
       !isSystemDb && (isRemoteDb || localFile?.userAdded)
         ? (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
             if (node.nodeType === 'db') {
-              deleteDataSources(conn, [node.value]);
+              Promise.resolve(deleteDataSources(conn, [node.value])).catch((error) =>
+                showDatabaseOperationError('Failed to delete database', error),
+              );
             }
           }
         : undefined,
@@ -404,7 +417,9 @@ export function buildIcebergCatalogNode(
     isSelectable: true,
     onDelete: (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
       if (node.nodeType === 'db') {
-        deleteDataSources(conn, [node.value]);
+        Promise.resolve(deleteDataSources(conn, [node.value])).catch((error) =>
+          showDatabaseOperationError('Failed to delete database', error),
+        );
       }
     },
     contextMenu: [
@@ -535,7 +550,9 @@ export function buildDuckLakeCatalogNode(
     isSelectable: true,
     onDelete: (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
       if (node.nodeType === 'db') {
-        deleteDataSources(conn, [node.value]);
+        Promise.resolve(deleteDataSources(conn, [node.value])).catch((error) =>
+          showDatabaseOperationError('Failed to delete database', error),
+        );
       }
     },
     contextMenu: [
@@ -750,7 +767,9 @@ export function buildMotherDuckConnectionNode(
     isSelectable: true,
     onDelete: (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
       if (node.nodeType === 'db') {
-        deleteDataSources(conn, [node.value]);
+        Promise.resolve(deleteDataSources(conn, [node.value])).catch((error) =>
+          showDatabaseOperationError('Failed to delete database', error),
+        );
       }
     },
     contextMenu: [
