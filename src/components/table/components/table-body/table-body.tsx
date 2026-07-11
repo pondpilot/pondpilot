@@ -41,7 +41,7 @@ export const TableBody = ({
             !customRowClass && oddRow && 'bg-transparent004-light dark:bg-transparent004-dark',
             lastRow && 'rounded-bl-xl rounded-br-xl border-b',
             isSelected &&
-              'bg-transparentBrandBlue-012 dark:bg-darkModeTransparentBrandBlue-032   outline outline-borderAccent-light outline-offset-[-1px]',
+              'bg-transparentBrandBlue-012 dark:bg-darkModeTransparentBrandBlue-032   outline-solid outline-borderAccent-light -outline-offset-1',
             customRowClass,
           )}
           style={customRowStyle}

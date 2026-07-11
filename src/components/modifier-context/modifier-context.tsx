@@ -83,7 +83,7 @@ export const ModifierProvider = ({ children }: { children: React.ReactNode }) =>
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('blur-sm', handleBlur);
     };
   }, []);
 

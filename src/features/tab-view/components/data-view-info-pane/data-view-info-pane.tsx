@@ -357,12 +357,8 @@ export const DataViewInfoPane = ({
       wrap="nowrap"
       className="h-7 mt-2 mb-3 px-3 relative z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
     >
-      <Group
-        gap="sm"
-        wrap="nowrap"
-        className="overflow-x-auto flex-shrink min-w-0 custom-scroll-hidden"
-      >
-        <Group gap={4} wrap="nowrap" className="flex-shrink-0">
+      <Group gap="sm" wrap="nowrap" className="overflow-x-auto shrink min-w-0 custom-scroll-hidden">
+        <Group gap={4} wrap="nowrap" className="shrink-0">
           {hasData && viewMode !== 'chart' && (
             <ColRowCount
               rowCount={rowCountToShow}
@@ -410,7 +406,7 @@ export const DataViewInfoPane = ({
         )}
       </Group>
 
-      <Group className="h-full flex-shrink-0" gap="sm" wrap="nowrap">
+      <Group className="h-full shrink-0" gap="sm" wrap="nowrap">
         {/* View Mode Toggle - stays on right side */}
         {supportsCharting && onViewModeChange && (
           <SegmentedControl

@@ -250,7 +250,7 @@ export const AccordionContent = () => {
         <button
           type="button"
           aria-label="Resize handle - use arrow keys to adjust"
-          className="h-[1px] bg-borderPrimary-light dark:bg-borderPrimary-dark relative cursor-ns-resize w-full border-none outline-none"
+          className="h-px bg-borderPrimary-light dark:bg-borderPrimary-dark relative cursor-ns-resize w-full border-none outline-hidden"
           onMouseDown={handleMouseDown}
           onKeyDown={(e) => {
             if (e.key === 'ArrowUp') {

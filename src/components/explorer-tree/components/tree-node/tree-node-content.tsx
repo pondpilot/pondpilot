@@ -60,7 +60,7 @@ export function TreeNodeContent<NTypeToIdTypeMap extends Record<string, any>>({
       onDoubleClick={onStartRename}
       gap={5}
       wrap="nowrap"
-      className={cn('cursor-pointer h-[30px] px-1 rounded group')}
+      className={cn('cursor-pointer h-[30px] px-1 rounded-sm group')}
       ref={nodeRef}
     >
       {level !== 1 && <Divider orientation="vertical" />}
@@ -70,7 +70,7 @@ export function TreeNodeContent<NTypeToIdTypeMap extends Record<string, any>>({
         </ActionIcon>
       ) : (
         <div
-          className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]"
+          className="text-iconDefault-light dark:text-iconDefault-dark p-px"
           data-dnd-drag-icon="true"
         >
           <NamedIcon iconType={iconType} size={16} />

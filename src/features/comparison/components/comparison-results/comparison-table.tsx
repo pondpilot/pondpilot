@@ -115,7 +115,7 @@ const SortButton = ({
       type="button"
       onClick={onClick}
       className={cn(
-        'group p-1 -m-1 rounded transition-colors',
+        'group p-1 -m-1 rounded-sm transition-colors',
         'text-iconDefault-light dark:text-iconDefault-dark hover:bg-transparent004-light dark:hover:bg-transparent004-dark',
       )}
       aria-label={
@@ -363,7 +363,7 @@ export const ComparisonResultsTable = ({
   return (
     <div
       ref={containerRef}
-      className="overflow-x-auto custom-scroll-hidden border border-borderLight-light dark:border-borderLight-dark rounded-lg shadow-sm"
+      className="overflow-x-auto custom-scroll-hidden border border-borderLight-light dark:border-borderLight-dark rounded-lg shadow-xs"
     >
       <table className="border-collapse min-w-full w-max">
         <thead className="bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark text-xs uppercase tracking-wide text-textSecondary-light dark:text-textSecondary-dark">
