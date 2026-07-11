@@ -1,8 +1,7 @@
 import type * as arrow from 'apache-arrow';
 
 type IteratorResult<T extends arrow.TypeMap = any> =
-  | { done: false; value: arrow.RecordBatch<T> }
-  | { done: true; value: null };
+  { done: false; value: arrow.RecordBatch<T> } | { done: true; value: null };
 
 /**
  * A wrapper around the Arrow async batch streaming reader produced by our pool

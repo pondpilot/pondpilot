@@ -254,12 +254,7 @@ export function parseMotherDuckDbKey(key: string): string | null {
 }
 
 export type DatabaseDataSource =
-  | LocalDB
-  | RemoteDB
-  | IcebergCatalog
-  | DuckLakeCatalog
-  | QuackConnection
-  | MotherDuckConnection;
+  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection;
 
 export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is DatabaseDataSource {
   return (
