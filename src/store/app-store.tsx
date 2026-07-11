@@ -1,8 +1,15 @@
 import { IconType } from '@components/named-icon';
+import { deleteComparisonImpl } from '@controllers/comparison/pure';
 import { persistPutSqlScriptSession } from '@controllers/sql-script/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { PROGRESS_CLEANUP_MAX_AGE_MS } from '@features/comparison/config/execution-config';
-import { Comparison, ComparisonExecutionProgress, ComparisonId } from '@models/comparison';
+import {
+  Comparison,
+  ComparisonConfig,
+  ComparisonExecutionProgress,
+  ComparisonId,
+  SchemaComparisonResult,
+} from '@models/comparison';
 import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
@@ -21,7 +28,7 @@ import { ExportFormat } from '@models/export-options';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId, SQLScriptSession } from '@models/sql-script';
-import { AnyTab, ScriptTab, TabId, TabReactiveState, TabType } from '@models/tab';
+import { AnyTab, ComparisonTab, ScriptTab, TabId, TabReactiveState, TabType } from '@models/tab';
 import { getDatabaseIdentifier, isFlatFileDataSource } from '@utils/data-source';
 import { getTabIcon, getTabName } from '@utils/navigation';
 import { IDBPDatabase } from 'idb';
@@ -33,7 +40,7 @@ import { resetAppData } from './restore';
 import { createSelectors } from './utils';
 import { SpotlightView } from '../components/spotlight/model';
 import type { TabExecutionError } from '../controllers/tab/tab-controller';
-import { SourceSelectionCallback } from '../features/comparison/hooks/use-comparison-source-selection';
+import type { SourceSelectionCallback } from '../features/comparison/hooks/use-comparison-source-selection';
 
 type AppLoadState = 'init' | 'core-ready' | 'ready' | 'error';
 
@@ -687,6 +694,297 @@ export function useTabHasError(tabId: TabId): boolean {
 export function useTabExecutionErrorsMap(): Map<TabId, TabExecutionError> {
   return useAppStore(useShallow((state) => new Map(state.tabExecutionErrors)));
 }
+
+const updateComparisonInternal = (
+  comparisonId: ComparisonId,
+  updater: (comparison: Comparison) => Comparison,
+  action: string,
+): Comparison | null => {
+  let updatedComparison: Comparison | null = null;
+
+  useAppStore.setState(
+    (state) => {
+      const comparison = state.comparisons.get(comparisonId);
+      if (!comparison) return state;
+
+      updatedComparison = updater(comparison);
+      const comparisons = new Map(state.comparisons);
+      comparisons.set(comparisonId, updatedComparison);
+
+      return { comparisons };
+    },
+    undefined,
+    action,
+  );
+
+  return updatedComparison;
+};
+
+const updateComparisonTabInternal = (
+  tabId: TabId,
+  updater: (tab: ComparisonTab) => ComparisonTab,
+  action: string,
+): ComparisonTab | null => {
+  let updatedTab: ComparisonTab | null = null;
+
+  useAppStore.setState(
+    (state) => {
+      const tab = state.tabs.get(tabId);
+      if (!tab || tab.type !== 'comparison') return state;
+
+      updatedTab = updater(tab);
+      const tabs = new Map(state.tabs);
+      tabs.set(tabId, updatedTab);
+
+      return { tabs };
+    },
+    undefined,
+    action,
+  );
+
+  return updatedTab;
+};
+
+export const createComparison = (comparison: Comparison): void => {
+  useAppStore.setState(
+    (state) => ({
+      comparisons: new Map(state.comparisons).set(comparison.id, comparison),
+    }),
+    undefined,
+    'AppStore/createComparison',
+  );
+};
+
+export const updateComparisonConfig = (
+  comparisonId: ComparisonId,
+  config: ComparisonConfig,
+): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({ ...comparison, config }),
+    'AppStore/updateComparisonConfig',
+  );
+
+export const clearComparisonResults = (
+  comparisonId: ComparisonId,
+): { comparison: Comparison; tabIds: TabId[] } | null => {
+  let result: { comparison: Comparison; tabIds: TabId[] } | null = null;
+
+  useAppStore.setState(
+    (state) => {
+      const comparison = state.comparisons.get(comparisonId);
+      if (!comparison) return state;
+
+      const updatedComparison: Comparison = {
+        ...comparison,
+        resultsTableName: null,
+        lastExecutionTime: null,
+        lastRunAt: null,
+      };
+      const comparisons = new Map(state.comparisons);
+      comparisons.set(comparisonId, updatedComparison);
+
+      const tabs = new Map(state.tabs);
+      const tabIds: TabId[] = [];
+
+      for (const [tabId, tab] of state.tabs.entries()) {
+        if (tab.type === 'comparison' && tab.comparisonId === comparisonId) {
+          const updatedTab: ComparisonTab = {
+            ...tab,
+            viewingResults: false,
+            comparisonResultsTable: null,
+            lastExecutionTime: null,
+          };
+          tabs.set(tabId, updatedTab);
+          tabIds.push(tabId);
+        }
+      }
+
+      result = { comparison: updatedComparison, tabIds };
+
+      return { comparisons, tabs };
+    },
+    undefined,
+    'AppStore/clearComparisonResults',
+  );
+
+  return result;
+};
+
+export const updateComparisonSchemaAnalysis = (
+  comparisonId: ComparisonId,
+  schemaComparison: SchemaComparisonResult | null,
+): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({ ...comparison, schemaComparison }),
+    'AppStore/updateComparisonSchemaAnalysis',
+  );
+
+export const renameComparison = (comparisonId: ComparisonId, name: string): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({ ...comparison, name }),
+    'AppStore/renameComparison',
+  );
+
+export const updateComparisonExecutionTime = (
+  comparisonId: ComparisonId,
+  timestamp: number,
+): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({
+      ...comparison,
+      lastExecutionTime: timestamp,
+      lastRunAt: new Date().toISOString(),
+    }),
+    'AppStore/updateComparisonExecutionTime',
+  );
+
+export const updateComparisonResultsTable = (
+  comparisonId: ComparisonId,
+  resultsTableName: string | null,
+): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({ ...comparison, resultsTableName }),
+    'AppStore/updateComparisonResultsTable',
+  );
+
+export const deleteComparisons = (
+  comparisonIds: Iterable<ComparisonId>,
+): CloseTabsResult & { tabIds: TabId[] } => {
+  let result: CloseTabsResult & { tabIds: TabId[] } = {
+    activeTabId: null,
+    previewTabId: null,
+    tabOrder: [],
+    tabIds: [],
+  };
+
+  useAppStore.setState(
+    (state) => {
+      const comparisonIdsToDeleteSet = new Set(comparisonIds);
+      const comparisons = deleteComparisonImpl(comparisonIdsToDeleteSet, state.comparisons);
+      const tabIds: TabId[] = [];
+
+      for (const [tabId, tab] of state.tabs.entries()) {
+        if (tab.type === 'comparison' && comparisonIdsToDeleteSet.has(tab.comparisonId)) {
+          tabIds.push(tabId);
+        }
+      }
+
+      let tabs = state.tabs;
+      let tabOrder = state.tabOrder;
+      let activeTabId = state.activeTabId;
+      let previewTabId = state.previewTabId;
+
+      if (tabIds.length > 0) {
+        const next = deleteTabImpl({
+          deleteTabIds: tabIds,
+          tabs: state.tabs,
+          tabOrder: state.tabOrder,
+          activeTabId: state.activeTabId,
+          previewTabId: state.previewTabId,
+        });
+
+        tabs = next.newTabs;
+        tabOrder = next.newTabOrder;
+        activeTabId = next.newActiveTabId;
+        previewTabId = next.newPreviewTabId;
+      }
+
+      result = { activeTabId, previewTabId, tabOrder, tabIds };
+
+      return {
+        comparisons,
+        tabs,
+        tabOrder,
+        activeTabId,
+        previewTabId,
+      };
+    },
+    undefined,
+    'AppStore/deleteComparison',
+  );
+
+  return result;
+};
+
+export const createTabFromComparison = (
+  tab: ComparisonTab,
+  activeTabId?: TabId | null,
+): { activeTabId: TabId | null; tabOrder: TabId[] } => {
+  let result: { activeTabId: TabId | null; tabOrder: TabId[] } = {
+    activeTabId: null,
+    tabOrder: [],
+  };
+
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs).set(tab.id, tab);
+      const tabOrder = [...state.tabOrder, tab.id];
+      const nextActiveTabId = activeTabId === undefined ? state.activeTabId : activeTabId;
+      result = { activeTabId: nextActiveTabId, tabOrder };
+
+      return {
+        activeTabId: nextActiveTabId,
+        tabs,
+        tabOrder,
+      };
+    },
+    undefined,
+    'AppStore/createTabFromComparison',
+  );
+
+  return result;
+};
+
+export const setComparisonViewingResults = (
+  tabId: TabId,
+  viewingResults: boolean,
+): ComparisonTab | null =>
+  updateComparisonTabInternal(
+    tabId,
+    (tab) => ({ ...tab, viewingResults }),
+    'AppStore/setComparisonViewingResults',
+  );
+
+export const setComparisonExecutionTime = (tabId: TabId, timestamp: number): ComparisonTab | null =>
+  updateComparisonTabInternal(
+    tabId,
+    (tab) => ({ ...tab, lastExecutionTime: timestamp }),
+    'AppStore/setComparisonExecutionTime',
+  );
+
+export const setComparisonResultsTable = (
+  tabId: TabId,
+  comparisonResultsTable: string | null,
+): ComparisonTab | null =>
+  updateComparisonTabInternal(
+    tabId,
+    (tab) => ({ ...tab, comparisonResultsTable }),
+    'AppStore/setComparisonResultsTable',
+  );
+
+export const startComparisonSourceSelection = (callback: SourceSelectionCallback): void => {
+  useAppStore.setState(
+    {
+      comparisonSourceSelectionCallback: callback,
+      spotlightView: 'dataSources',
+    },
+    undefined,
+    'AppStore/startComparisonSourceSelection',
+  );
+};
+
+export const clearComparisonSourceSelectionCallback = (): void => {
+  useAppStore.setState(
+    { comparisonSourceSelectionCallback: null },
+    undefined,
+    'AppStore/clearComparisonSourceSelectionCallback',
+  );
+};
 
 // Simple actions / setters that are not "big" enough to go to controllers
 export const setAppLoadState = (appState: AppLoadState) => {

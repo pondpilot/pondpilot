@@ -15,7 +15,13 @@ import {
 } from '@models/comparison';
 import { TAB_TABLE_NAME } from '@models/persisted-store';
 import { ComparisonTab, TabId } from '@models/tab';
-import { useAppStore } from '@store/app-store';
+import {
+  createTabFromComparison as createTabFromComparisonInStore,
+  setComparisonExecutionTime as setComparisonExecutionTimeInStore,
+  setComparisonResultsTable as setComparisonResultsTableInStore,
+  setComparisonViewingResults as setComparisonViewingResultsInStore,
+  useAppStore,
+} from '@store/app-store';
 import { ensureComparison } from '@utils/comparison';
 import { makeTabId } from '@utils/tab';
 
@@ -148,19 +154,9 @@ export const getOrCreateTabFromComparison = (
     dataViewStateCache: null,
   };
 
-  // Add the new tab to the store
-  const newTabs = new Map(state.tabs).set(tabId, tab);
-  const newTabOrder = [...state.tabOrder, tabId];
-  const newActiveTabId = setActive ? tabId : state.activeTabId;
-
-  useAppStore.setState(
-    {
-      activeTabId: newActiveTabId,
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-    },
-    undefined,
-    'AppStore/createTabFromComparison',
+  const { activeTabId: newActiveTabId, tabOrder: newTabOrder } = createTabFromComparisonInStore(
+    tab,
+    setActive ? tabId : undefined,
   );
 
   // Persist the new tab to IndexedDB
@@ -225,14 +221,8 @@ export const setComparisonViewingResults = (tabId: TabId, viewingResults: boolea
     return;
   }
 
-  const updatedTab: ComparisonTab = {
-    ...tab,
-    viewingResults,
-  };
-
-  const newTabs = new Map(state.tabs).set(tabId, updatedTab);
-
-  useAppStore.setState({ tabs: newTabs }, undefined, 'AppStore/setComparisonViewingResults');
+  const updatedTab = setComparisonViewingResultsInStore(tabId, viewingResults);
+  if (!updatedTab) return;
 
   // Persist the changes to IndexedDB
   const iDb = state._iDbConn;
@@ -257,14 +247,8 @@ export const setComparisonExecutionTime = (tabId: TabId, timestamp: number): voi
   updateComparisonExecutionTimeInternal(tab.comparisonId, timestamp);
 
   // Update the tab (UI state)
-  const updatedTab: ComparisonTab = {
-    ...tab,
-    lastExecutionTime: timestamp,
-  };
-
-  const newTabs = new Map(state.tabs).set(tabId, updatedTab);
-
-  useAppStore.setState({ tabs: newTabs }, undefined, 'AppStore/setComparisonExecutionTime');
+  const updatedTab = setComparisonExecutionTimeInStore(tabId, timestamp);
+  if (!updatedTab) return;
 
   // Persist the tab changes to IndexedDB
   const iDb = state._iDbConn;
@@ -293,14 +277,8 @@ export const setComparisonResultsTable = (
   updateComparisonResultsTableInternal(tab.comparisonId, comparisonResultsTable);
 
   // Update the tab (UI state)
-  const updatedTab: ComparisonTab = {
-    ...tab,
-    comparisonResultsTable,
-  };
-
-  const newTabs = new Map(state.tabs).set(tabId, updatedTab);
-
-  useAppStore.setState({ tabs: newTabs }, undefined, 'AppStore/setComparisonResultsTable');
+  const updatedTab = setComparisonResultsTableInStore(tabId, comparisonResultsTable);
+  if (!updatedTab) return;
 
   // Persist the tab changes to IndexedDB
   const iDb = state._iDbConn;
