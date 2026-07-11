@@ -60,6 +60,7 @@ export default [
   },
   {
     ignores: [
+      '.module-cache/**',
       '**/*.cjs',
       '**/*.d.ts',
       '**/*.d.mts',

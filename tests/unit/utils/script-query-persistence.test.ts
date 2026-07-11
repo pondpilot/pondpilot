@@ -37,7 +37,10 @@ describe('script-query-persistence', () => {
     const metadata = buildMetadata(['store_purchases']);
 
     expect(
-      shouldResetRestoredScriptQuery('SELECT * FROM pondpilot.main.store_purchases', metadata),
+      shouldResetRestoredScriptQuery(
+        'SELECT * FROM pondpilot.main.store_purchases',
+        isSystemDatabaseEmpty(metadata),
+      ),
     ).toBe(false);
   });
 
@@ -47,7 +50,7 @@ describe('script-query-persistence', () => {
     expect(
       shouldResetRestoredScriptQuery(
         'SELECT account_id FROM pondpilot.main.store_purchases',
-        metadata,
+        isSystemDatabaseEmpty(metadata),
       ),
     ).toBe(true);
   });
@@ -55,9 +58,12 @@ describe('script-query-persistence', () => {
   it('does not reset unrelated restored queries when the system database is empty', () => {
     const metadata = buildMetadata([]);
 
-    expect(shouldResetRestoredScriptQuery('SELECT 1', metadata)).toBe(false);
+    expect(shouldResetRestoredScriptQuery('SELECT 1', isSystemDatabaseEmpty(metadata))).toBe(false);
     expect(
-      shouldResetRestoredScriptQuery('SELECT * FROM motherduck.main.store_purchases', metadata),
+      shouldResetRestoredScriptQuery(
+        'SELECT * FROM motherduck.main.store_purchases',
+        isSystemDatabaseEmpty(metadata),
+      ),
     ).toBe(false);
   });
 });

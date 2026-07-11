@@ -16,14 +16,11 @@ export function isSystemDatabaseEmpty(databaseMetadata: Map<string, DataBaseMode
 
 export function shouldResetRestoredScriptQuery(
   lastExecutedQuery: string | null,
-  databaseMetadata: Map<string, DataBaseModel>,
+  systemDatabaseIsEmpty: boolean,
 ): boolean {
   if (!lastExecutedQuery) {
     return false;
   }
 
-  return (
-    isSystemDatabaseEmpty(databaseMetadata) &&
-    systemDatabaseReferencePattern.test(lastExecutedQuery)
-  );
+  return systemDatabaseIsEmpty && systemDatabaseReferencePattern.test(lastExecutedQuery);
 }
