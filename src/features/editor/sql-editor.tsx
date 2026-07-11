@@ -19,7 +19,6 @@ import {
   isLintIssue,
   shouldDisplayLintIssue,
 } from '@utils/lint-config';
-import * as monaco from 'monaco-editor';
 import {
   forwardRef,
   useCallback,
@@ -32,6 +31,7 @@ import {
 
 import { registerAIAssistant, showAIAssistant, hideAIAssistant } from './ai-assistant-tooltip';
 import { useEditorTheme } from './hooks';
+import { monaco } from './monaco-setup';
 import {
   CancelledError,
   getFlowScopeClient,
