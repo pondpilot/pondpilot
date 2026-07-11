@@ -3,7 +3,7 @@ import { ActionIcon, Divider, Stack } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { Fragment, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { SettingsBlock } from './components/settings-block';
 import { SettingsNavigation } from './components/settings-navigation';

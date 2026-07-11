@@ -12,7 +12,7 @@ import {
   IconBug,
 } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { AccordionContent } from './accordion-content';
 import { BottomToolbar } from './bottom-toolbar';

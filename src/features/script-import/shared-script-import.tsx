@@ -3,7 +3,7 @@ import { useAppStore } from '@store/app-store';
 import { importScript, validateEncodedScript } from '@utils/script-import-utils';
 import { SharedScript } from '@utils/script-sharing';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 
 /**
  * Component that handles importing a shared script from URL.
