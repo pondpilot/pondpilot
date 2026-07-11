@@ -23,7 +23,7 @@ import {
 } from '@models/data-source';
 import { ARROW_STREAMING_BATCH_SIZE, DBColumn } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
-import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
+import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabId, TabReactiveState } from '@models/tab';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { getDatabaseIdentifier } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
@@ -650,7 +650,15 @@ export function convertArrowToAllDistributions(
 function getGetColumnStatsFromFQN(
   pool: AsyncDuckDBConnectionPool,
   fqn: string,
+  tabId?: TabId,
 ): DataAdapterQueries['getColumnStats'] {
+  // Script-tab sources must run on the tab's pinned connection so the query
+  // resolves against the tab's session context (e.g. after a `USE`).
+  const runQuery = (query: string, abortSignal: AbortSignal) =>
+    tabId !== undefined
+      ? pool.queryAbortableForTab(tabId, query, abortSignal)
+      : pool.queryAbortable(query, abortSignal);
+
   return async (columnNames: string[], abortSignal: AbortSignal) => {
     if (columnNames.length === 0) {
       return { value: [], aborted: false };
@@ -659,7 +667,7 @@ function getGetColumnStatsFromFQN(
     // Try SUMMARIZE first for better performance (single table scan)
     try {
       const summarizeQuery = buildSummarizeQuery(fqn);
-      const { value, aborted } = await pool.queryAbortable(summarizeQuery, abortSignal);
+      const { value, aborted } = await runQuery(summarizeQuery, abortSignal);
 
       if (aborted) {
         return { value: [], aborted };
@@ -673,7 +681,7 @@ function getGetColumnStatsFromFQN(
     } catch {
       // Fallback to the original UNION ALL approach
       const query = buildColumnStatsQuery(fqn, columnNames);
-      const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+      const { value, aborted } = await runQuery(query, abortSignal);
 
       if (aborted) {
         return { value: [], aborted };
@@ -694,7 +702,15 @@ const DISTRIBUTION_BATCH_SIZE = 10;
 function getGetAllColumnDistributionsFromFQN(
   pool: AsyncDuckDBConnectionPool,
   fqn: string,
+  tabId?: TabId,
 ): DataAdapterQueries['getAllColumnDistributions'] {
+  // Script-tab sources must run on the tab's pinned connection so the query
+  // resolves against the tab's session context (e.g. after a `USE`).
+  const runQuery = (query: string, abortSignal: AbortSignal) =>
+    tabId !== undefined
+      ? pool.queryAbortableForTab(tabId, query, abortSignal)
+      : pool.queryAbortable(query, abortSignal);
+
   return async (
     columns: Array<{ name: string; type: MetadataColumnType }>,
     abortSignal: AbortSignal,
@@ -709,7 +725,7 @@ function getGetAllColumnDistributionsFromFQN(
     for (let i = 0; i < columns.length; i += DISTRIBUTION_BATCH_SIZE) {
       const chunk = columns.slice(i, i + DISTRIBUTION_BATCH_SIZE);
       const query = buildAllDistributionsQuery(fqn, chunk);
-      const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+      const { value, aborted } = await runQuery(query, abortSignal);
 
       if (aborted) {
         return { value: result, aborted };
@@ -728,7 +744,15 @@ function getGetAllColumnDistributionsFromFQN(
 function getGetColumnDistributionFromFQN(
   pool: AsyncDuckDBConnectionPool,
   fqn: string,
+  tabId?: TabId,
 ): DataAdapterQueries['getColumnDistribution'] {
+  // Script-tab sources must run on the tab's pinned connection so the query
+  // resolves against the tab's session context (e.g. after a `USE`).
+  const runQuery = (q: string, abortSignal: AbortSignal) =>
+    tabId !== undefined
+      ? pool.queryAbortableForTab(tabId, q, abortSignal)
+      : pool.queryAbortable(q, abortSignal);
+
   return async (columnName: string, columnType: MetadataColumnType, abortSignal: AbortSignal) => {
     let query: string;
 
@@ -744,7 +768,7 @@ function getGetColumnDistributionFromFQN(
         break;
     }
 
-    const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+    const { value, aborted } = await runQuery(query, abortSignal);
 
     if (aborted) {
       return {
@@ -1180,13 +1204,13 @@ export function getScriptAdapterQueries({
           }
         : undefined,
       getColumnStats: classifiedStmt.isAllowedInSubquery
-        ? getGetColumnStatsFromFQN(pool, `(${trimmedQuery})`)
+        ? getGetColumnStatsFromFQN(pool, `(${trimmedQuery})`, tab.id)
         : undefined,
       getColumnDistribution: classifiedStmt.isAllowedInSubquery
-        ? getGetColumnDistributionFromFQN(pool, `(${trimmedQuery})`)
+        ? getGetColumnDistributionFromFQN(pool, `(${trimmedQuery})`, tab.id)
         : undefined,
       getAllColumnDistributions: classifiedStmt.isAllowedInSubquery
-        ? getGetAllColumnDistributionsFromFQN(pool, `(${trimmedQuery})`)
+        ? getGetAllColumnDistributionsFromFQN(pool, `(${trimmedQuery})`, tab.id)
         : undefined,
     },
     userErrors: [],

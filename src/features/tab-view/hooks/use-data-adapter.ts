@@ -1247,7 +1247,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       abortUserTasks();
       const signal = getUserTasksAbortSignal();
 
-      const { value, aborted } = await queries.getColumnStats(columnNames, signal);
+      const { value, aborted } = await runWithMainReaderPaused(() =>
+        queries.getColumnStats!(columnNames, signal),
+      );
 
       if (aborted) {
         throw new CancelledOperation({
@@ -1258,7 +1260,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       return value;
     },
-    [queries, abortUserTasks, getUserTasksAbortSignal],
+    [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
   );
 
   const getColumnDistribution = useCallback(
@@ -1273,10 +1275,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       abortUserTasks();
       const signal = getUserTasksAbortSignal();
 
-      const { value, aborted } = await queries.getColumnDistribution(
-        columnName,
-        columnType,
-        signal,
+      const { value, aborted } = await runWithMainReaderPaused(() =>
+        queries.getColumnDistribution!(columnName, columnType, signal),
       );
 
       if (aborted) {
@@ -1288,7 +1288,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       return value;
     },
-    [queries, abortUserTasks, getUserTasksAbortSignal],
+    [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
   );
 
   const getAllColumnDistributions = useCallback(
@@ -1302,7 +1302,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       abortUserTasks();
       const signal = getUserTasksAbortSignal();
 
-      const { value, aborted } = await queries.getAllColumnDistributions(columns, signal);
+      const { value, aborted } = await runWithMainReaderPaused(() =>
+        queries.getAllColumnDistributions!(columns, signal),
+      );
 
       if (aborted) {
         throw new CancelledOperation({
@@ -1313,7 +1315,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       return value;
     },
-    [queries, abortUserTasks, getUserTasksAbortSignal],
+    [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
   );
 
   const cancelDataRead = useCallback(
