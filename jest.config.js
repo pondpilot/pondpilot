@@ -2,7 +2,7 @@
 module.exports = {
   testEnvironment: 'node',
   transform: {
-    '^.+\.tsx?$': [
+    '^.+\\.tsx?$': [
       'ts-jest',
       {
         tsconfig: {

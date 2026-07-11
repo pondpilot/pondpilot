@@ -97,7 +97,7 @@ export const test = base.extend<StorageFixtures>({
               const buffer = window._writeBuffer!;
               buffer.set(bytes);
               // The fix-sized buffer is used, but real size of chunk can be less than size of buffer, so we create a lightweight view.
-              await window._writeStream!.write(buffer.subarray(0, bytes.length));
+              await window._writeStream!.write(Uint8Array.from(buffer.subarray(0, bytes.length)));
             }, byteArray);
           }
         } catch (error) {

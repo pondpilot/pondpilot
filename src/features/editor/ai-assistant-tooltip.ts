@@ -363,6 +363,7 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
       this.activeRequest,
     );
 
+    // eslint-disable-next-line prefer-const -- Assigned after the callback that closes over it is created.
     let submitWrapper: () => void;
 
     const { inputSection, textarea, generateBtn } = createInputSection(

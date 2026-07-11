@@ -187,7 +187,7 @@ export class OPFSUtil {
       const writable = await fileHandle.createWritable();
 
       try {
-        await writable.write(data);
+        await writable.write(data instanceof Uint8Array ? Uint8Array.from(data) : data);
       } finally {
         await writable.close();
       }

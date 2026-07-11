@@ -88,7 +88,6 @@ export default defineConfig(({ mode }) => {
 
   const basePath = getNormalizedBasePath(process.env.VITE_BASE_PATH);
   // Provide build-time visibility (won't ship to client bundle)
-  // eslint-disable-next-line no-console
   console.log(`[build] Using base path: ${basePath}`);
 
   return {
