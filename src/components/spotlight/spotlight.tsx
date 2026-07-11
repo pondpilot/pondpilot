@@ -59,7 +59,7 @@ import {
 } from '@utils/table-access';
 import { setDataTestId } from '@utils/test-id';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import { SpotlightBreadcrumbs } from './components';
 import { renderActionsGroup } from './components/action';
