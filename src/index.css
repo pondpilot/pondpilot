@@ -1,8 +1,321 @@
 /* AI Assistant Widget Styles */
 @import './features/editor/ai-assistant/ai-widget.css';
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css';
+@custom-variant dark (&:is([data-mantine-color-scheme="dark"] *));
+@custom-variant hover (&:hover);
+
+@theme {
+  --breakpoint-*: initial;
+  --breakpoint-xs: 36em;
+  --breakpoint-sm: 48em;
+  --breakpoint-md: 62em;
+  --breakpoint-lg: 75em;
+  --breakpoint-xl: 88em;
+
+  --font-mono: IBM Plex Mono, monospace;
+
+  --animate-slide-in-right: slide-in-right 200ms ease-out;
+  --animate-slide-out-right: slide-out-right 200ms ease-out;
+
+  --color-borderLight-light: #f2f4f8;
+  --color-borderLight-dark: #384252;
+
+  --color-borderPrimary-light: #dbdde1;
+  --color-borderPrimary-dark: #5b6b86;
+
+  --color-borderSecondary-light: #c7cad0;
+  --color-borderSecondary-dark: #aeb2bb;
+
+  --color-borderAccent-light: #4957c1;
+  --color-borderAccent-dark: #4c61ff;
+
+  --color-borderSuccess-light: #4cae4f;
+  --color-borderSuccess-dark: #4cae4f;
+
+  --color-borderWarning-light: #f4a462;
+  --color-borderWarning-dark: #f4a462;
+
+  --color-borderError-light: #ef486f;
+  --color-borderError-dark: #ef486f;
+
+  --color-backgroundPrimary-light: #fdfdfd;
+  --color-backgroundPrimary-dark: #242b35;
+
+  --color-backgroundSecondary-light: #f2f4f8;
+  --color-backgroundSecondary-dark: #191d24;
+
+  --color-backgroundTertiary-light: #e5e9f2;
+  --color-backgroundTertiary-dark: #5b6b86;
+
+  --color-backgroundSuccess-light: #e6f4e6;
+  --color-backgroundSuccess-dark: #2b612c;
+
+  --color-backgroundWarning-light: #fdf2e9;
+  --color-backgroundWarning-dark: #a8520c;
+
+  --color-backgroundError-light: #fde5eb;
+  --color-backgroundError-dark: #990d2e;
+
+  --color-backgroundAccent-light: #4957c1;
+  --color-backgroundAccent-dark: #4c61ff;
+
+  --color-backgroundInverse-light: #242b35;
+  --color-backgroundInverse-dark: #384252;
+
+  --color-iconDefault-light: #6f7785;
+  --color-iconDefault-dark: #c8ced9;
+
+  --color-iconDisabled: #aeb2bb;
+
+  --color-iconSuccess-light: #4cae4f;
+  --color-iconSuccess-dark: #75c277;
+
+  --color-iconWarning-light: #f4a462;
+  --color-iconWarning-dark: #f7b987;
+
+  --color-iconError-light: #ef486f;
+  --color-iconError-dark: #f37391;
+
+  --color-iconAccent-light: #4957c1;
+  --color-iconAccent-dark: #4c61ff;
+
+  --color-iconContrast: #e5e9f2;
+
+  --color-textPrimary-light: #212328;
+  --color-textPrimary-dark: #fdfdfd;
+
+  --color-textSecondary-light: #6f7785;
+  --color-textSecondary-dark: #a8b3c4;
+
+  --color-textTertiary-light: #aeb2bb;
+  --color-textTertiary-dark: #8292aa;
+
+  --color-textSuccess-light: #4cae4f;
+  --color-textSuccess-dark: #75c277;
+
+  --color-textWarning-light: #f4a462;
+  --color-textWarning-dark: #f7b987;
+
+  --color-textError-light: #ef486f;
+  --color-textError-dark: #f37391;
+
+  --color-textAccent-light: #4957c1;
+  --color-textAccent-dark: #4c61ff;
+
+  --color-textContrast-light: #fff;
+  --color-textContrast-dark: #fdfdfd;
+
+  --color-transparent004-light: #2123280a;
+  --color-transparent004-dark: #ffffff0a;
+
+  --color-transparent008-light: #21232814;
+  --color-transparent008-dark: #ffffff14;
+
+  --color-transparent010-light: #2123281f;
+  --color-transparent010-dark: #ffffff1a;
+
+  --color-transparent016-light: #21232829;
+  --color-transparent016-dark: #ffffff29;
+
+  --color-transparent020-light: #21232833;
+  --color-transparent020-dark: #fff3;
+
+  --color-transparent032-light: #21232852;
+  --color-transparent032-dark: #ffffff4d;
+
+  --color-transparent072-light: #212328b8;
+  --color-transparent072-dark: #ffffffb8;
+
+  --color-transparent010-inverse-light: #ffffff1a;
+  --color-transparent010-inverse-dark: #ffffff1a;
+
+  --color-accentHover-light: #737ecf;
+  --color-accentHover-dark: #6681ff;
+
+  --color-accentActive-light: #26349e;
+  --color-accentActive-dark: #384bcc;
+
+  --color-tertiaryHover-light: #c8ced9;
+  --color-tertiaryHover-dark: #384252;
+
+  --color-tertiaryActive-light: #a8b3c4;
+  --color-tertiaryActive-dark: #5b6b86;
+
+  --color-accentTransparentHover-light: #4957c114;
+  --color-accentTransparentHover-dark: #4957c114;
+
+  --color-accentTransparentActive-light: #4957c129;
+  --color-accentTransparentActive-dark: #4957c129;
+
+  --color-transparentBrandBlue_palette-008-light: #4957c114;
+  --color-transparentBrandBlue_palette-008-dark: #cad8ff14;
+
+  --color-transparentBrandBlue_palette-012-light: #4957c11f;
+  --color-transparentBrandBlue_palette-012-dark: #869fff1f;
+
+  --color-transparentBrandBlue_palette-016-light: #4957c129;
+  --color-transparentBrandBlue_palette-016-dark: #7b94ff29;
+
+  --color-transparentBrandBlue_palette-032-light: #4957c152;
+  --color-transparentBrandBlue_palette-032-dark: #4c61ff52;
+
+  --color-transparentWhite-004: #ffffff0a;
+  --color-transparentWhite-008: #ffffff14;
+  --color-transparentWhite-010: #ffffff1a;
+  --color-transparentWhite-016: #ffffff29;
+  --color-transparentWhite-020: #fff3;
+  --color-transparentWhite-030: #ffffff4d;
+  --color-transparentWhite-072: #ffffffb8;
+
+  --color-transparentGray-004: #2123280a;
+  --color-transparentGray-008: #21232814;
+  --color-transparentGray-010: #2123281a;
+  --color-transparentGray-012: #2123281f;
+  --color-transparentGray-016: #21232829;
+  --color-transparentGray-020: #21232833;
+  --color-transparentGray-032: #21232852;
+  --color-transparentGray-072: #212328b8;
+
+  --color-transparentBrandBlue-008: #4957c114;
+  --color-transparentBrandBlue-012: #4957c11f;
+  --color-transparentBrandBlue-016: #4957c129;
+  --color-transparentBrandBlue-032: #4957c152;
+
+  --color-darkModeTransparentBrandBlue-008: #cad8ff14;
+  --color-darkModeTransparentBrandBlue-012: #869fff1f;
+  --color-darkModeTransparentBrandBlue-016: #7b94ff29;
+  --color-darkModeTransparentBrandBlue-032: #4c61ff52;
+
+  --color-brand-blue-50: #f4f4fb;
+  --color-brand-blue-100: #e5e7f6;
+  --color-brand-blue-200: #b8bde7;
+  --color-brand-blue-300: #98a0dc;
+  --color-brand-blue-400: #737ecf;
+  --color-brand-blue-500: #4957c1;
+  --color-brand-blue-600: #737ecf;
+  --color-brand-blue-700: #26349e;
+  --color-brand-blue-800: #252e6d;
+  --color-brand-blue-900: #131738;
+
+  --color-blue-grey-50: #fff;
+  --color-blue-grey-100: #f2f4f8;
+  --color-blue-grey-200: #e5e9f2;
+  --color-blue-grey-300: #c8ced9;
+  --color-blue-grey-400: #a8b3c4;
+  --color-blue-grey-500: #8292aa;
+  --color-blue-grey-600: #5b6b86;
+  --color-blue-grey-700: #384252;
+  --color-blue-grey-800: #242b35;
+  --color-blue-grey-900: #191d24;
+
+  --color-grey-50: #fdfdfd;
+  --color-grey-100: #f6f6f7;
+  --color-grey-200: #ebecee;
+  --color-grey-300: #dbdde1;
+  --color-grey-400: #c7cad0;
+  --color-grey-500: #aeb2bb;
+  --color-grey-600: #9096a3;
+  --color-grey-700: #6f7785;
+  --color-grey-800: #3e434b;
+  --color-grey-900: #212328;
+
+  --color-green-50: #fcfefc;
+  --color-green-100: #f4faf4;
+  --color-green-200: #e6f4e6;
+  --color-green-300: #d2ebd3;
+  --color-green-400: #b8e0ba;
+  --color-green-500: #99d29b;
+  --color-green-600: #75c277;
+  --color-green-700: #4cae4f;
+  --color-green-800: #2b612c;
+  --color-green-900: #163317;
+
+  --color-orange-50: #fffefd;
+  --color-orange-100: #fef9f5;
+  --color-orange-200: #fdf2e9;
+  --color-orange-300: #fce8d8;
+  --color-orange-400: #fbdbc2;
+  --color-orange-500: #f9cca6;
+  --color-orange-600: #f7b987;
+  --color-orange-700: #f4a462;
+  --color-orange-800: #a8520c;
+  --color-orange-900: #4e2605;
+
+  --color-magenta-50: #fffcfd;
+  --color-magenta-100: #fef4f6;
+  --color-magenta-200: #fde5eb;
+  --color-magenta-300: #fbd1db;
+  --color-magenta-400: #f9b8c7;
+  --color-magenta-500: #f698ae;
+  --color-magenta-600: #f37391;
+  --color-magenta-700: #ef486f;
+  --color-magenta-800: #990d2e;
+  --color-magenta-900: #4a0616;
+
+  --color-brand-blue-neon-50: #111;
+  --color-brand-blue-neon-100: #141414;
+  --color-brand-blue-neon-200: #1b255a;
+  --color-brand-blue-neon-300: #2c3b93;
+  --color-brand-blue-neon-400: #384bcc;
+  --color-brand-blue-neon-500: #4c61ff;
+  --color-brand-blue-neon-600: #5b76ef;
+  --color-brand-blue-neon-700: #6681ff;
+  --color-brand-blue-neon-800: #869fff;
+  --color-brand-blue-neon-900: #cad8ff;
+
+  @keyframes slide-in-right {
+    0% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slide-out-right {
+    0% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility custom-scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
 
 html,
 body,
@@ -40,17 +353,6 @@ body {
 .custom-allotment-dark {
   --separator-border: #5b6b86;
   --focus-border: #5b6b86;
-}
-
-@layer utilities {
-  .custom-scroll-hidden {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .custom-scroll-hidden::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 .mantine-Spotlight-actionsGroup::before {

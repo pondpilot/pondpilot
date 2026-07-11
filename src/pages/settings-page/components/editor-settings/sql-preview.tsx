@@ -96,10 +96,7 @@ export const SqlPreview = ({ fontSize, fontWeight = 'regular' }: SqlPreviewProps
         style={{ minWidth: 'max-content' }}
       >
         {sqlLines.map((line) => (
-          <Box
-            key={line.lineNumber}
-            className="flex items-center gap-2 flex-shrink-0 whitespace-nowrap"
-          >
+          <Box key={line.lineNumber} className="flex items-center gap-2 shrink-0 whitespace-nowrap">
             <Text
               size="sm"
               c="text-secondary"

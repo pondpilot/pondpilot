@@ -20,7 +20,7 @@ export const SchemaControls = ({
 }: SchemaControlsProps) => {
   return (
     <div
-      className="p-2 bg-white dark:bg-slate-800 rounded shadow flex items-center gap-2"
+      className="p-2 bg-white dark:bg-slate-800 rounded-sm shadow-sm flex items-center gap-2"
       data-testid="schema-controls"
     >
       <SegmentedControl

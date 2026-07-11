@@ -166,7 +166,7 @@ export const StartGuide = () => {
                 h="auto"
                 className={cn(
                   'group',
-                  'focus:outline-none',
+                  'focus:outline-hidden',
                   'focus:bg-transparentBrandBlue-012 dark:focus:bg-darkModeTransparentBrandBlue-032',
                   'hover:bg-transparent004-light dark:hover:bg-transparent004-dark',
                 )}
@@ -212,7 +212,7 @@ export const StartGuide = () => {
                   h="auto"
                   w="fit-content"
                   c="text-secondary"
-                  className="focus:outline-none focus:bg-transparentBrandBlue-016 dark:focus:bg-transparentBrandBlue-016 hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark"
+                  className="focus:outline-hidden focus:bg-transparentBrandBlue-016 dark:focus:bg-transparentBrandBlue-016 hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark"
                 >
                   <Group wrap="nowrap">
                     <Text c="text-secondary">{item.label}</Text>

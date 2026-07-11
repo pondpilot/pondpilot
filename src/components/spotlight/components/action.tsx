@@ -21,7 +21,7 @@ export const renderActions = (actions: Action[]) =>
             {action.label}
           </Text>
         </Group>
-        <Group className="gap-2 flex-shrink-0">
+        <Group className="gap-2 shrink-0">
           {action.description ? (
             <Text
               c="dimmed"

@@ -21,12 +21,12 @@ export const SchemaErrorEnhanced: React.FC<SchemaErrorEnhancedProps> = ({
 
   return (
     <div
-      className={`bg-background px-6 py-8 rounded-lg shadow-sm max-w-2xl mx-auto ${className}`}
+      className={`bg-background px-6 py-8 rounded-lg shadow-xs max-w-2xl mx-auto ${className}`}
       role="alert"
       aria-live="assertive"
     >
       <div className="flex items-start space-x-4">
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <IconAlertTriangle size={24} className="text-iconError" aria-hidden="true" />
         </div>
 
@@ -55,7 +55,7 @@ export const SchemaErrorEnhanced: React.FC<SchemaErrorEnhancedProps> = ({
             <button
               type="button"
               onClick={onRetry}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-brand text-white rounded-md hover:bg-brandHover transition-colors focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-brand text-white rounded-md hover:bg-brandHover transition-colors focus:outline-hidden focus:ring-2 focus:ring-brand focus:ring-offset-2"
               aria-label="Retry the operation"
             >
               <IconRefresh size={16} />
@@ -68,7 +68,7 @@ export const SchemaErrorEnhanced: React.FC<SchemaErrorEnhancedProps> = ({
               <summary className="text-sm text-textTertiary cursor-pointer hover:text-textSecondary">
                 Technical Details
               </summary>
-              <pre className="mt-2 p-2 bg-backgroundSubtle rounded text-xs text-textTertiary overflow-x-auto">
+              <pre className="mt-2 p-2 bg-backgroundSubtle rounded-sm text-xs text-textTertiary overflow-x-auto">
                 {details}
               </pre>
             </details>

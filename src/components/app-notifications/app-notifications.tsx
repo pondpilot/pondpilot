@@ -65,12 +65,12 @@ export const showError = (data: NotificationData) => {
 
   const messageContent = (
     <div className="flex flex-col gap-2">
-      <div className="break-words">{displayMessage}</div>
+      <div className="wrap-break-word">{displayMessage}</div>
       <div className="flex justify-end">
         <button
           type="button"
           onClick={() => navigator.clipboard.writeText(rawMessage)}
-          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded-sm hover:opacity-90 transition-opacity"
         >
           <IconCopy size={12} />
           Copy Error
@@ -109,13 +109,13 @@ const showAppAlertWithAction = (
   const messageContent =
     action || isError ? (
       <div className="flex flex-col gap-2">
-        {displayMessage && <div className="break-words">{displayMessage}</div>}
+        {displayMessage && <div className="wrap-break-word">{displayMessage}</div>}
         <div className="flex justify-end gap-2">
           {isError && (
             <button
               type="button"
               onClick={() => navigator.clipboard.writeText(rawMessage)}
-              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded-sm hover:opacity-90 transition-opacity"
             >
               <IconCopy size={12} />
               Copy Error
@@ -128,7 +128,7 @@ const showAppAlertWithAction = (
                 notifications.hide(notificationId);
                 action.onClick();
               }}
-              className="px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
+              className="px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded-sm hover:opacity-90 transition-opacity"
             >
               {action.label}
             </button>

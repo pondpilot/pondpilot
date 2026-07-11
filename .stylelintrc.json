@@ -17,6 +17,7 @@
     "comment-empty-line-before": null,
     "scss/at-mixin-pattern": null,
     "scss/at-rule-no-unknown": null,
+    "nesting-selector-no-missing-scoping-root": null,
     "value-keyword-case": null,
     "media-feature-range-notation": null,
     "selector-pseudo-class-no-unknown": [
