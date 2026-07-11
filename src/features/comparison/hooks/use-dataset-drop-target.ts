@@ -1,9 +1,9 @@
+import { DATASET_DND_MIME_TYPE } from '@consts/dnd';
 import { notifications } from '@mantine/notifications';
 import { ComparisonSource } from '@models/comparison';
 import { useCallback, useState } from 'react';
 import type { DragEvent as ReactDragEvent } from 'react';
 
-import { DATASET_DND_MIME_TYPE } from '../../../constants/dnd';
 import { parseComparisonSource } from '../utils/validation';
 
 /**

@@ -1,10 +1,10 @@
 import { MemoizedBaseTreeNode } from '@components/explorer-tree/components/tree-node';
 import { RenderTreeNodePayload } from '@components/explorer-tree/model';
+import { DATASET_DND_MIME_TYPE } from '@consts/dnd';
 import { useDataSourceIdForActiveTab, useIsLocalDBElementOnActiveTab } from '@store/app-store';
 import type { DragEvent } from 'react';
 
 import { DataExplorerNodeTypeMap, DataExplorerContext } from './model';
-import { DATASET_DND_MIME_TYPE } from '../../constants/dnd';
 
 const attachDragImage = (
   event: DragEvent<HTMLDivElement>,

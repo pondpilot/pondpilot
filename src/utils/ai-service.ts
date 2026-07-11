@@ -1,5 +1,6 @@
+import { POLLY_CONFIG, PROVIDER_IDS, AI_SERVICE_CONFIG } from '@consts/ai';
+
 import { sanitizeErrorMessage } from './error-sanitizer';
-import { POLLY_CONFIG, PROVIDER_IDS, AI_SERVICE_CONFIG } from '../constants/ai';
 import {
   AIRequest,
   AIResponse,
