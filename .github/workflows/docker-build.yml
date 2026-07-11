@@ -11,6 +11,14 @@ on:
       - 'v*.*.*'
   release:
     types: [published]
+  # Releases published by the release workflow use GITHUB_TOKEN, whose events
+  # do not trigger other workflows. Dispatch this manually for those tags.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Released version to build an image for (e.g. 0.10.0, without the v prefix)'
+        required: true
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -28,6 +36,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # For manual dispatch, build the released tag rather than the branch
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref }}
 
       # Build app
       - name: Setup Node.js
@@ -65,7 +76,9 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          if [[ "${{ github.event_name }}" == "release" && "${{ github.ref_name }}" == v* ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "release" && "${{ github.ref_name }}" == v* ]]; then
             echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
           else
             echo "version=" >> $GITHUB_OUTPUT
@@ -87,7 +100,7 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=semver,event=tag,pattern={{version}}
-            type=raw,value=${{ steps.version.outputs.version }},enable=${{ github.event_name == 'release' && steps.version.outputs.version != '' }}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.version != '' }}
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
       - name: Build and push Docker image
