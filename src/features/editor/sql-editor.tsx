@@ -8,7 +8,7 @@ import { formatSQLInEditor } from '@controllers/sql-formatter';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
 import type { CompletionItemsResult, Issue, LintConfig, Span } from '@pondpilot/flowscope-core';
-import { applyEdits } from '@pondpilot/flowscope-core';
+import { applyEdits, edgesInStatement, nodesInStatement } from '@pondpilot/flowscope-core';
 import { useAppStore } from '@store/app-store';
 import { getEditorPreferences, updateEditorPreference } from '@store/editor-preferences';
 import { safeSliceBySpan, isSpanValid, type Utf16Span } from '@utils/editor/spans';
@@ -481,7 +481,9 @@ function hasCteWithLabel(
 ): boolean {
   const targetLabel = label.toLowerCase();
   return analysis.statements.some((stmt) =>
-    stmt.nodes.some((node) => node.type === 'cte' && node.label.toLowerCase() === targetLabel),
+    nodesInStatement(analysis, stmt.statementIndex).some(
+      (node) => node.type === 'cte' && node.label.toLowerCase() === targetLabel,
+    ),
   );
 }
 
@@ -989,7 +991,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
         const decorations: monaco.editor.IModelDeltaDecoration[] = [];
         analysis.statements.forEach((statement) => {
-          statement.nodes.forEach((node) => {
+          nodesInStatement(analysis, statement.statementIndex).forEach((node) => {
             if (
               !node.span ||
               (node.type !== 'table' && node.type !== 'view' && node.type !== 'cte')
@@ -1296,6 +1298,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
             // Schedule full re-split in background (for accuracy, with long debounce)
             scheduleStatementSplit(editorModel);
+            scheduleFullAnalysis(editorModel);
           }
         }),
       );
@@ -1558,7 +1561,10 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             const [statement] = statementResult.analysis.statements;
             if (!statement) return null;
 
-            const matchingNode = statement.nodes.find((node) => {
+            const matchingNode = nodesInStatement(
+              statementResult.analysis,
+              statement.statementIndex,
+            ).find((node) => {
               if (node.type === 'column') return false;
               return node.label.toLowerCase() === word.word.toLowerCase();
             });
@@ -1569,11 +1575,15 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             if (matchingNode.qualifiedName && matchingNode.qualifiedName !== matchingNode.label) {
               contents.push(`\n*${matchingNode.qualifiedName}*`);
             }
-            if (matchingNode.joinType) {
-              contents.push(`\n**Join:** ${matchingNode.joinType}`);
+            const matchingJoin = edgesInStatement(
+              statementResult.analysis,
+              statement.statementIndex,
+            ).find((edge) => edge.from === matchingNode.id && edge.joinType);
+            if (matchingJoin?.joinType) {
+              contents.push(`\n**Join:** ${matchingJoin.joinType}`);
             }
-            if (matchingNode.joinCondition) {
-              contents.push(`\n\`\`\`sql\nON ${matchingNode.joinCondition}\n\`\`\``);
+            if (matchingJoin?.joinCondition) {
+              contents.push(`\n\`\`\`sql\nON ${matchingJoin.joinCondition}\n\`\`\``);
             }
             if (matchingNode.filters?.length) {
               const filters = matchingNode.filters
@@ -1725,7 +1735,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
               // Find the first CTE definition with this label (first occurrence is the definition)
               for (const statement of analysis.statements) {
-                for (const node of statement.nodes) {
+                for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                   if (node.type === 'cte' && node.label.toLowerCase() === targetLabel) {
                     const range = spanToRange(model, node.span);
                     if (!range) {
@@ -1765,7 +1775,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
               // Find all nodes matching the label (tables, CTEs, views)
               for (const statement of analysis.statements) {
-                for (const node of statement.nodes) {
+                for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                   if (
                     (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
                     node.label.toLowerCase() === targetLabel
@@ -1967,7 +1977,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
             // Find all occurrences with spans
             for (const statement of analysis.statements) {
-              for (const node of statement.nodes) {
+              for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                 if (
                   (node.type === 'table' || node.type === 'cte') &&
                   node.label.toLowerCase() === targetLabel
@@ -2029,7 +2039,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             const ctesWithoutSpan: string[] = [];
 
             for (const statement of analysis.statements) {
-              for (const node of statement.nodes) {
+              for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                 if (node.type === 'cte') {
                   const label = node.label.toLowerCase();
                   const count = cteReferences.get(label) || 0;
@@ -2110,7 +2120,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
               // Check if this is a CTE, table, or view
               const isLinkedIdentifier = analysis.statements.some((stmt) =>
-                stmt.nodes.some(
+                nodesInStatement(analysis, stmt.statementIndex).some(
                   (node) =>
                     (node.type === 'cte' || node.type === 'table' || node.type === 'view') &&
                     node.label.toLowerCase() === targetLabel,
@@ -2121,7 +2131,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
               // Find all occurrences with spans
               for (const statement of analysis.statements) {
-                for (const node of statement.nodes) {
+                for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                   if (
                     (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
                     node.label.toLowerCase() === targetLabel
@@ -2215,23 +2225,29 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             );
             if (allFixable.length > 1) {
               const allEdits = collectAllFixEdits(cached.result.issues);
-              const fixedText = applyEdits(sqlText, allEdits);
-              actions.push({
-                title: `Fix all lint issues (${allFixable.length})`,
-                kind: 'quickfix',
-                edit: {
-                  edits: [
-                    {
-                      resource: model.uri,
-                      versionId: undefined,
-                      textEdit: {
-                        range: model.getFullModelRange(),
-                        text: fixedText,
+              try {
+                const fixedText = applyEdits(sqlText, allEdits);
+                actions.push({
+                  title: `Fix all lint issues (${allFixable.length})`,
+                  kind: 'quickfix',
+                  edit: {
+                    edits: [
+                      {
+                        resource: model.uri,
+                        versionId: undefined,
+                        textEdit: {
+                          range: model.getFullModelRange(),
+                          text: fixedText,
+                        },
                       },
-                    },
-                  ],
-                },
-              });
+                    ],
+                  },
+                });
+              } catch (error) {
+                if (!(error instanceof Error && error.message.startsWith('Overlapping edits:'))) {
+                  throw error;
+                }
+              }
             }
 
             return { actions, dispose() {} };

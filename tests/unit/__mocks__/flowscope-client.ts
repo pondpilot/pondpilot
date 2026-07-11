@@ -1,5 +1,11 @@
 type MockFlowScopeClient = {
-  analyze: () => Promise<Record<string, unknown>>;
+  analyze: () => Promise<{
+    statements: Array<unknown>;
+    nodes: Array<unknown>;
+    edges: Array<unknown>;
+    issues: Array<unknown>;
+    summary: { statementCount: number; hasErrors: boolean };
+  }>;
   split: (sql: string) => Promise<{ statements: Array<{ start: number; end: number }> }>;
   completionItems: () => Promise<Record<string, unknown>>;
 };
@@ -20,7 +26,13 @@ const splitBySemicolon = (sql: string): Array<{ start: number; end: number }> =>
 };
 
 const createMockFlowScopeClient = (): MockFlowScopeClient => ({
-  analyze: async () => ({}),
+  analyze: async () => ({
+    statements: [],
+    nodes: [],
+    edges: [],
+    issues: [],
+    summary: { statementCount: 0, hasErrors: false },
+  }),
   split: async (sql: string) => ({ statements: splitBySemicolon(sql) }),
   completionItems: async () => ({}),
 });

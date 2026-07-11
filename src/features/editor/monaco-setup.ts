@@ -5,6 +5,7 @@ import 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution.js';
 import 'monaco-editor/esm/vs/editor/browser/widget/diffEditor/diffEditor.contribution.js';
 import 'monaco-editor/esm/vs/editor/contrib/bracketMatching/browser/bracketMatching.js';
 import 'monaco-editor/esm/vs/editor/contrib/clipboard/browser/clipboard.js';
+import 'monaco-editor/esm/vs/editor/contrib/codeAction/browser/codeActionContributions.js';
 import 'monaco-editor/esm/vs/editor/contrib/comment/browser/comment.js';
 import 'monaco-editor/esm/vs/editor/contrib/contextmenu/browser/contextmenu.js';
 import 'monaco-editor/esm/vs/editor/contrib/find/browser/findController.js';
