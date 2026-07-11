@@ -401,6 +401,14 @@ const handleComparisonSuccess = async (
       result.metrics && result.metrics.type === 'hash-diff' ? result.metrics.stats : undefined,
   });
 
+  // Ensure comparison results are durably persisted before surfacing them.
+  const persisted = await pool.flushPendingChanges();
+  if (!persisted) {
+    console.error(
+      `Failed to force checkpoint after comparison ${comparisonId} (table ${tableName}) execution. Results may be lost on reload until next checkpoint.`,
+    );
+  }
+
   setComparisonPartialResults(comparisonId, false);
 
   return { tableName: tableName!, durationSeconds };

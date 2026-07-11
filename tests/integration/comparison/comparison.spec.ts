@@ -101,6 +101,36 @@ const waitForComparisonConfigurationToPersist = async (page: Page) => {
     .toBe(true);
 };
 
+const waitForComparisonResultsToPersist = async (page: Page) => {
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () =>
+          new Promise<boolean>((resolve, reject) => {
+            const request = indexedDB.open('app-data');
+
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+              const database = request.result;
+              const transaction = database.transaction('comparison', 'readonly');
+              const comparisonsRequest = transaction.objectStore('comparison').getAll();
+
+              transaction.onerror = () => reject(transaction.error);
+              transaction.oncomplete = () => {
+                const comparisons = comparisonsRequest.result as Array<{
+                  resultsTableName?: string | null;
+                }>;
+
+                database.close();
+                resolve(comparisons.some((comparison) => Boolean(comparison.resultsTableName)));
+              };
+            };
+          }),
+      ),
+    )
+    .toBe(true);
+};
+
 test.describe('Comparison', () => {
   test.beforeEach(async ({ setupFileSystem, waitForFilesToBeProcessed }) => {
     await setupFileSystem(sourceFiles);
@@ -201,17 +231,15 @@ test.describe('Comparison', () => {
     selectMultipleFileNodes,
   }) => {
     await createComparisonFromSelectedFiles(page, selectMultipleFileNodes);
+    await runComparison(page);
+    await waitForComparisonResultsToPersist(page);
     await waitForComparisonConfigurationToPersist(page);
 
     await reloadPage();
 
-    await expect(page.getByText('Schema Comparison', { exact: true })).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'pondpilot.main.source_a', exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'pondpilot.main.source_b', exact: true }),
-    ).toBeVisible();
-    await expect(page.getByRole('checkbox', { name: 'id', exact: true })).toBeChecked();
+    await expect(page.getByText('Comparison Summary', { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText('Schema Comparison', { exact: true })).toBeHidden();
   });
 });
