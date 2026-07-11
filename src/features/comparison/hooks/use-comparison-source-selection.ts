@@ -1,7 +1,10 @@
 import { spotlight } from '@mantine/spotlight';
 import { AnyDataSource } from '@models/data-source';
 import { ComparisonSource } from '@models/tab';
-import { useAppStore } from '@store/app-store';
+import {
+  clearComparisonSourceSelectionCallback,
+  startComparisonSourceSelection,
+} from '@store/app-store';
 import { useCallback, useState } from 'react';
 
 import { dataSourceToComparisonSource } from '../utils/source-selection';
@@ -63,14 +66,11 @@ export function useComparisonSourceSelection(
 
       // Clear the selection target and callback
       setSelectionTarget(null);
-      useAppStore.setState({ comparisonSourceSelectionCallback: null });
+      clearComparisonSourceSelectionCallback();
     };
 
     // Store the callback in app store BEFORE opening spotlight
-    useAppStore.setState({
-      comparisonSourceSelectionCallback: callback,
-      spotlightView: 'dataSources',
-    });
+    startComparisonSourceSelection(callback);
 
     spotlight.open();
   }, [onSourceAChange]);
@@ -95,14 +95,11 @@ export function useComparisonSourceSelection(
 
       // Clear the selection target and callback
       setSelectionTarget(null);
-      useAppStore.setState({ comparisonSourceSelectionCallback: null });
+      clearComparisonSourceSelectionCallback();
     };
 
     // Store the callback in app store BEFORE opening spotlight
-    useAppStore.setState({
-      comparisonSourceSelectionCallback: callback,
-      spotlightView: 'dataSources',
-    });
+    startComparisonSourceSelection(callback);
 
     spotlight.open();
   }, [onSourceBChange]);

@@ -3,7 +3,6 @@
 
 import { showWarning } from '@components/app-notifications';
 import { persistDeleteTab } from '@controllers/tab/persist';
-import { deleteTabImpl } from '@controllers/tab/pure';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
 import {
   Comparison,
@@ -13,15 +12,23 @@ import {
 } from '@models/comparison';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { COMPARISON_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
-import { ComparisonTab, TabId } from '@models/tab';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
-import { useAppStore } from '@store/app-store';
+import {
+  clearComparisonResults as clearComparisonResultsInStore,
+  createComparison as createComparisonInStore,
+  deleteComparisons as deleteComparisonsInStore,
+  renameComparison as renameComparisonInStore,
+  updateComparisonConfig as updateComparisonConfigInStore,
+  updateComparisonExecutionTime as updateComparisonExecutionTimeInStore,
+  updateComparisonResultsTable as updateComparisonResultsTableInStore,
+  updateComparisonSchemaAnalysis as updateComparisonSchemaAnalysisInStore,
+  useAppStore,
+} from '@store/app-store';
 import { setComparisonPartialResults } from '@store/comparison-metadata';
 import { ensureComparison, makeComparisonId } from '@utils/comparison';
 import { findUniqueName, getAllExistingNames } from '@utils/helpers';
 
 import { persistDeleteComparison } from './persist';
-import { deleteComparisonImpl } from './pure';
 import { dropComparisonResultsTable } from './table-utils';
 
 /**
@@ -56,14 +63,7 @@ export const createComparison = (
     },
   };
 
-  // Add the new comparison to the store
-  useAppStore.setState(
-    (state) => ({
-      comparisons: new Map(state.comparisons).set(comparisonId, comparison),
-    }),
-    undefined,
-    'AppStore/createComparison',
-  );
+  createComparisonInStore(comparison);
 
   // Persist the new comparison to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -95,24 +95,8 @@ export const updateComparisonConfig = (
   // Check if the comparison exists
   const comparison = ensureComparison(comparisonOrId, comparisons);
 
-  // Create updated comparison
-  const updatedComparison: Comparison = {
-    ...comparison,
-    config,
-  };
-
-  // Update the store
-  const newComparisons = new Map(comparisons);
-  newComparisons.set(comparison.id, updatedComparison);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      comparisons: newComparisons,
-    },
-    undefined,
-    'AppStore/updateComparisonConfig',
-  );
+  const updatedComparison = updateComparisonConfigInStore(comparison.id, config);
+  if (!updatedComparison) return;
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -125,7 +109,7 @@ export const clearComparisonResults = async (
   comparisonOrId: Comparison | ComparisonId,
   options?: { pool?: AsyncDuckDBConnectionPool | null; tableNameOverride?: string | null },
 ): Promise<void> => {
-  const { comparisons, tabs, _iDbConn: iDbConn } = useAppStore.getState();
+  const { comparisons, _iDbConn: iDbConn } = useAppStore.getState();
   const comparison = ensureComparison(comparisonOrId, comparisons);
 
   if (!comparison.resultsTableName && comparison.lastExecutionTime === null) {
@@ -146,45 +130,15 @@ export const clearComparisonResults = async (
     }
   }
 
-  const updatedComparison: Comparison = {
-    ...comparison,
-    resultsTableName: null,
-    lastExecutionTime: null,
-    lastRunAt: null,
-  };
-
-  const newComparisons = new Map(comparisons);
-  newComparisons.set(comparison.id, updatedComparison);
-
-  const newTabs = new Map(tabs);
-  const updatedTabIds: TabId[] = [];
-
-  for (const [tabId, tab] of tabs.entries()) {
-    if (tab.type === 'comparison' && tab.comparisonId === comparison.id) {
-      const updatedTab: ComparisonTab = {
-        ...tab,
-        viewingResults: false,
-        comparisonResultsTable: null,
-        lastExecutionTime: null,
-      };
-      newTabs.set(tabId, updatedTab);
-      updatedTabIds.push(tabId);
-    }
-  }
-
-  useAppStore.setState(
-    {
-      comparisons: newComparisons,
-      tabs: newTabs,
-    },
-    undefined,
-    'AppStore/clearComparisonResults',
-  );
+  const clearResult = clearComparisonResultsInStore(comparison.id);
+  if (!clearResult) return;
+  const { comparison: updatedComparison, tabIds: updatedTabIds } = clearResult;
 
   if (iDbConn) {
     const tx = iDbConn.transaction([COMPARISON_TABLE_NAME, TAB_TABLE_NAME], 'readwrite');
     await tx.objectStore(COMPARISON_TABLE_NAME).put(updatedComparison, comparison.id);
     const tabStore = tx.objectStore(TAB_TABLE_NAME);
+    const { tabs: newTabs } = useAppStore.getState();
     for (const tabId of updatedTabIds) {
       const tab = newTabs.get(tabId);
       if (tab) {
@@ -210,24 +164,8 @@ export const updateComparisonSchemaAnalysis = (
   // Check if the comparison exists
   const comparison = ensureComparison(comparisonOrId, comparisons);
 
-  // Create updated comparison
-  const updatedComparison: Comparison = {
-    ...comparison,
-    schemaComparison,
-  };
-
-  // Update the store
-  const newComparisons = new Map(comparisons);
-  newComparisons.set(comparison.id, updatedComparison);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      comparisons: newComparisons,
-    },
-    undefined,
-    'AppStore/updateComparisonSchemaAnalysis',
-  );
+  const updatedComparison = updateComparisonSchemaAnalysisInStore(comparison.id, schemaComparison);
+  if (!updatedComparison) return;
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -254,24 +192,8 @@ export const renameComparison = (
 
   const uniqueName = findUniqueName(newName, (value) => allExistingNames.has(value));
 
-  // Create updated comparison
-  const updatedComparison: Comparison = {
-    ...comparison,
-    name: uniqueName,
-  };
-
-  // Update the store
-  const newComparisons = new Map(comparisons);
-  newComparisons.set(comparison.id, updatedComparison);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      comparisons: newComparisons,
-    },
-    undefined,
-    'AppStore/renameComparison',
-  );
+  const updatedComparison = renameComparisonInStore(comparison.id, uniqueName);
+  if (!updatedComparison) return;
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -289,25 +211,8 @@ export const updateComparisonExecutionTime = (
   // Check if the comparison exists
   const comparison = ensureComparison(comparisonOrId, comparisons);
 
-  // Create updated comparison
-  const updatedComparison: Comparison = {
-    ...comparison,
-    lastExecutionTime: timestamp,
-    lastRunAt: new Date().toISOString(),
-  };
-
-  // Update the store
-  const newComparisons = new Map(comparisons);
-  newComparisons.set(comparison.id, updatedComparison);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      comparisons: newComparisons,
-    },
-    undefined,
-    'AppStore/updateComparisonExecutionTime',
-  );
+  const updatedComparison = updateComparisonExecutionTimeInStore(comparison.id, timestamp);
+  if (!updatedComparison) return;
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -325,24 +230,8 @@ export const updateComparisonResultsTable = (
   // Check if the comparison exists
   const comparison = ensureComparison(comparisonOrId, comparisons);
 
-  // Create updated comparison
-  const updatedComparison: Comparison = {
-    ...comparison,
-    resultsTableName,
-  };
-
-  // Update the store
-  const newComparisons = new Map(comparisons);
-  newComparisons.set(comparison.id, updatedComparison);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      comparisons: newComparisons,
-    },
-    undefined,
-    'AppStore/updateComparisonResultsTable',
-  );
+  const updatedComparison = updateComparisonResultsTableInStore(comparison.id, resultsTableName);
+  if (!updatedComparison) return;
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -369,14 +258,7 @@ export const deleteComparisons = async (
   comparisonIds: Iterable<ComparisonId>,
   pool?: any, // AsyncDuckDBConnectionPool - optional to avoid circular dependency
 ) => {
-  const {
-    comparisons,
-    tabs,
-    tabOrder,
-    activeTabId,
-    previewTabId,
-    _iDbConn: iDbConn,
-  } = useAppStore.getState();
+  const { comparisons, _iDbConn: iDbConn } = useAppStore.getState();
 
   const comparisonIdsToDeleteSet = new Set(comparisonIds);
 
@@ -389,49 +271,12 @@ export const deleteComparisons = async (
     }
   }
 
-  const newComparisons = deleteComparisonImpl(comparisonIds, comparisons);
-
-  const tabsToDelete: TabId[] = [];
-
-  for (const [tabId, tab] of tabs.entries()) {
-    if (tab.type === 'comparison') {
-      if (comparisonIdsToDeleteSet.has(tab.comparisonId)) {
-        tabsToDelete.push(tabId);
-      }
-    }
-  }
-
-  let newTabs = tabs;
-  let newTabOrder = tabOrder;
-  let newActiveTabId = activeTabId;
-  let newPreviewTabId = previewTabId;
-
-  if (tabsToDelete.length > 0) {
-    const result = deleteTabImpl({
-      deleteTabIds: tabsToDelete,
-      tabs,
-      tabOrder,
-      activeTabId,
-      previewTabId,
-    });
-
-    newTabs = result.newTabs;
-    newTabOrder = result.newTabOrder;
-    newActiveTabId = result.newActiveTabId;
-    newPreviewTabId = result.newPreviewTabId;
-  }
-
-  useAppStore.setState(
-    {
-      comparisons: newComparisons,
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-      activeTabId: newActiveTabId,
-      previewTabId: newPreviewTabId,
-    },
-    undefined,
-    'AppStore/deleteComparison',
-  );
+  const {
+    activeTabId: newActiveTabId,
+    previewTabId: newPreviewTabId,
+    tabOrder: newTabOrder,
+    tabIds: tabsToDelete,
+  } = deleteComparisonsInStore(comparisonIdsToDeleteSet);
 
   // Clean up results tables from the database
   if (pool) {
