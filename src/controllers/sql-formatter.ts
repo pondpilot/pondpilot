@@ -1,7 +1,7 @@
 import { showSuccess, showError } from '@components/app-notifications';
+import type { monaco } from '@features/editor/monaco-setup';
 import { SQLScript } from '@models/sql-script';
 import { formatSQLSafe } from '@utils/sql-formatter';
-import type * as monaco from 'monaco-editor';
 
 import { updateSQLScriptContent } from './sql-script';
 

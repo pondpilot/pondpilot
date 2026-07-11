@@ -3,6 +3,8 @@ import '@mantine/notifications/styles.css';
 import '@mantine/spotlight/styles.css';
 import 'allotment/dist/style.css';
 
+import '@features/editor/monaco-setup';
+
 import './index.css';
 
 import { ModifierProvider } from '@components/modifier-context/modifier-context';

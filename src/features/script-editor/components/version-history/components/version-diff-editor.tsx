@@ -1,10 +1,10 @@
 import { useEditorTheme } from '@features/editor/hooks';
+import { monaco } from '@features/editor/monaco-setup';
 import { useAppTheme } from '@hooks/use-app-theme';
 import { Text } from '@mantine/core';
 import { ScriptVersion } from '@models/script-version';
 import { DiffEditor } from '@monaco-editor/react';
 import { setDataTestId } from '@utils/test-id';
-import * as monaco from 'monaco-editor';
 import { useEffect, useRef } from 'react';
 
 const EDITOR_OPTIONS: monaco.editor.IDiffEditorOptions = {
@@ -38,10 +38,8 @@ export const VersionDiffEditor = ({
   // Define theme for DiffEditor
   useEffect(() => {
     if (!themeDefinedRef.current && typeof window !== 'undefined') {
-      import('monaco-editor').then((monacoModule) => {
-        monacoModule.editor.defineTheme(themeName, themeData as monaco.editor.IStandaloneThemeData);
-        themeDefinedRef.current = true;
-      });
+      monaco.editor.defineTheme(themeName, themeData as monaco.editor.IStandaloneThemeData);
+      themeDefinedRef.current = true;
     }
   }, [themeName, themeData]);
 

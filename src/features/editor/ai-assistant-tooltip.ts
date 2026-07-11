@@ -1,5 +1,5 @@
+import { monaco } from '@features/editor/monaco-setup';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
-import * as monaco from 'monaco-editor';
 
 import { createAIAssistantHandlers } from './ai-assistant/ai-assistant-handlers';
 import { UI_SELECTORS } from './ai-assistant/constants';

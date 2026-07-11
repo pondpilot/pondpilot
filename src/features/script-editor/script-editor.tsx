@@ -19,6 +19,7 @@ import {
   isAIAssistantVisible,
 } from '@features/editor/ai-assistant-tooltip';
 import { convertToFlowScopeSchema } from '@features/editor/auto-complete';
+import { monaco } from '@features/editor/monaco-setup';
 import { useAppTheme } from '@hooks/use-app-theme';
 import { Group } from '@mantine/core';
 import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
@@ -31,7 +32,6 @@ import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip'
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { getScriptMetadata } from '@utils/script-version';
 import { setDataTestId } from '@utils/test-id';
-import * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { ScriptEditorDataStatePane } from './components';
