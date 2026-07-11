@@ -281,24 +281,51 @@ export function useAppInitialization({
         showPermsAlert(),
       );
 
-      // Load DuckDB functions into the store
-      await loadDuckDBFunctions(resolvedConn);
+      // Report we're ready for user interactions now.
+      setAppLoadState('ready');
 
-      // Install CORS proxy macros
-      try {
-        await installCorsProxyMacros(resolvedConn);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn('Failed to install CORS proxy macros:', message);
-        showWarning({
-          title: 'CORS Proxy Initialization Warning',
-          message:
-            'CORS proxy macros could not be installed. Remote databases may require manual configuration.',
-        });
-      }
+      (async () => {
+        try {
+          // Load DuckDB functions into the store
+          await loadDuckDBFunctions(resolvedConn);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('Failed to load DuckDB functions:', message);
+          showWarning({
+            title: 'DuckDB Functions Initialization Warning',
+            message:
+              'DuckDB function metadata could not be loaded. Some editor help and validation may be incomplete.',
+          });
+        }
 
-      // Reconnect to remote databases
-      await reconnectRemoteDatabases(resolvedConn);
+        // Install CORS proxy macros
+        try {
+          await installCorsProxyMacros(resolvedConn);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn('Failed to install CORS proxy macros:', message);
+          showWarning({
+            title: 'CORS Proxy Initialization Warning',
+            message:
+              'CORS proxy macros could not be installed. Remote databases may require manual configuration.',
+          });
+        }
+
+        // Reconnect to remote databases
+        try {
+          await reconnectRemoteDatabases(resolvedConn);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('Failed to reconnect remote databases:', message);
+          showWarning({
+            title: 'Remote Database Reconnect Warning',
+            message:
+              'Some remote databases could not be reconnected at startup. They can be retried from the data explorer.',
+          });
+        }
+      })().catch((error) => {
+        console.error('Unexpected error during background app initialization:', error);
+      });
 
       // TODO: more detailed/better message
       if (discardedEntries.length) {
@@ -352,9 +379,6 @@ export function useAppInitialization({
         message: `Failed to restore app data. ${message}`,
       });
     }
-
-    // Report we are ready
-    setAppLoadState('ready');
   };
 
   useEffect(() => {
@@ -367,6 +391,10 @@ export function useAppInitialization({
     // As of today, if the File Access API is not supported,
     // we are not initializing either in-memory DuckDB or the app data.
     if (!isFileAccessApiSupported || isMobileDevice) return;
+
+    if (useAppStore.getState().appLoadState === 'ready') {
+      return;
+    }
 
     // Start initialization of data when the database is ready
     if (conn) {
