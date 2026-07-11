@@ -1,5 +1,6 @@
 import { IconType } from '@components/named-icon';
 import { persistPutSqlScriptSession } from '@controllers/sql-script/persist';
+import { deleteTabImpl } from '@controllers/tab/pure';
 import { PROGRESS_CLEANUP_MAX_AGE_MS } from '@features/comparison/config/execution-config';
 import { Comparison, ComparisonExecutionProgress, ComparisonId } from '@models/comparison';
 import { ContentViewState } from '@models/content-view';
@@ -20,7 +21,7 @@ import { ExportFormat } from '@models/export-options';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId, SQLScriptSession } from '@models/sql-script';
-import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
+import { AnyTab, ScriptTab, TabId, TabReactiveState, TabType } from '@models/tab';
 import { getDatabaseIdentifier, isFlatFileDataSource } from '@utils/data-source';
 import { getTabIcon, getTabName } from '@utils/navigation';
 import { IDBPDatabase } from 'idb';
@@ -31,7 +32,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { resetAppData } from './restore';
 import { createSelectors } from './utils';
 import { SpotlightView } from '../components/spotlight/model';
-import { TabExecutionError } from '../controllers/tab/tab-controller';
+import type { TabExecutionError } from '../controllers/tab/tab-controller';
 import { SourceSelectionCallback } from '../features/comparison/hooks/use-comparison-source-selection';
 
 type AppLoadState = 'init' | 'core-ready' | 'ready' | 'error';
@@ -698,6 +699,238 @@ export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
 
 export const setDuckDBFunctions = (functions: DBFunctionsMetadata[]) => {
   useAppStore.setState({ duckDBFunctions: functions }, undefined, 'AppStore/setDuckDBFunctions');
+};
+
+export const createTab = (tab: AnyTab, activeTabId?: TabId | null): TabId[] => {
+  let nextTabOrder: TabId[] = [];
+
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs).set(tab.id, tab);
+      const tabOrder = [...state.tabOrder, tab.id];
+      nextTabOrder = tabOrder;
+
+      return activeTabId === undefined ? { tabs, tabOrder } : { tabs, tabOrder, activeTabId };
+    },
+    undefined,
+    'AppStore/createTab',
+  );
+
+  return nextTabOrder;
+};
+
+export const updateTabDataViewStaleDataCache = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabDataViewStaleDataCache',
+  );
+};
+
+export const updateTabDataViewColumnSizesCache = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabDataViewColumnSizesCache',
+  );
+};
+
+export const updateTabDataViewDataPageCache = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabDataViewDataPageCache',
+  );
+};
+
+export const updateScriptTabLastExecutedQuery = (tab: ScriptTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateScriptTabLastExecutedQuery',
+  );
+};
+
+export const updateScriptTabLayout = (tab: ScriptTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateScriptTabLayout',
+  );
+};
+
+export const updateTabViewMode = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabViewMode',
+  );
+};
+
+export const updateTabChartConfig = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabChartConfig',
+  );
+};
+
+export const setActiveTab = (tabId: TabId | null): void => {
+  useAppStore.setState({ activeTabId: tabId }, undefined, 'AppStore/setActiveTab');
+};
+
+export const setPreviewTab = (tabId: TabId | null): void => {
+  useAppStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTab');
+};
+
+type CloseTabsResult = {
+  activeTabId: TabId | null;
+  previewTabId: TabId | null;
+  tabOrder: TabId[];
+};
+
+export const replacePreviewTab = (previewTabId: TabId, tabId: TabId): CloseTabsResult => {
+  let result: CloseTabsResult = {
+    activeTabId: null,
+    previewTabId: tabId,
+    tabOrder: [],
+  };
+
+  useAppStore.setState(
+    (state) => {
+      const { newTabs, newTabOrder, newActiveTabId } = deleteTabImpl({
+        deleteTabIds: [previewTabId],
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        activeTabId: state.activeTabId,
+        previewTabId: state.previewTabId,
+      });
+
+      result = {
+        activeTabId: newActiveTabId,
+        previewTabId: tabId,
+        tabOrder: newTabOrder,
+      };
+
+      return {
+        tabs: newTabs,
+        tabOrder: newTabOrder,
+        activeTabId: newActiveTabId,
+        previewTabId: tabId,
+      };
+    },
+    undefined,
+    'AppStore/replacePreviewTab',
+  );
+
+  return result;
+};
+
+export const reorderTabs = (tabOrder: TabId[]): void => {
+  useAppStore.setState({ tabOrder }, undefined, 'AppStore/reorderTabs');
+};
+
+export const closeTabs = (tabIds: TabId[]): CloseTabsResult => {
+  let result: CloseTabsResult = {
+    activeTabId: null,
+    previewTabId: null,
+    tabOrder: [],
+  };
+
+  useAppStore.setState(
+    (state) => {
+      const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({
+        deleteTabIds: tabIds,
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        activeTabId: state.activeTabId,
+        previewTabId: state.previewTabId,
+      });
+
+      const tabExecutionErrors = new Map(state.tabExecutionErrors);
+      tabIds.forEach((tabId) => tabExecutionErrors.delete(tabId));
+
+      result = {
+        activeTabId: newActiveTabId,
+        previewTabId: newPreviewTabId,
+        tabOrder: newTabOrder,
+      };
+
+      return {
+        tabs: newTabs,
+        tabOrder: newTabOrder,
+        activeTabId: newActiveTabId,
+        previewTabId: newPreviewTabId,
+        tabExecutionErrors,
+      };
+    },
+    undefined,
+    'AppStore/closeTabs',
+  );
+
+  return result;
+};
+
+export const markTabExecutionError = (tabId: TabId, error: TabExecutionError): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabExecutionErrors = new Map(state.tabExecutionErrors);
+      tabExecutionErrors.set(tabId, error);
+      return { tabExecutionErrors };
+    },
+    undefined,
+    'AppStore/markTabExecutionError',
+  );
+};
+
+export const clearTabExecutionError = (tabId: TabId): void => {
+  if (!useAppStore.getState().tabExecutionErrors.has(tabId)) return;
+
+  useAppStore.setState(
+    (state) => {
+      const tabExecutionErrors = new Map(state.tabExecutionErrors);
+      tabExecutionErrors.delete(tabId);
+      return { tabExecutionErrors };
+    },
+    undefined,
+    'AppStore/clearTabExecutionError',
+  );
+};
+
+export const clearAllTabExecutionErrors = (): void => {
+  useAppStore.setState(
+    { tabExecutionErrors: new Map() },
+    undefined,
+    'AppStore/clearAllTabExecutionErrors',
+  );
 };
 
 export const setScriptSession = (scriptId: SQLScriptId, session: SQLScriptSession) => {
