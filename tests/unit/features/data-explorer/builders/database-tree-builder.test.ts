@@ -176,7 +176,9 @@ describe('buildDatabaseNode', () => {
       // Test delete callback
       if (node.onDelete) {
         node.onDelete(node);
-        expect(deleteDataSources).toHaveBeenCalledWith(mockContext.conn, ['local-db']);
+        expect(deleteDataSources).toHaveBeenCalledWith(mockContext.conn, [
+          'local-db' as PersistentDataSourceId,
+        ]);
       }
     });
 
@@ -211,7 +213,11 @@ describe('buildDatabaseNode', () => {
 
       // Test rename submit
       node.renameCallbacks?.onRenameSubmit(node, 'new_name');
-      expect(renameDB).toHaveBeenCalledWith('local-db', 'new_name', mockContext.conn);
+      expect(renameDB).toHaveBeenCalledWith(
+        'local-db' as PersistentDataSourceId,
+        'new_name',
+        mockContext.conn,
+      );
     });
 
     it('should not allow deletion for non-user-added databases', () => {
@@ -433,7 +439,7 @@ describe('buildDatabaseNode', () => {
       showSchemaItem?.onClick?.(node, {} as any);
 
       expect(getOrCreateSchemaBrowserTab).toHaveBeenCalledWith({
-        sourceId: 'local-db',
+        sourceId: 'local-db' as PersistentDataSourceId,
         sourceType: 'db',
         schemaName: 'main', // First schema after sorting
         setActive: true,
@@ -514,7 +520,7 @@ describe('buildDatabaseNode', () => {
 
       expect(buildSchemaTreeNode).toHaveBeenCalledWith({
         nodeDbId: 'local-db',
-        sourceDbId: 'local-db',
+        sourceDbId: 'local-db' as PersistentDataSourceId,
         dbName: 'my_database',
         schema: { name: 'public', objects: [] },
         fileViewNames: undefined,

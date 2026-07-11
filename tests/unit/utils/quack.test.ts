@@ -45,7 +45,7 @@ describe('quack utils', () => {
   });
 
   it('loads Quack from core nightly first', async () => {
-    const query = jest.fn<() => Promise<unknown>>().mockResolvedValue({});
+    const query = jest.fn<(sql: string) => Promise<unknown>>().mockResolvedValue({});
 
     await expect(loadQuackExtension({ query } as any)).resolves.toBeUndefined();
     expect(query).toHaveBeenNthCalledWith(1, 'FORCE INSTALL quack FROM core_nightly');
@@ -54,7 +54,7 @@ describe('quack utils', () => {
 
   it('tries community repositories when core nightly fails', async () => {
     const query = jest
-      .fn<() => Promise<unknown>>()
+      .fn<(sql: string) => Promise<unknown>>()
       .mockRejectedValueOnce(new Error('core nightly failed'))
       .mockRejectedValueOnce(new Error('core nightly failed'))
       .mockResolvedValueOnce({})
@@ -67,7 +67,7 @@ describe('quack utils', () => {
 
   it('falls back to pinned Quack WASM artifacts when repository loading fails', async () => {
     const query = jest
-      .fn<() => Promise<unknown>>()
+      .fn<(sql: string) => Promise<unknown>>()
       .mockRejectedValueOnce(new Error('core nightly failed'))
       .mockRejectedValueOnce(new Error('core nightly failed'))
       .mockRejectedValueOnce(new Error('community failed'))
@@ -92,7 +92,7 @@ describe('quack utils', () => {
     env.VITE_QUACK_WASM_EXTENSION_URL = '/duckdb-extensions/quack.duckdb_extension.wasm';
     try {
       const query = jest
-        .fn<() => Promise<unknown>>()
+        .fn<(sql: string) => Promise<unknown>>()
         .mockRejectedValueOnce(new Error('core nightly failed'))
         .mockRejectedValueOnce(new Error('core nightly failed'))
         .mockRejectedValueOnce(new Error('community failed'))
@@ -116,7 +116,7 @@ describe('quack utils', () => {
   it('retries with pinned Quack WASM artifacts when repository loading lacks ATTACH storage support', async () => {
     const pool = {
       query: jest
-        .fn<() => Promise<unknown>>()
+        .fn<(sql: string) => Promise<unknown>>()
         .mockResolvedValueOnce({})
         .mockResolvedValueOnce({})
         .mockRejectedValueOnce(new Error('Binder Error: Unrecognized storage type "quack"'))
@@ -142,7 +142,7 @@ describe('quack utils', () => {
   it('reports DuckDB-WASM bundles that load Quack without ATTACH storage support', async () => {
     const pool = {
       query: jest
-        .fn<() => Promise<unknown>>()
+        .fn<(sql: string) => Promise<unknown>>()
         .mockResolvedValueOnce({})
         .mockResolvedValueOnce({})
         .mockRejectedValueOnce(new Error('Binder Error: Unrecognized storage type "quack"'))
@@ -165,7 +165,7 @@ describe('quack utils', () => {
     try {
       const pool = {
         query: jest
-          .fn<() => Promise<unknown>>()
+          .fn<(sql: string) => Promise<unknown>>()
           .mockResolvedValueOnce({})
           .mockResolvedValueOnce({})
           .mockImplementationOnce(() => new Promise(() => {})),
@@ -203,7 +203,7 @@ describe('quack utils', () => {
       is_nullable: [true, false],
     };
     const pool = {
-      query: jest.fn<() => Promise<unknown>>().mockResolvedValue({
+      query: jest.fn<(sql: string) => Promise<unknown>>().mockResolvedValue({
         numRows: 2,
         getChild: (name: string) => ({ get: (index: number) => values[name][index] }),
       }),
@@ -235,7 +235,7 @@ describe('quack utils', () => {
   it('reports unsupported DuckDB-WASM bundles when Quack cannot load', async () => {
     const pool = {
       query: jest
-        .fn<() => Promise<unknown>>()
+        .fn<(sql: string) => Promise<unknown>>()
         .mockRejectedValueOnce(new Error('incompatible extension'))
         .mockRejectedValueOnce(new Error('core nightly failed'))
         .mockRejectedValueOnce(new Error('core nightly failed'))

@@ -33,6 +33,7 @@ module.exports = {
     'import.meta.env.VITE_CORS_PROXY_URL': undefined,
   },
   moduleNameMapper: {
+    '^uuid$': '<rootDir>/tests/unit/__mocks__/uuid.ts',
     '^@pondpilot/flowscope-core$': '<rootDir>/tests/unit/__mocks__/flowscope-core.ts',
     '^.+/workers/flowscope-client$': '<rootDir>/tests/unit/__mocks__/flowscope-client.ts',
     '^@utils/env$': '<rootDir>/tests/unit/__mocks__/env.ts',
