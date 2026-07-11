@@ -258,7 +258,7 @@ export class OPFSUtil {
       return file.size;
     } catch (error) {
       console.error(`Error getting file size for ${path}:`, error);
-      return 0;
+      throw error;
     }
   }
 

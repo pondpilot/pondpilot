@@ -147,7 +147,25 @@ describe('DBPersistenceController', () => {
       expect(controller.getState()).toEqual(DEFAULT_STATE);
     });
 
-    it('reports file-handle creation failures without partially initializing', async () => {
+    it('checks for the database before creating a missing file', async () => {
+      const { controller, opfs } = makeController();
+
+      await expect(controller.initialize()).resolves.toEqual({
+        mode: 'persistent',
+        dbPath: DB_FULL_PATH,
+        dbSize: 0,
+        lastSync: null,
+      });
+
+      expect(opfs.calls).toEqual([
+        'isAvailable',
+        `fileExists:${DB_FILE_PATH}`,
+        `getFileHandle:${DB_FILE_PATH}:true`,
+      ]);
+      expect(opfs.exists).toBe(true);
+    });
+
+    it('reports missing-file creation failures without partially initializing', async () => {
       const opfs = new FakeOPFSUtil();
       opfs.failNext('getFileHandle');
       const { controller } = makeController(opfs);
@@ -155,7 +173,11 @@ describe('DBPersistenceController', () => {
       await expect(controller.initialize()).rejects.toThrow('Failed to create file handle');
       await controller.cleanupResources();
 
-      expect(opfs.calls).toEqual(['isAvailable', `getFileHandle:${DB_FILE_PATH}:true`]);
+      expect(opfs.calls).toEqual([
+        'isAvailable',
+        `fileExists:${DB_FILE_PATH}`,
+        `getFileHandle:${DB_FILE_PATH}:true`,
+      ]);
       expect(controller.getState()).toEqual(DEFAULT_STATE);
     });
 
@@ -175,7 +197,6 @@ describe('DBPersistenceController', () => {
 
       expect(opfs.calls).toEqual([
         'isAvailable',
-        `getFileHandle:${DB_FILE_PATH}:true`,
         `fileExists:${DB_FILE_PATH}`,
         `fileExists:${DB_FILE_PATH}`,
         `getFileSize:${DB_FILE_PATH}`,
@@ -183,22 +204,23 @@ describe('DBPersistenceController', () => {
       ]);
     });
 
-    it('recovers from a size-read failure with a zero-sized persistent state', async () => {
+    it('surfaces an initial size-read failure without partially initializing', async () => {
       const opfs = new FakeOPFSUtil();
       opfs.exists = true;
       opfs.size = 4096;
       opfs.failNext('getFileSize');
       const { controller } = makeController(opfs);
 
-      await expect(controller.initialize()).resolves.toEqual({
-        mode: 'persistent',
-        dbPath: DB_FULL_PATH,
-        dbSize: 0,
-        lastSync: NOW,
-      });
+      await expect(controller.initialize()).rejects.toThrow('simulated getFileSize failure');
       await controller.cleanupResources();
 
-      expect(opfs.calls.at(-1)).toBe('closeAllHandles');
+      expect(opfs.calls).toEqual([
+        'isAvailable',
+        `fileExists:${DB_FILE_PATH}`,
+        `fileExists:${DB_FILE_PATH}`,
+        `getFileSize:${DB_FILE_PATH}`,
+      ]);
+      expect(controller.getState()).toEqual(DEFAULT_STATE);
     });
 
     it('allows cleanup to be retried after closing handles fails', async () => {
@@ -245,7 +267,7 @@ describe('DBPersistenceController', () => {
       expect(opfs.calls).toEqual([`storeFile:${DB_FILE_PATH}:4`]);
       expect(controller.getState()).toEqual({
         mode: 'persistent',
-        dbPath: DB_FILE_PATH,
+        dbPath: DB_FULL_PATH,
         dbSize: 4,
         lastSync: NOW,
       });
@@ -308,13 +330,12 @@ describe('DBPersistenceController', () => {
       expect(controller.getState()).toEqual(previousState);
     });
 
-    it('reports failure without resetting metadata when recreation fails after deletion', async () => {
+    it('resets metadata when recreation fails after deletion', async () => {
       const opfs = new FakeOPFSUtil();
       opfs.exists = true;
       opfs.size = 2048;
       const { controller } = makeController(opfs);
       await controller.initialize();
-      const previousState = controller.getState();
       opfs.calls.length = 0;
       opfs.failNext('getFileHandle');
 
@@ -325,7 +346,12 @@ describe('DBPersistenceController', () => {
         `getFileHandle:${DB_FILE_PATH}:true`,
       ]);
       expect(opfs.exists).toBe(false);
-      expect(controller.getState()).toEqual(previousState);
+      expect(controller.getState()).toEqual({
+        mode: 'persistent',
+        dbPath: DB_FULL_PATH,
+        dbSize: 0,
+        lastSync: null,
+      });
     });
   });
 
@@ -347,9 +373,11 @@ describe('DBPersistenceController', () => {
       await controller.initialize();
       opfs.failNext('getFileSize');
 
-      await expect(controller.getDBSize()).resolves.toBe(0);
+      const previousState = controller.getState();
 
-      expect(controller.getState().dbSize).toBe(2048);
+      await expect(controller.getDBSize()).rejects.toThrow('simulated getFileSize failure');
+
+      expect(controller.getState()).toEqual(previousState);
     });
 
     it('refreshes size and last-sync time together', async () => {
@@ -371,21 +399,19 @@ describe('DBPersistenceController', () => {
       expect(controller.getState().dbSize).toBe(300);
     });
 
-    it('records a sync with zero size when the size lookup fails', async () => {
+    it('preserves size and sync time when the size lookup fails', async () => {
       const opfs = new FakeOPFSUtil();
       opfs.exists = true;
       opfs.size = 100;
       const { controller } = makeController(opfs);
       await controller.initialize();
+      const previousState = controller.getState();
       opfs.failNext('getFileSize');
       jest.setSystemTime(new Date('2026-07-10T15:00:00.000Z'));
 
-      await expect(controller.updateLastSync()).resolves.toEqual({
-        mode: 'persistent',
-        dbPath: DB_FULL_PATH,
-        dbSize: 0,
-        lastSync: new Date('2026-07-10T15:00:00.000Z'),
-      });
+      await expect(controller.updateLastSync()).rejects.toThrow('simulated getFileSize failure');
+
+      expect(controller.getState()).toEqual(previousState);
     });
   });
 });
