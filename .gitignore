@@ -145,3 +145,4 @@ tests/test-tmp
 
 # WASM build artifacts
 /public/wasm/
+.tmp/
