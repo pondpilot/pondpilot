@@ -203,24 +203,6 @@ export const DuckDBPersistenceProvider: React.FC<{
 
         const opfsUtil = new OPFSUtil();
 
-        // Pre-initialize the OPFS database file to prevent file handle issues
-        try {
-          // Explicitly create the handle for the database file if it doesn't exist
-          await opfsUtil.getFileHandle('pondpilot.db', true);
-
-          memoizedStatusUpdate({
-            state: 'loading',
-            message: 'Preparing database file...',
-          });
-        } catch (handleError) {
-          console.error('Error creating database file handle:', handleError);
-          memoizedStatusUpdate({
-            state: 'error',
-            message: 'Failed to create database file handle',
-          });
-          throw handleError;
-        }
-
         const persistenceController = new DBPersistenceController(opfsUtil);
 
         memoizedStatusUpdate({

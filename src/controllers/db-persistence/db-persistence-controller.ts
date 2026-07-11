@@ -43,14 +43,6 @@ export class DBPersistenceController {
       throw new Error('OPFS not available');
     }
 
-    // Get or create file handle - this ensures the file is accessible in OPFS
-    try {
-      // This will create the file handle if it doesn't exist
-      await this.opfsUtil.getFileHandle(DB_FILE_PATH);
-    } catch (error) {
-      throw new Error('Failed to create file handle');
-    }
-
     const dbExists = await this.opfsUtil.fileExists(DB_FILE_PATH);
 
     if (dbExists) {
@@ -62,6 +54,12 @@ export class DBPersistenceController {
         lastSync: new Date(),
       };
     } else {
+      try {
+        await this.opfsUtil.getFileHandle(DB_FILE_PATH, true);
+      } catch (error) {
+        throw new Error('Failed to create file handle');
+      }
+
       // Initialize with persistent mode, but database doesn't exist yet
       this.state = {
         mode: 'persistent',
@@ -96,7 +94,7 @@ export class DBPersistenceController {
 
       this.state = {
         mode: 'persistent',
-        dbPath: DB_FILE_PATH,
+        dbPath: DB_FULL_PATH,
         dbSize: data.byteLength,
         lastSync: new Date(),
       };
@@ -113,14 +111,17 @@ export class DBPersistenceController {
   public async clearDB(): Promise<boolean> {
     try {
       await this.opfsUtil.deleteFile(DB_FILE_PATH);
-
-      await this.opfsUtil.getFileHandle(DB_FILE_PATH, true);
-
       this.state = {
         ...this.state,
         dbSize: 0,
         lastSync: null,
       };
+    } catch (error) {
+      return false;
+    }
+
+    try {
+      await this.opfsUtil.getFileHandle(DB_FILE_PATH, true);
 
       return true;
     } catch (error) {
@@ -132,18 +133,14 @@ export class DBPersistenceController {
    * Get the current database size
    */
   public async getDBSize(): Promise<number> {
-    try {
-      const exists = await this.opfsUtil.fileExists(DB_FILE_PATH);
-      if (!exists) {
-        return 0;
-      }
-
-      const size = await this.opfsUtil.getFileSize(DB_FILE_PATH);
-      this.state.dbSize = size;
-      return size;
-    } catch (error) {
+    const exists = await this.opfsUtil.fileExists(DB_FILE_PATH);
+    if (!exists) {
       return 0;
     }
+
+    const size = await this.opfsUtil.getFileSize(DB_FILE_PATH);
+    this.state.dbSize = size;
+    return size;
   }
 
   /**
