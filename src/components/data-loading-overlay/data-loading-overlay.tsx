@@ -2,7 +2,7 @@ import { HotkeyPill } from '@components/hotkey-pill';
 import { LoadingOverlay } from '@components/loading-overlay';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Stack, Loader, Button, Text, Group } from '@mantine/core';
-import { useHotkeys } from '@mantine/hooks';
+import { useHotkeys } from '@hooks/use-hotkeys';
 
 interface DataLoadingOverlayProps {
   title: string;

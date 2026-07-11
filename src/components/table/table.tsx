@@ -1,6 +1,7 @@
 import { ColumnMeta, GetRowClassName } from '@components/table/model';
 import { Text } from '@mantine/core';
-import { useDidUpdate, useHotkeys } from '@mantine/hooks';
+import { useDidUpdate } from '@mantine/hooks';
+import { useHotkeys } from '@hooks/use-hotkeys';
 import { DataTableSlice } from '@models/data-adapter';
 import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema, DataRow } from '@models/db';
 import { useReactTable, getCoreRowModel, ColumnDef } from '@tanstack/react-table';

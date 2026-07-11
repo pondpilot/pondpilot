@@ -1,4 +1,4 @@
-import { useHotkeys } from '@mantine/hooks';
+import { useHotkeys } from '@hooks/use-hotkeys';
 
 /**
  * Custom hook for handling delete hotkey (mod+Backspace) in explorer trees
