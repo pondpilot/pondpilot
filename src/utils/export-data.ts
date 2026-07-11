@@ -485,7 +485,10 @@ export async function exportAsParquet(
     const buffer = await pool.copyFileToBuffer(tempFileName);
 
     // Trigger browser download
-    downloadFile(new Blob([buffer], { type: 'application/vnd.apache.parquet' }), fileName);
+    downloadFile(
+      new Blob([Uint8Array.from(buffer)], { type: 'application/vnd.apache.parquet' }),
+      fileName,
+    );
   } finally {
     // Clean up the temp file
     try {

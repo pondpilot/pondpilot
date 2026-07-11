@@ -17,7 +17,7 @@ async function main() {
 
   try {
     await fs.access(source);
-  } catch (error) {
+  } catch (_error) {
     console.error(`read_stat wasm not found at: ${source}`);
     process.exit(1);
   }
