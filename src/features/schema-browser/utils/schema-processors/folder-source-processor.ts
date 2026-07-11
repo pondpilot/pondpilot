@@ -1,7 +1,7 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PersistentDataSourceId, AnyFlatFileDataSource } from '@models/data-source';
 import { LocalEntryId, LocalEntry } from '@models/file-system';
 import { SchemaBrowserTab } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 import { processMultipleFileSources } from './common';
 import { SchemaGraph } from '../../model';

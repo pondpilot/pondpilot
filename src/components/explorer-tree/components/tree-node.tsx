@@ -14,7 +14,7 @@ import {
 } from './tree-node/index';
 
 const ITEM_CLASSES = {
-  base: 'cursor-pointer h-[30px] rounded group bg-transparent !outline-none',
+  base: 'cursor-pointer h-[30px] rounded-sm group bg-transparent outline-hidden!',
   disabled: 'opacity-50 cursor-default',
   transparent004: 'bg-transparent004-light dark:bg-transparent004-dark',
   transparent008: 'bg-transparent008-light dark:bg-transparent008-dark',

@@ -1,7 +1,7 @@
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 import { getDatabaseModel } from '../controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '../features/duckdb-context/duckdb-connection-pool';
 import { DBTableOrView } from '../models/db';
 import {
   SchemaContext,
@@ -30,7 +30,7 @@ export class SchemaContextService {
 
     try {
       // Use DuckDB's getTableNames API to get accurate table references
-      const pooledConn = await conn.getPooledConnection();
+      const pooledConn = await conn.getBackgroundConnection();
       try {
         const tableNames = await pooledConn.getTableNames(sqlStatement);
 

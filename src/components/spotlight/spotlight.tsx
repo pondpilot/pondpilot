@@ -41,7 +41,14 @@ import {
   IconMap,
   IconMapOff,
 } from '@tabler/icons-react';
-import { isIcebergCatalog, isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
+import {
+  isDuckLakeCatalog,
+  isIcebergCatalog,
+  isLocalDatabase,
+  isMotherDuckConnection,
+  isQuackConnection,
+  isRemoteDatabase,
+} from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
@@ -52,7 +59,7 @@ import {
 } from '@utils/table-access';
 import { setDataTestId } from '@utils/test-id';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import { SpotlightBreadcrumbs } from './components';
 import { renderActionsGroup } from './components/action';
@@ -246,7 +253,62 @@ export const SpotlightMenu = () => {
         continue;
       }
 
-      if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
+      if (isDuckLakeCatalog(dataSource)) {
+        const dbMetadata = databaseMetadata.get(dataSource.catalogAlias);
+        if (!dbMetadata) {
+          continue;
+        }
+
+        dbMetadata.schemas.forEach((schema) => {
+          schema.objects.forEach((tableOrView) => {
+            const tableLastUsed = getTableAccessTime(
+              dataSource.catalogAlias,
+              schema.name,
+              tableOrView.name,
+            );
+            const dataSourceLastUsed = getDataSourceAccessTime(dataSource.id);
+            const lastUsed = tableLastUsed > 0 ? tableLastUsed : dataSourceLastUsed;
+
+            dataSourceActions.push({
+              id: `open-data-source-${dataSource.id}-${schema.name}-${tableOrView.type}-${tableOrView.name}`,
+              label: tableOrView.label,
+              description: `${dataSource.catalogAlias}.${schema.name}`,
+              icon: (
+                <NamedIcon
+                  iconType={tableOrView.type === 'table' ? 'db-table' : 'db-view'}
+                  size={20}
+                  className={ICON_CLASSES}
+                />
+              ),
+              metadata: { lastUsed },
+              handler: () => {
+                if (comparisonSourceSelectionCallback) {
+                  comparisonSourceSelectionCallback(dataSource, schema.name, tableOrView.name);
+                  Spotlight.close();
+                } else {
+                  getOrCreateTabFromLocalDBObject(
+                    dataSource,
+                    schema.name,
+                    tableOrView.name,
+                    tableOrView.type,
+                    true,
+                  );
+                  Spotlight.close();
+                  ensureHome();
+                }
+              },
+            });
+          });
+        });
+
+        continue;
+      }
+
+      if (
+        isLocalDatabase(dataSource) ||
+        isRemoteDatabase(dataSource) ||
+        isQuackConnection(dataSource)
+      ) {
         // For databases we need to read all tables and views from metadata
         const dbMetadata = databaseMetadata.get(dataSource.dbName);
         const isSystemDatabase =
@@ -304,6 +366,11 @@ export const SpotlightMenu = () => {
           });
         });
 
+        continue;
+      }
+
+      // MotherDuck connections are not shown as individual spotlight entries
+      if (isMotherDuckConnection(dataSource)) {
         continue;
       }
 

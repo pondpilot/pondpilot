@@ -2,9 +2,10 @@ import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { expect, Page } from '@playwright/test';
 
 export const waitForAppReady = async (page: Page) => {
-  // Wait for the app to be ready
+  // Wait for the app to be ready.
+  // Use a longer timeout to account for DuckDB WASM cold-start in CI.
   const appStatus = page.getByTestId('app-state');
-  await expect(appStatus).toHaveAttribute('data-app-load-state', 'ready');
+  await expect(appStatus).toHaveAttribute('data-app-load-state', 'ready', { timeout: 15_000 });
 };
 
 export const setOnboardingShown = async (page: Page, options: { setOnce?: boolean } = {}) => {

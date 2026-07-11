@@ -8,7 +8,7 @@ import { SharedScriptImport } from '@features/script-import';
 import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { MainPage } from '@pages/main-page';
 import { SettingsPage } from '@pages/settings-page';
-import { createBrowserRouter, RouterProvider, Navigate, RouteObject } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate, RouteObject } from 'react-router';
 
 let devOnlyRoutes: RouteObject[] = [];
 
@@ -84,19 +84,8 @@ export function Router() {
         ],
       },
     ],
-    {
-      basename: import.meta.env.BASE_URL,
-      future: {
-        // These flags go on createBrowserRouter
-        v7_relativeSplatPath: true,
-        v7_fetcherPersist: true,
-        v7_normalizeFormMethod: true,
-        v7_partialHydration: true,
-        v7_skipActionErrorRevalidation: true,
-      },
-    },
+    { basename: import.meta.env.BASE_URL },
   );
 
-  // v7_startTransition goes on RouterProvider, not createBrowserRouter
-  return <RouterProvider router={router} future={{ v7_startTransition: true }} />;
+  return <RouterProvider router={router} />;
 }

@@ -1,5 +1,5 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { LocalDB, PersistentDataSourceId } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
 import { findUniqueName } from '@utils/helpers';

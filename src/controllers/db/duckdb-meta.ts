@@ -1,6 +1,6 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { DataBaseModel, DBColumn, DBFunctionsMetadata, DBTableOrView } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { getTableColumnId } from '@utils/db';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { quote } from '@utils/helpers';
@@ -39,7 +39,7 @@ export async function getLocalDBs(
 ): Promise<string[] | null> {
   const sql = `
     SELECT database_name 
-    FROM duckdb_databases
+    FROM duckdb_databases()
     ${excludeSystem ? 'WHERE NOT internal' : ''}
   `;
 
@@ -67,6 +67,33 @@ export async function getViews(
   `;
 
   return queryOneColumn<arrow.Utf8>(conn, sql, 'view_name');
+}
+
+/**
+ * Check whether a database schema contains any user tables or views without
+ * loading their column metadata.
+ */
+export async function hasDatabaseObjects(
+  conn: AsyncDuckDBConnectionPool,
+  databaseName: string,
+  schemaName: string,
+): Promise<boolean> {
+  const sql = `
+    SELECT EXISTS (
+      SELECT 1
+      FROM duckdb_tables
+      WHERE database_name = ${quote(databaseName, { single: true })}
+        AND schema_name = ${quote(schemaName, { single: true })}
+      UNION ALL
+      SELECT 1
+      FROM duckdb_views
+      WHERE database_name = ${quote(databaseName, { single: true })}
+        AND schema_name = ${quote(schemaName, { single: true })}
+    ) AS has_objects
+  `;
+
+  const result = await conn.query<{ has_objects: arrow.Bool }>(sql);
+  return result.getChild('has_objects')?.get(0) ?? false;
 }
 
 function buildColumnsQueryWithFilters(
@@ -312,7 +339,7 @@ export async function getObjectModels(
 export async function getDuckDBFunctions(
   pool: AsyncDuckDBConnectionPool,
 ): Promise<DBFunctionsMetadata[]> {
-  const conn = await pool.getPooledConnection();
+  const conn = await pool.getBackgroundConnection();
   try {
     const sql =
       'SELECT DISTINCT ON(function_name) function_name, description, parameters, examples, internal FROM duckdb_functions()';

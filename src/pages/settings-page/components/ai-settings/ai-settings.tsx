@@ -233,7 +233,7 @@ export const AISettings = () => {
               <Badge
                 key={provider.id}
                 variant="filled"
-                color="blue"
+                color="background-accent"
                 leftSection={<IconSparkles size={12} />}
                 size="sm"
               >
@@ -385,7 +385,7 @@ export const AISettings = () => {
         </Stack>
       ) : currentProvider && isPolly ? (
         /* Polly AI - show info instead of model selector */
-        <Alert icon={<IconSparkles size={16} />} color="blue" variant="light">
+        <Alert icon={<IconSparkles size={16} />} color="background-accent" variant="light">
           <Text size="sm">
             <strong>Polly</strong> is PondPilot&apos;s built-in AI assistant, ready to help with
             your SQL queries. No configuration required!

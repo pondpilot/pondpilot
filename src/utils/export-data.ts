@@ -473,15 +473,22 @@ export async function exportAsParquet(
     // Safety: sourceQuery is safe to embed in a subquery context because:
     // - For flat files / DB objects it is built from identifiers via toDuckDBIdentifier.
     // - For user SQL it is only set when classifiedStmt.isAllowedInSubquery is true.
-    await pool.query(
-      `COPY (${sourceQuery}) TO '${tempFileName}' (FORMAT PARQUET, COMPRESSION '${compression}')`,
-    );
+    if (dataAdapter.copyToParquet) {
+      await dataAdapter.copyToParquet(tempFileName, compression);
+    } else {
+      await pool.query(
+        `COPY (${sourceQuery}) TO '${tempFileName}' (FORMAT PARQUET, COMPRESSION '${compression}')`,
+      );
+    }
 
     // Read the file from DuckDB's virtual file system
     const buffer = await pool.copyFileToBuffer(tempFileName);
 
     // Trigger browser download
-    downloadFile(new Blob([buffer], { type: 'application/vnd.apache.parquet' }), fileName);
+    downloadFile(
+      new Blob([Uint8Array.from(buffer)], { type: 'application/vnd.apache.parquet' }),
+      fileName,
+    );
   } finally {
     // Clean up the temp file
     try {

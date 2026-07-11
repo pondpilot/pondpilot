@@ -89,9 +89,6 @@ export const SqlPreview = ({ fontSize, fontWeight = 'regular' }: SqlPreviewProps
       style={{
         width: '205px',
         height: '213px',
-        boxShadow: isDark
-          ? 'inset -16px 0px 9px rgba(56, 66, 82, 0.6)'
-          : 'inset -16px 0px 9px rgba(242, 244, 248, 0.7)',
       }}
     >
       <Box
@@ -99,10 +96,7 @@ export const SqlPreview = ({ fontSize, fontWeight = 'regular' }: SqlPreviewProps
         style={{ minWidth: 'max-content' }}
       >
         {sqlLines.map((line) => (
-          <Box
-            key={line.lineNumber}
-            className="flex items-center gap-2 flex-shrink-0 whitespace-nowrap"
-          >
+          <Box key={line.lineNumber} className="flex items-center gap-2 shrink-0 whitespace-nowrap">
             <Text
               size="sm"
               c="text-secondary"

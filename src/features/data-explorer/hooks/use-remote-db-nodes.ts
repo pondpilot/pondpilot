@@ -1,13 +1,13 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { RemoteDB } from '@models/data-source';
+import { QuackConnection, RemoteDB } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useMemo } from 'react';
 
 import { buildDatabaseNode } from '../builders/database-tree-builder';
 import { DataExplorerNodeMap } from '../model';
 
 type UseRemoteDbNodesProps = {
-  remoteDatabases: RemoteDB[];
+  remoteDatabases: Array<RemoteDB | QuackConnection>;
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
   conn: AsyncDuckDBConnectionPool;

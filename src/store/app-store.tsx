@@ -1,12 +1,24 @@
 import { IconType } from '@components/named-icon';
+import { deleteComparisonImpl } from '@controllers/comparison/pure';
+import { persistPutSqlScriptSession } from '@controllers/sql-script/persist';
+import { deleteTabImpl } from '@controllers/tab/pure';
 import { PROGRESS_CLEANUP_MAX_AGE_MS } from '@features/comparison/config/execution-config';
-import { Comparison, ComparisonExecutionProgress, ComparisonId } from '@models/comparison';
+import {
+  Comparison,
+  ComparisonConfig,
+  ComparisonExecutionProgress,
+  ComparisonId,
+  SchemaComparisonResult,
+} from '@models/comparison';
 import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
+  DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
+  QuackConnection,
   RemoteDB,
   PersistentDataSourceId,
 } from '@models/data-source';
@@ -15,8 +27,8 @@ import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { ExportFormat } from '@models/export-options';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
-import { SQLScript, SQLScriptId } from '@models/sql-script';
-import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
+import { SQLScript, SQLScriptId, SQLScriptSession } from '@models/sql-script';
+import { AnyTab, ComparisonTab, ScriptTab, TabId, TabReactiveState, TabType } from '@models/tab';
 import { getDatabaseIdentifier, isFlatFileDataSource } from '@utils/data-source';
 import { getTabIcon, getTabName } from '@utils/navigation';
 import { IDBPDatabase } from 'idb';
@@ -27,10 +39,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { resetAppData } from './restore';
 import { createSelectors } from './utils';
 import { SpotlightView } from '../components/spotlight/model';
-import { TabExecutionError } from '../controllers/tab/tab-controller';
-import { SourceSelectionCallback } from '../features/comparison/hooks/use-comparison-source-selection';
+import type { TabExecutionError } from '../controllers/tab/tab-controller';
+import type { SourceSelectionCallback } from '../features/comparison/hooks/use-comparison-source-selection';
 
-type AppLoadState = 'init' | 'ready' | 'error';
+type AppLoadState = 'init' | 'core-ready' | 'ready' | 'error';
 
 type AppStore = {
   /**
@@ -44,7 +56,8 @@ type AppStore = {
   _iDbConn: IDBPDatabase<AppIdbSchema> | null;
 
   /**
-   * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
+   * The current state of the app. Core-ready means persisted scripts are available,
+   * while DuckDB-backed features are still initializing.
    */
   appLoadState: AppLoadState;
 
@@ -67,6 +80,11 @@ type AppStore = {
    * A mapping of SQL script identifiers to their corresponding SQLScript objects.
    */
   sqlScripts: Map<SQLScriptId, SQLScript>;
+
+  /**
+   * Per-script DuckDB session state restored before each run.
+   */
+  sqlScriptSessions: Map<SQLScriptId, SQLScriptSession>;
 
   /**
    * A mapping of comparison identifiers to their corresponding Comparison objects.
@@ -149,6 +167,12 @@ type AppStore = {
   icebergReconnectCatalogId: PersistentDataSourceId | null;
 
   /**
+   * When set, the MotherDuck reconnect modal will be shown for this connection.
+   * Not persisted — purely transient UI state.
+   */
+  motherduckReconnectConnectionId: PersistentDataSourceId | null;
+
+  /**
    * Pending "Convert To" action from the data explorer context menu.
    * When set, the data view info pane will open the export modal
    * with the specified format pre-selected once the tab's data adapter is ready.
@@ -163,6 +187,7 @@ const initialState: AppStore = {
   localEntries: new Map(),
   registeredFiles: new Map(),
   sqlScripts: new Map(),
+  sqlScriptSessions: new Map(),
   comparisons: new Map(),
   tabs: new Map(),
   databaseMetadata: new Map(),
@@ -175,6 +200,7 @@ const initialState: AppStore = {
   spotlightView: 'home',
   comparisonExecutionProgress: new Map(),
   icebergReconnectCatalogId: null,
+  motherduckReconnectConnectionId: null,
   pendingConvert: null,
   // From ContentViewState
   activeTabId: null,
@@ -425,7 +451,10 @@ export function useProtectedViews(): Set<string> {
               (dataSource) =>
                 dataSource.type !== 'attached-db' &&
                 dataSource.type !== 'remote-db' &&
-                dataSource.type !== 'iceberg-catalog',
+                dataSource.type !== 'iceberg-catalog' &&
+                dataSource.type !== 'ducklake-catalog' &&
+                dataSource.type !== 'quack' &&
+                dataSource.type !== 'motherduck',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
           ...Array.from(state.comparisons.values())
@@ -447,7 +476,10 @@ export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlat
               ([, dataSource]) =>
                 dataSource.type !== 'attached-db' &&
                 dataSource.type !== 'remote-db' &&
-                dataSource.type !== 'iceberg-catalog',
+                dataSource.type !== 'iceberg-catalog' &&
+                dataSource.type !== 'ducklake-catalog' &&
+                dataSource.type !== 'quack' &&
+                dataSource.type !== 'motherduck',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
@@ -465,7 +497,10 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
               ([, dataSource]) =>
                 dataSource.type !== 'attached-db' &&
                 dataSource.type !== 'remote-db' &&
-                dataSource.type !== 'iceberg-catalog',
+                dataSource.type !== 'iceberg-catalog' &&
+                dataSource.type !== 'ducklake-catalog' &&
+                dataSource.type !== 'quack' &&
+                dataSource.type !== 'motherduck',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
@@ -490,20 +525,33 @@ export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> 
 
 export function useDatabaseDataSourceMap(): Map<
   PersistentDataSourceId,
-  LocalDB | RemoteDB | IcebergCatalog
+  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection
 > {
   return useAppStore(
     useShallow(
       (state) =>
         new Map(
           Array.from(state.dataSources.entries())
-            // Include local, remote, and iceberg catalog databases
+            // Include local, remote, iceberg, ducklake catalog, Quack, and MotherDuck databases
             .filter(
               ([, dataSource]) =>
                 dataSource.type === 'attached-db' ||
                 dataSource.type === 'remote-db' ||
-                dataSource.type === 'iceberg-catalog',
-            ) as [PersistentDataSourceId, LocalDB | RemoteDB | IcebergCatalog][],
+                dataSource.type === 'iceberg-catalog' ||
+                dataSource.type === 'ducklake-catalog' ||
+                dataSource.type === 'quack' ||
+                dataSource.type === 'motherduck',
+            ) as [
+            PersistentDataSourceId,
+            (
+              | LocalDB
+              | RemoteDB
+              | IcebergCatalog
+              | DuckLakeCatalog
+              | QuackConnection
+              | MotherDuckConnection
+            ),
+          ][],
         ),
     ),
   );
@@ -647,6 +695,297 @@ export function useTabExecutionErrorsMap(): Map<TabId, TabExecutionError> {
   return useAppStore(useShallow((state) => new Map(state.tabExecutionErrors)));
 }
 
+const updateComparisonInternal = (
+  comparisonId: ComparisonId,
+  updater: (comparison: Comparison) => Comparison,
+  action: string,
+): Comparison | null => {
+  let updatedComparison: Comparison | null = null;
+
+  useAppStore.setState(
+    (state) => {
+      const comparison = state.comparisons.get(comparisonId);
+      if (!comparison) return state;
+
+      updatedComparison = updater(comparison);
+      const comparisons = new Map(state.comparisons);
+      comparisons.set(comparisonId, updatedComparison);
+
+      return { comparisons };
+    },
+    undefined,
+    action,
+  );
+
+  return updatedComparison;
+};
+
+const updateComparisonTabInternal = (
+  tabId: TabId,
+  updater: (tab: ComparisonTab) => ComparisonTab,
+  action: string,
+): ComparisonTab | null => {
+  let updatedTab: ComparisonTab | null = null;
+
+  useAppStore.setState(
+    (state) => {
+      const tab = state.tabs.get(tabId);
+      if (!tab || tab.type !== 'comparison') return state;
+
+      updatedTab = updater(tab);
+      const tabs = new Map(state.tabs);
+      tabs.set(tabId, updatedTab);
+
+      return { tabs };
+    },
+    undefined,
+    action,
+  );
+
+  return updatedTab;
+};
+
+export const createComparison = (comparison: Comparison): void => {
+  useAppStore.setState(
+    (state) => ({
+      comparisons: new Map(state.comparisons).set(comparison.id, comparison),
+    }),
+    undefined,
+    'AppStore/createComparison',
+  );
+};
+
+export const updateComparisonConfig = (
+  comparisonId: ComparisonId,
+  config: ComparisonConfig,
+): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({ ...comparison, config }),
+    'AppStore/updateComparisonConfig',
+  );
+
+export const clearComparisonResults = (
+  comparisonId: ComparisonId,
+): { comparison: Comparison; tabIds: TabId[] } | null => {
+  let result: { comparison: Comparison; tabIds: TabId[] } | null = null;
+
+  useAppStore.setState(
+    (state) => {
+      const comparison = state.comparisons.get(comparisonId);
+      if (!comparison) return state;
+
+      const updatedComparison: Comparison = {
+        ...comparison,
+        resultsTableName: null,
+        lastExecutionTime: null,
+        lastRunAt: null,
+      };
+      const comparisons = new Map(state.comparisons);
+      comparisons.set(comparisonId, updatedComparison);
+
+      const tabs = new Map(state.tabs);
+      const tabIds: TabId[] = [];
+
+      for (const [tabId, tab] of state.tabs.entries()) {
+        if (tab.type === 'comparison' && tab.comparisonId === comparisonId) {
+          const updatedTab: ComparisonTab = {
+            ...tab,
+            viewingResults: false,
+            comparisonResultsTable: null,
+            lastExecutionTime: null,
+          };
+          tabs.set(tabId, updatedTab);
+          tabIds.push(tabId);
+        }
+      }
+
+      result = { comparison: updatedComparison, tabIds };
+
+      return { comparisons, tabs };
+    },
+    undefined,
+    'AppStore/clearComparisonResults',
+  );
+
+  return result;
+};
+
+export const updateComparisonSchemaAnalysis = (
+  comparisonId: ComparisonId,
+  schemaComparison: SchemaComparisonResult | null,
+): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({ ...comparison, schemaComparison }),
+    'AppStore/updateComparisonSchemaAnalysis',
+  );
+
+export const renameComparison = (comparisonId: ComparisonId, name: string): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({ ...comparison, name }),
+    'AppStore/renameComparison',
+  );
+
+export const updateComparisonExecutionTime = (
+  comparisonId: ComparisonId,
+  timestamp: number,
+): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({
+      ...comparison,
+      lastExecutionTime: timestamp,
+      lastRunAt: new Date().toISOString(),
+    }),
+    'AppStore/updateComparisonExecutionTime',
+  );
+
+export const updateComparisonResultsTable = (
+  comparisonId: ComparisonId,
+  resultsTableName: string | null,
+): Comparison | null =>
+  updateComparisonInternal(
+    comparisonId,
+    (comparison) => ({ ...comparison, resultsTableName }),
+    'AppStore/updateComparisonResultsTable',
+  );
+
+export const deleteComparisons = (
+  comparisonIds: Iterable<ComparisonId>,
+): CloseTabsResult & { tabIds: TabId[] } => {
+  let result: CloseTabsResult & { tabIds: TabId[] } = {
+    activeTabId: null,
+    previewTabId: null,
+    tabOrder: [],
+    tabIds: [],
+  };
+
+  useAppStore.setState(
+    (state) => {
+      const comparisonIdsToDeleteSet = new Set(comparisonIds);
+      const comparisons = deleteComparisonImpl(comparisonIdsToDeleteSet, state.comparisons);
+      const tabIds: TabId[] = [];
+
+      for (const [tabId, tab] of state.tabs.entries()) {
+        if (tab.type === 'comparison' && comparisonIdsToDeleteSet.has(tab.comparisonId)) {
+          tabIds.push(tabId);
+        }
+      }
+
+      let tabs = state.tabs;
+      let tabOrder = state.tabOrder;
+      let activeTabId = state.activeTabId;
+      let previewTabId = state.previewTabId;
+
+      if (tabIds.length > 0) {
+        const next = deleteTabImpl({
+          deleteTabIds: tabIds,
+          tabs: state.tabs,
+          tabOrder: state.tabOrder,
+          activeTabId: state.activeTabId,
+          previewTabId: state.previewTabId,
+        });
+
+        tabs = next.newTabs;
+        tabOrder = next.newTabOrder;
+        activeTabId = next.newActiveTabId;
+        previewTabId = next.newPreviewTabId;
+      }
+
+      result = { activeTabId, previewTabId, tabOrder, tabIds };
+
+      return {
+        comparisons,
+        tabs,
+        tabOrder,
+        activeTabId,
+        previewTabId,
+      };
+    },
+    undefined,
+    'AppStore/deleteComparison',
+  );
+
+  return result;
+};
+
+export const createTabFromComparison = (
+  tab: ComparisonTab,
+  activeTabId?: TabId | null,
+): { activeTabId: TabId | null; tabOrder: TabId[] } => {
+  let result: { activeTabId: TabId | null; tabOrder: TabId[] } = {
+    activeTabId: null,
+    tabOrder: [],
+  };
+
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs).set(tab.id, tab);
+      const tabOrder = [...state.tabOrder, tab.id];
+      const nextActiveTabId = activeTabId === undefined ? state.activeTabId : activeTabId;
+      result = { activeTabId: nextActiveTabId, tabOrder };
+
+      return {
+        activeTabId: nextActiveTabId,
+        tabs,
+        tabOrder,
+      };
+    },
+    undefined,
+    'AppStore/createTabFromComparison',
+  );
+
+  return result;
+};
+
+export const setComparisonViewingResults = (
+  tabId: TabId,
+  viewingResults: boolean,
+): ComparisonTab | null =>
+  updateComparisonTabInternal(
+    tabId,
+    (tab) => ({ ...tab, viewingResults }),
+    'AppStore/setComparisonViewingResults',
+  );
+
+export const setComparisonExecutionTime = (tabId: TabId, timestamp: number): ComparisonTab | null =>
+  updateComparisonTabInternal(
+    tabId,
+    (tab) => ({ ...tab, lastExecutionTime: timestamp }),
+    'AppStore/setComparisonExecutionTime',
+  );
+
+export const setComparisonResultsTable = (
+  tabId: TabId,
+  comparisonResultsTable: string | null,
+): ComparisonTab | null =>
+  updateComparisonTabInternal(
+    tabId,
+    (tab) => ({ ...tab, comparisonResultsTable }),
+    'AppStore/setComparisonResultsTable',
+  );
+
+export const startComparisonSourceSelection = (callback: SourceSelectionCallback): void => {
+  useAppStore.setState(
+    {
+      comparisonSourceSelectionCallback: callback,
+      spotlightView: 'dataSources',
+    },
+    undefined,
+    'AppStore/startComparisonSourceSelection',
+  );
+};
+
+export const clearComparisonSourceSelectionCallback = (): void => {
+  useAppStore.setState(
+    { comparisonSourceSelectionCallback: null },
+    undefined,
+    'AppStore/clearComparisonSourceSelectionCallback',
+  );
+};
+
 // Simple actions / setters that are not "big" enough to go to controllers
 export const setAppLoadState = (appState: AppLoadState) => {
   useAppStore.setState({ appLoadState: appState }, undefined, 'AppStore/setAppLoadState');
@@ -658,6 +997,280 @@ export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
 
 export const setDuckDBFunctions = (functions: DBFunctionsMetadata[]) => {
   useAppStore.setState({ duckDBFunctions: functions }, undefined, 'AppStore/setDuckDBFunctions');
+};
+
+export const createTab = (tab: AnyTab, activeTabId?: TabId | null): TabId[] => {
+  let nextTabOrder: TabId[] = [];
+
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs).set(tab.id, tab);
+      const tabOrder = [...state.tabOrder, tab.id];
+      nextTabOrder = tabOrder;
+
+      return activeTabId === undefined ? { tabs, tabOrder } : { tabs, tabOrder, activeTabId };
+    },
+    undefined,
+    'AppStore/createTab',
+  );
+
+  return nextTabOrder;
+};
+
+export const updateTabDataViewStaleDataCache = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabDataViewStaleDataCache',
+  );
+};
+
+export const updateTabDataViewColumnSizesCache = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabDataViewColumnSizesCache',
+  );
+};
+
+export const updateTabDataViewDataPageCache = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabDataViewDataPageCache',
+  );
+};
+
+export const updateScriptTabLastExecutedQuery = (tab: ScriptTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateScriptTabLastExecutedQuery',
+  );
+};
+
+export const updateScriptTabLayout = (tab: ScriptTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateScriptTabLayout',
+  );
+};
+
+export const updateTabViewMode = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabViewMode',
+  );
+};
+
+export const updateTabChartConfig = (tab: AnyTab): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabs = new Map(state.tabs);
+      tabs.set(tab.id, tab);
+      return { tabs };
+    },
+    undefined,
+    'AppStore/updateTabChartConfig',
+  );
+};
+
+export const setActiveTab = (tabId: TabId | null): void => {
+  useAppStore.setState({ activeTabId: tabId }, undefined, 'AppStore/setActiveTab');
+};
+
+export const setPreviewTab = (tabId: TabId | null): void => {
+  useAppStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTab');
+};
+
+type CloseTabsResult = {
+  activeTabId: TabId | null;
+  previewTabId: TabId | null;
+  tabOrder: TabId[];
+};
+
+export const replacePreviewTab = (previewTabId: TabId, tabId: TabId): CloseTabsResult => {
+  let result: CloseTabsResult = {
+    activeTabId: null,
+    previewTabId: tabId,
+    tabOrder: [],
+  };
+
+  useAppStore.setState(
+    (state) => {
+      const { newTabs, newTabOrder, newActiveTabId } = deleteTabImpl({
+        deleteTabIds: [previewTabId],
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        activeTabId: state.activeTabId,
+        previewTabId: state.previewTabId,
+      });
+
+      result = {
+        activeTabId: newActiveTabId,
+        previewTabId: tabId,
+        tabOrder: newTabOrder,
+      };
+
+      return {
+        tabs: newTabs,
+        tabOrder: newTabOrder,
+        activeTabId: newActiveTabId,
+        previewTabId: tabId,
+      };
+    },
+    undefined,
+    'AppStore/replacePreviewTab',
+  );
+
+  return result;
+};
+
+export const reorderTabs = (tabOrder: TabId[]): void => {
+  useAppStore.setState({ tabOrder }, undefined, 'AppStore/reorderTabs');
+};
+
+export const closeTabs = (tabIds: TabId[]): CloseTabsResult => {
+  let result: CloseTabsResult = {
+    activeTabId: null,
+    previewTabId: null,
+    tabOrder: [],
+  };
+
+  useAppStore.setState(
+    (state) => {
+      const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({
+        deleteTabIds: tabIds,
+        tabs: state.tabs,
+        tabOrder: state.tabOrder,
+        activeTabId: state.activeTabId,
+        previewTabId: state.previewTabId,
+      });
+
+      const tabExecutionErrors = new Map(state.tabExecutionErrors);
+      tabIds.forEach((tabId) => tabExecutionErrors.delete(tabId));
+
+      result = {
+        activeTabId: newActiveTabId,
+        previewTabId: newPreviewTabId,
+        tabOrder: newTabOrder,
+      };
+
+      return {
+        tabs: newTabs,
+        tabOrder: newTabOrder,
+        activeTabId: newActiveTabId,
+        previewTabId: newPreviewTabId,
+        tabExecutionErrors,
+      };
+    },
+    undefined,
+    'AppStore/closeTabs',
+  );
+
+  return result;
+};
+
+export const markTabExecutionError = (tabId: TabId, error: TabExecutionError): void => {
+  useAppStore.setState(
+    (state) => {
+      const tabExecutionErrors = new Map(state.tabExecutionErrors);
+      tabExecutionErrors.set(tabId, error);
+      return { tabExecutionErrors };
+    },
+    undefined,
+    'AppStore/markTabExecutionError',
+  );
+};
+
+export const clearTabExecutionError = (tabId: TabId): void => {
+  if (!useAppStore.getState().tabExecutionErrors.has(tabId)) return;
+
+  useAppStore.setState(
+    (state) => {
+      const tabExecutionErrors = new Map(state.tabExecutionErrors);
+      tabExecutionErrors.delete(tabId);
+      return { tabExecutionErrors };
+    },
+    undefined,
+    'AppStore/clearTabExecutionError',
+  );
+};
+
+export const clearAllTabExecutionErrors = (): void => {
+  useAppStore.setState(
+    { tabExecutionErrors: new Map() },
+    undefined,
+    'AppStore/clearAllTabExecutionErrors',
+  );
+};
+
+export const setScriptSession = (scriptId: SQLScriptId, session: SQLScriptSession) => {
+  useAppStore.setState(
+    (state) => {
+      const sqlScriptSessions = new Map(state.sqlScriptSessions);
+      sqlScriptSessions.set(scriptId, { ...session, scriptId });
+      return { sqlScriptSessions };
+    },
+    undefined,
+    'AppStore/setScriptSession',
+  );
+
+  const iDbConn = useAppStore.getState()._iDbConn;
+  if (iDbConn) {
+    persistPutSqlScriptSession(iDbConn, { ...session, scriptId }).catch((error) => {
+      console.error('Failed to persist SQL script session:', error);
+    });
+  }
+};
+
+export const markTransient = (scriptId: SQLScriptId, isTransient: boolean = true) => {
+  useAppStore.setState(
+    (state) => {
+      const previous = state.sqlScriptSessions.get(scriptId) ?? {
+        scriptId,
+        currentCatalog: PERSISTENT_DB_NAME,
+        currentSchema: 'main',
+        searchPath: null,
+        isTransient: false,
+      };
+      const sqlScriptSessions = new Map(state.sqlScriptSessions);
+      sqlScriptSessions.set(scriptId, { ...previous, isTransient });
+      return { sqlScriptSessions };
+    },
+    undefined,
+    'AppStore/markTransient',
+  );
+};
+
+export const clearTransient = (scriptId: SQLScriptId) => {
+  markTransient(scriptId, false);
 };
 
 export const setPendingConvert = (tabId: TabId, format: ExportFormat) => {

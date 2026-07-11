@@ -56,8 +56,8 @@ export const TableRegularCell = memo(
           'border-r border-borderLight-light dark:border-borderLight-dark first:border-l ',
           isLastRow && isLastCell && 'rounded-br-lg',
           isHighlighted &&
-            'bg-transparentBrandBlue-012 dark:bg-darkModeTransparentBrandBlue-032 dark:border-borderAccent-dark border-transparent outline outline-borderAccent-light dark:outline-borderAccent-dark outline-offset-[-1px]',
-          isColumnSelected && 'outline-offset-[0px]',
+            'bg-transparentBrandBlue-012 dark:bg-darkModeTransparentBrandBlue-032 dark:border-borderAccent-dark border-transparent outline-solid outline-borderAccent-light dark:outline-borderAccent-dark -outline-offset-1',
+          isColumnSelected && 'outline-offset-0',
         )}
         onClick={handleCellClick}
         style={{
@@ -68,8 +68,10 @@ export const TableRegularCell = memo(
           ref={cellRef}
           data-testid={setDataTestId(`data-table-cell-value-${cell.column.id}-${cell.row.index}`)}
           className={cn(
-            'text-sm p-2 overflow-hidden text-ellipsis whitespace-nowrap',
-            isNumberType(columnValueSqlType) && 'justify-end font-mono flex w-full',
+            'text-sm overflow-hidden text-ellipsis whitespace-nowrap',
+            isNumberType(columnValueSqlType)
+              ? 'justify-end font-mono flex w-full py-2 pl-2 pr-7'
+              : 'p-2',
             fValueType !== 'regular' &&
               'italic text-textSecondary-light dark:text-textSecondary-dark',
           )}
@@ -134,8 +136,8 @@ export const TableIndexCell = memo(
           'border-r border-borderLight-light dark:border-borderLight-dark first:border-l ',
           isLastRow && 'rounded-bl-lg',
           isHighlighted &&
-            'bg-transparentBrandBlue-012 dark:bg-darkModeTransparentBrandBlue-032 dark:border-borderAccent-dark border-transparent outline outline-borderAccent-light dark:outline-borderAccent-dark outline-offset-[-1px]',
-          isColumnSelected && 'outline-offset-[0px]',
+            'bg-transparentBrandBlue-012 dark:bg-darkModeTransparentBrandBlue-032 dark:border-borderAccent-dark border-transparent outline-solid outline-borderAccent-light dark:outline-borderAccent-dark -outline-offset-1',
+          isColumnSelected && 'outline-offset-0',
         )}
         onClick={handleCellClick}
         style={{

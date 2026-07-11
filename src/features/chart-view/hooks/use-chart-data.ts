@@ -80,8 +80,12 @@ export function useChartData(
 
   // Destructure to get stable function reference (from useCallback in use-data-adapter)
   // Using the whole dataAdapter object in dependencies causes re-renders to recreate callbacks
-  const { getChartAggregatedData, currentSchema, isStale, dataVersion } = dataAdapter;
-  const hasData = currentSchema.length > 0 && !isStale;
+  const { getChartAggregatedData, currentSchema, chartSourceVersion } = dataAdapter;
+  // Aggregation is server-side and re-queries the source, so it only needs the
+  // schema (column list) to pick axes — never the in-memory `isStale` flag.
+  // Keying off `isStale` here would re-trigger the aggregation whenever the
+  // main reader is paused/restored (which toggles staleness), looping forever.
+  const hasSchema = currentSchema.length > 0;
 
   // Compute column candidates for the config UI
   const xAxisCandidates = useMemo(() => getXAxisCandidates(currentSchema), [currentSchema]);
@@ -103,7 +107,7 @@ export function useChartData(
 
   // Fetch aggregated data when config or data version changes
   const fetchData = useCallback(async () => {
-    if (!enabled || !hasData) {
+    if (!enabled || !hasSchema) {
       setAggregatedData(null);
       return;
     }
@@ -163,7 +167,7 @@ export function useChartData(
     }
   }, [
     getChartAggregatedData,
-    hasData,
+    hasSchema,
     enabled,
     xAxisColumn,
     yAxisColumn,
@@ -173,10 +177,14 @@ export function useChartData(
     apiSortOrder,
   ]);
 
-  // Fetch data when config or data version changes
+  // Fetch when the chart config or schema changes (via `fetchData`'s identity),
+  // and on logical source reloads (`chartSourceVersion`). We deliberately do
+  // NOT depend on `dataVersion`/`isStale`: streaming page increments and the
+  // reader pause/restore our own aggregation triggers do not change the
+  // aggregate result, and reacting to them would loop.
   useEffect(() => {
     fetchData();
-  }, [fetchData, dataVersion]);
+  }, [fetchData, chartSourceVersion]);
 
   // Transform aggregated data into Recharts format
   const chartData = useMemo((): ChartDataPoint[] => {

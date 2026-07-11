@@ -1,17 +1,10 @@
-import * as monaco from 'monaco-editor';
+import { monaco } from '@features/editor/monaco-setup';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
-import { TabExecutionError } from '../../controllers/tab/tab-controller';
-import { AI_PROVIDERS } from '../../models/ai-service';
-import { SQLScript } from '../../models/sql-script';
-import { StructuredSQLResponse } from '../../models/structured-ai-response';
-import { getAIConfig, saveAIConfig } from '../../utils/ai-config';
-import { resolveAIContext } from '../../utils/editor/statement-parser';
-import { AsyncDuckDBConnectionPool } from '../duckdb-context/duckdb-connection-pool';
 import { createAIAssistantHandlers } from './ai-assistant/ai-assistant-handlers';
 import { UI_SELECTORS } from './ai-assistant/constants';
 import { logError } from './ai-assistant/error-handler';
 import { HistoryNavigationManager } from './ai-assistant/managers/history-manager';
-import { MentionManager } from './ai-assistant/managers/mention-manager';
 import { AIAssistantEditorAdapter } from './ai-assistant/model';
 import { createAIAssistantServices, AIAssistantServices } from './ai-assistant/services-facet';
 import { StructuredResponseWidget } from './ai-assistant/structured-response-widget';
@@ -23,6 +16,13 @@ import {
   createModelSelectionSection,
   createWidgetFooter,
 } from './ai-assistant/widget-builders';
+import { TabExecutionError } from '../../controllers/tab/tab-controller';
+import { AI_PROVIDERS } from '../../models/ai-service';
+import { SQLScript } from '../../models/sql-script';
+import { StructuredSQLResponse } from '../../models/structured-ai-response';
+import { getAIConfig, saveAIConfig } from '../../utils/ai-config';
+import { MentionManager } from './ai-assistant/managers/mention-manager';
+import { resolveAIContext } from '../../utils/editor/statement-parser';
 
 interface AIAssistantManagerOptions {
   connectionPool?: AsyncDuckDBConnectionPool | null;
@@ -363,6 +363,7 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
       this.activeRequest,
     );
 
+    // eslint-disable-next-line prefer-const -- Assigned after the callback that closes over it is created.
     let submitWrapper: () => void;
 
     const { inputSection, textarea, generateBtn } = createInputSection(

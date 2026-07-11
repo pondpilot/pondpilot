@@ -8,6 +8,136 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- next-header -->
 ## ✨ Highlights
 
+This release is focused on reliability: your data now survives reloads, scripts get isolated sessions, and the app loads faster on repeat visits.
+
+- **💾 Reliable Persistence**: Fixed a critical issue where all locally persisted data could be lost on page reload (a regression in the underlying DuckDB-WASM engine, worked around client-side). Checkpointing is also hardened — writes now reach durable storage within seconds, including right before a reload or tab close.
+
+- **📑 Per-Tab Script Sessions**: Each script tab now runs in its own session with  support — switching the active database or schema in one tab no longer affects the others.
+
+- **⚡ Faster Repeat Loads**: The app bundle is now split into cache-friendly chunks, so returning visitors only download what actually changed instead of one monolithic bundle. A size budget in CI keeps it that way.
+
+- **🛡️ Clearer Errors & Hardened Security**: Data source operations (attach, detach, rename, delete) now surface clear error messages with automatic rollback instead of failing silently, and both hosted and Docker deployments ship aligned security headers with a Content-Security-Policy in report-only mode.
+
+## 🎯 What's Next
+
+- Smaller editor bundle and lazy-loaded features for faster first load
+- Enforcing the Content-Security-Policy after the observation period
+- Fixing comparison results persistence across reloads
+- Adopting the upstream DuckDB-WASM persistence fix once it ships
+
+## 📋 Changelog
+
+### 🚀 New
+
+- perf(build): split vendor chunks and enforce bundle size budget [#301](https://github.com/pondpilot/pondpilot/pull/301)
+- feat(duckdb): per-tab script sessions with USE support [#290](https://github.com/pondpilot/pondpilot/pull/290)
+
+### 🐛 Fixed
+
+- fix(db): handle data-source DDL failures instead of assuming success [#315](https://github.com/pondpilot/pondpilot/pull/315)
+- fix(duckdb): work around OPFS data loss on reload (upstream #<!---->2192) [#292](https://github.com/pondpilot/pondpilot/pull/292)
+- fix(theme): resolve auto color scheme to correct theme on first render [#291](https://github.com/pondpilot/pondpilot/pull/291)
+
+### 🔒 Security
+
+- fix(security): align nginx headers and add report-only CSP [#302](https://github.com/pondpilot/pondpilot/pull/302)
+
+**Full Changelog**: [v0.9.0...v0.10.0](https://github.com/pondpilot/pondpilot/compare/v0.9.0...v0.10.0)
+
+
+
+## ✨ Highlights
+
+This release adds four things: **MotherDuck**, **DuckLake**, **Quack**, and **SQL Linting**.
+
+- **☁️ MotherDuck**: Connect to MotherDuck cloud databases with a service token. The extension loads dynamically — no special build needed. The token is stored in the encrypted secret store and auto-reconnects on reload. COOP/COEP headers are now enabled in production so  is available for the extension.
+
+- **🌊 DuckLake Catalogs**: New DuckLake Catalog data source for browsing remote  catalogs. Paste a URL, the alias auto-derives from the path, and tables appear in the sidebar with schema browsing, spotlight search, and reconnection on reload. Comes with a DuckDB-WASM upgrade to DuckDB v1.5.1, which also fixes the storage version compatibility issue with newer DuckDB files.
+
+- **🦆 Quack Protocol**: Quack Server is now a first-class data source. The token is stored encrypted, databases attach and reconnect on reload, and they work in queries, the data explorer, and comparison flows like a local source.
+
+- **🔍 SQL Linting**: Built-in SQL linting in the editor via FlowScope. A new SQL Linting settings panel lets you toggle rules and filter by severity. In the editor you can disable a rule via the context menu and apply Fix or Fix All through code actions.
+
+## 🎯 What's Next
+
+- More cloud and remote data source integrations
+- Expanded lint rule coverage
+- Performance work for large remote catalogs
+
+## 📋 Changelog
+
+### 🚀 New
+
+- Add Quack protocol integration [#287](https://github.com/pondpilot/pondpilot/pull/287)
+- feat: Add MotherDuck cloud database integration [#278](https://github.com/pondpilot/pondpilot/pull/278)
+- Add DuckLake catalog support and upgrade DuckDB-WASM [#284](https://github.com/pondpilot/pondpilot/pull/284)
+- Add SQL linting with configurable rules, severity filtering, and autofix [#281](https://github.com/pondpilot/pondpilot/pull/281)
+
+### 🐛 Fixed
+
+- fix: Improve table alignment and theme consistency in UI [#286](https://github.com/pondpilot/pondpilot/pull/286)
+
+**Full Changelog**: [v0.8.0...v0.9.0](https://github.com/pondpilot/pondpilot/compare/v0.8.0...v0.9.0)
+
+
+## ✨ Highlights
+
+This is the largest PondPilot release to date, with 15 new features and 6 bug fixes. The main additions are interactive chart visualization, a built-in AI assistant, migration to the Monaco code editor, and script version history.
+
+- **📊 Chart View**: Data tabs now include a chart view alongside the table view. Choose from multiple chart types, configure axes and grouping, use small multiples to compare subsets, and export charts as PNG. Useful for getting a quick visual overview before diving into deeper analysis.
+
+- **🤖 Polly AI Assistant**: PondPilot now ships with a built-in AI assistant that works out of the box — no API key required. Ask questions about your data, get SQL suggestions, or explore analysis approaches directly from the sidebar. You can also bring your own API key if preferred; credentials are stored securely using the new encrypted secret store.
+
+- **⚡ Monaco Editor**: The SQL editor has been migrated from CodeMirror to Monaco (the engine behind VS Code). This brings context-aware autocomplete powered by FlowScope SQL analysis, code folding, go-to-definition, rename symbol, hover tooltips, and better performance on large documents.
+
+- **📜 Script Version History**: PondPilot now automatically tracks versions of your SQL scripts on every run, save, and tab close. Browse the full history, preview changes with a diff view, and restore any previous version with one click. All versions are stored locally in IndexedDB.
+
+## 🎯 What's Next
+
+We're continuing to improve the core data exploration experience:
+
+- Enhanced chart capabilities with more chart types and interactivity
+- AI assistant improvements and broader LLM provider support
+- Additional data format conversions and export options
+- Performance optimizations for large-scale remote datasets
+
+## 📋 Changelog
+
+### 🚀 New
+
+- [Feature]: Add chart view for data tabs [#251](https://github.com/pondpilot/pondpilot/pull/251)
+- [Feature]: Add Polly AI as built-in AI assistant with demo token authentication [#246](https://github.com/pondpilot/pondpilot/pull/246)
+- [Feature]: Migrate Polly AI proxy [#256](https://github.com/pondpilot/pondpilot/pull/256)
+- [Feature]: Migrate to Monaco editor [#255](https://github.com/pondpilot/pondpilot/pull/255)
+- [Feature]: Script Version History [#159](https://github.com/pondpilot/pondpilot/pull/159)
+- [Feature]: Add read_stat extension for SAS, SPSS, and Stata files [#271](https://github.com/pondpilot/pondpilot/pull/271)
+- [Feature]: Add Convert To context menu with Parquet export and format registry [#272](https://github.com/pondpilot/pondpilot/pull/272)
+- [Feature]: Add encrypted secret store for Iceberg and AI credentials [#228](https://github.com/pondpilot/pondpilot/pull/228)
+- [Feature]: Add custom S3 endpoint configuration [#245](https://github.com/pondpilot/pondpilot/pull/245)
+- [Feature]: Spotlight LRU [#253](https://github.com/pondpilot/pondpilot/pull/253)
+- [Feature]: Add tab takeover for multiple tabs detection [#248](https://github.com/pondpilot/pondpilot/pull/248)
+- [Feature]: Add split-view release history to What's New modal [#273](https://github.com/pondpilot/pondpilot/pull/273)
+- [UX]: Improve SQL editor completion performance for large documents [#269](https://github.com/pondpilot/pondpilot/pull/269)
+- [UX]: Fix AI assistant panel width, alignment, and interactivity [#270](https://github.com/pondpilot/pondpilot/pull/270)
+- [UX]: Add 'View all releases' link to WhatsNewModal [#249](https://github.com/pondpilot/pondpilot/pull/249)
+
+### 🐛 Fixed
+
+- [Bug]: Fix Ctrl+C copying table cell instead of editor text [#276](https://github.com/pondpilot/pondpilot/pull/276)
+- [Bug]: Fix DataCloneError and React setState-during-render warnings [#268](https://github.com/pondpilot/pondpilot/pull/268)
+- [Bug]: Switch SQL splitting to FlowScope AST [#254](https://github.com/pondpilot/pondpilot/pull/254)
+- [Bug]: Fix incorrect database name when creating comparison from file source [#243](https://github.com/pondpilot/pondpilot/pull/243)
+- [Bug]: Fix incorrect database name when creating comparison from file source [#242](https://github.com/pondpilot/pondpilot/pull/242)
+- [Bug]: Fix dbname parsing in proxied ATTACH statement [#238](https://github.com/pondpilot/pondpilot/pull/238)
+
+### 📚 Documentation
+
+- Remove YouTube onboarding video and update README [#279](https://github.com/pondpilot/pondpilot/pull/279)
+
+**Full Changelog**: [v0.7.0...v0.8.0](https://github.com/pondpilot/pondpilot/compare/v0.7.0...v0.8.0)
+
+## ✨ Highlights
+
 This release brings powerful new features that make PondPilot more collaborative, accessible, and robust for working with remote data! The headline features are **data comparison**, **built-in feedback system**, and **seamless remote database access** through intelligent CORS proxy support.
 
 - **📊 PondPilot Compare**: Compare datasets side-by-side with visual highlighting of differences. Perfect for validating data transformations, tracking changes over time, or comparing production vs. staging data. The intuitive interface makes it easy to spot discrepancies at a glance.

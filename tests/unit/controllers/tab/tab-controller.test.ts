@@ -10,6 +10,11 @@ let mockTabs: Map<TabId, AnyTab>;
 jest.mock('@store/app-store', () => {
   mockSetState = jest.fn();
   mockTabs = new Map();
+  const updateTab = (tab: AnyTab) => {
+    const tabs = new Map(mockTabs);
+    tabs.set(tab.id, tab);
+    mockSetState({ tabs });
+  };
   return {
     useAppStore: {
       getState: () => ({
@@ -18,6 +23,8 @@ jest.mock('@store/app-store', () => {
       }),
       setState: mockSetState,
     },
+    updateTabViewMode: updateTab,
+    updateTabChartConfig: updateTab,
   };
 });
 

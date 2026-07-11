@@ -83,7 +83,7 @@ export const VersionItem = ({
       <div className="flex items-start gap-2.5">
         <div
           className={cn(
-            'flex-shrink-0 mt-0.5 text-iconDefault-light dark:text-iconDefault-dark',
+            'shrink-0 mt-0.5 text-iconDefault-light dark:text-iconDefault-dark',
             (isSelected || isCompareTarget) && 'text-textAccent-light dark:text-textAccent-dark',
           )}
         >

@@ -59,7 +59,7 @@ export function PollyDemoBanner({
     return (
       <Alert
         icon={<IconSparkles size={14} />}
-        color="blue"
+        color="background-accent"
         variant="light"
         withCloseButton
         closeButtonLabel="Dismiss"
@@ -91,12 +91,13 @@ export function PollyDemoBanner({
     <Alert
       icon={<IconSparkles size={16} />}
       title="Welcome to Polly AI"
-      color="blue"
+      color="background-accent"
       variant="light"
       withCloseButton
       closeButtonLabel="Dismiss"
       onClose={handleDismiss}
       className={className}
+      classNames={{ title: 'text-textPrimary-light dark:text-textPrimary-dark' }}
     >
       <Text size="sm" mb="sm">
         You&apos;re using Polly, PondPilot&apos;s built-in AI assistant. It&apos;s ready to help
@@ -110,6 +111,7 @@ export function PollyDemoBanner({
         <Button
           size="xs"
           variant="filled"
+          color="background-accent"
           leftSection={<IconSettings size={14} />}
           onClick={handleConfigureByok}
         >

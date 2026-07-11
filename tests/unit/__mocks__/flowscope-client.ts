@@ -1,12 +1,39 @@
 type MockFlowScopeClient = {
-  analyze: () => Promise<Record<string, unknown>>;
-  split: () => Promise<{ statements: Array<{ start: number; end: number }> }>;
+  analyze: () => Promise<{
+    statements: Array<unknown>;
+    nodes: Array<unknown>;
+    edges: Array<unknown>;
+    issues: Array<unknown>;
+    summary: { statementCount: number; hasErrors: boolean };
+  }>;
+  split: (sql: string) => Promise<{ statements: Array<{ start: number; end: number }> }>;
   completionItems: () => Promise<Record<string, unknown>>;
 };
 
+const splitBySemicolon = (sql: string): Array<{ start: number; end: number }> => {
+  const statements: Array<{ start: number; end: number }> = [];
+  let start = 0;
+
+  for (const part of sql.split(';')) {
+    const leading = part.search(/\S/);
+    if (leading >= 0) {
+      statements.push({ start: start + leading, end: start + part.length });
+    }
+    start += part.length + 1;
+  }
+
+  return statements;
+};
+
 const createMockFlowScopeClient = (): MockFlowScopeClient => ({
-  analyze: async () => ({}),
-  split: async () => ({ statements: [] }),
+  analyze: async () => ({
+    statements: [],
+    nodes: [],
+    edges: [],
+    issues: [],
+    summary: { statementCount: 0, hasErrors: false },
+  }),
+  split: async (sql: string) => ({ statements: splitBySemicolon(sql) }),
   completionItems: async () => ({}),
 });
 
@@ -19,6 +46,7 @@ export class CancelledError extends Error {
 
 let clientInstance: MockFlowScopeClient | null = null;
 let completionClientInstance: MockFlowScopeClient | null = null;
+let interactiveClientInstance: MockFlowScopeClient | null = null;
 
 export function getFlowScopeClient(): MockFlowScopeClient {
   if (!clientInstance) {
@@ -34,9 +62,17 @@ export function getCompletionClient(): MockFlowScopeClient {
   return completionClientInstance;
 }
 
+export function getInteractiveFlowScopeClient(): MockFlowScopeClient {
+  if (!interactiveClientInstance) {
+    interactiveClientInstance = createMockFlowScopeClient();
+  }
+  return interactiveClientInstance;
+}
+
 export function terminateFlowScopeClients(): void {
   clientInstance = null;
   completionClientInstance = null;
+  interactiveClientInstance = null;
 }
 
 export type FlowScopeClient = MockFlowScopeClient;

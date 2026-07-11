@@ -58,7 +58,11 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
     updateRemoteDbConnectionState(remoteDb.id, 'connecting');
 
     // First, re-attach the database with READ_ONLY flag
-    const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly: true });
+    const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, {
+      readOnly: true,
+      useCorsProxy: remoteDb.useCorsProxy ?? true,
+      s3Endpoint: remoteDb.s3Endpoint,
+    });
 
     try {
       await executeWithRetry(pool, attachQuery, {
@@ -84,7 +88,7 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Verify the database is attached by checking the catalog
-    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(remoteDb.dbName)}'`;
+    const checkQuery = `SELECT database_name FROM duckdb_databases() WHERE database_name = '${escapeSqlStringValue(remoteDb.dbName)}'`;
 
     let dbFound = false;
     let attempts = 0;

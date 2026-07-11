@@ -1,5 +1,6 @@
+import { PROVIDER_IDS, POLLY_CONFIG } from '@consts/ai';
+
 import { StructuredSQLResponse } from './structured-ai-response';
-import { PROVIDER_IDS, POLLY_CONFIG } from '../constants/ai';
 
 export interface AIProvider {
   id: string;

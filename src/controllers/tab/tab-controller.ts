@@ -5,9 +5,12 @@ import { sanitizeChartLabel } from '@features/chart-view/utils/sanitize-label';
 import { ChartConfig, ViewMode } from '@models/chart';
 import {
   AnyFlatFileDataSource,
+  DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   PersistentDataSourceId,
+  QuackConnection,
   RemoteDB,
 } from '@models/data-source';
 import { ColumnSortSpecList } from '@models/db';
@@ -23,10 +26,30 @@ import {
   TabDataViewStateCache,
   TabId,
 } from '@models/tab';
-import { useAppStore } from '@store/app-store';
+import { getCurrentDuckDBConnectionPool } from '@services/duckdb-pool/current-pool';
+import {
+  clearAllTabExecutionErrors as clearAllTabExecutionErrorsAction,
+  clearTabExecutionError as clearTabExecutionErrorAction,
+  closeTabs as closeTabsAction,
+  createTab as createTabAction,
+  markTabExecutionError,
+  reorderTabs,
+  replacePreviewTab,
+  setActiveTab,
+  setPreviewTab,
+  updateScriptTabLastExecutedQuery as updateScriptTabLastExecutedQueryAction,
+  updateScriptTabLayout as updateScriptTabLayoutAction,
+  updateTabChartConfig as updateTabChartConfigAction,
+  updateTabDataViewColumnSizesCache as updateTabDataViewColumnSizesCacheAction,
+  updateTabDataViewDataPageCache as updateTabDataViewDataPageCacheAction,
+  updateTabDataViewStaleDataCache as updateTabDataViewStaleDataCacheAction,
+  updateTabViewMode as updateTabViewModeAction,
+  useAppStore,
+} from '@store/app-store';
 import {
   ensureDatabaseDataSource,
   ensureFlatFileDataSource,
+  formatMotherDuckDbKey,
   getDatabaseIdentifier,
 } from '@utils/data-source';
 import {
@@ -42,7 +65,6 @@ import { shallow } from 'zustand/shallow';
 
 import { persistCreateTab, persistDeleteTab } from './persist';
 import {
-  deleteTabImpl,
   findTabFromLocalDBObjectImpl,
   findTabFromFlatFileDataSourceImpl,
   findTabFromScriptImpl,
@@ -171,14 +193,21 @@ export const getOrCreateSchemaBrowserTab = (options: {
   sourceType: 'file' | 'db' | 'folder' | 'all';
   schemaName?: string;
   objectNames?: string[];
+  databaseName?: string;
   setActive?: boolean;
 }): SchemaBrowserTab => {
-  const { sourceId, sourceType, schemaName, setActive = false } = options;
+  const { sourceId, sourceType, schemaName, databaseName, setActive = false } = options;
   // Sort objectNames for consistent comparison and storage
   const objectNames = options.objectNames ? [...options.objectNames].sort() : undefined;
   const state = useAppStore.getState();
 
-  const existingTab = findSchemaBrowserTab(sourceId, sourceType, schemaName, objectNames);
+  const existingTab = findSchemaBrowserTab(
+    sourceId,
+    sourceType,
+    schemaName,
+    objectNames,
+    databaseName,
+  );
 
   if (existingTab) {
     if (setActive) {
@@ -195,22 +224,12 @@ export const getOrCreateSchemaBrowserTab = (options: {
     sourceType,
     schemaName,
     objectNames,
+    ...(databaseName ? { databaseName } : {}),
     dataViewStateCache: null,
   };
 
-  const newTabs = new Map(state.tabs).set(tabId, tab);
-  const newTabOrder = [...state.tabOrder, tabId];
   const newActiveTabId = setActive ? tabId : state.activeTabId;
-
-  useAppStore.setState(
-    (_) => ({
-      activeTabId: newActiveTabId,
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-    }),
-    undefined,
-    'AppStore/createSchemaBrowserTab',
-  );
+  const newTabOrder = createTabAction(tab, newActiveTabId);
 
   const iDb = state._iDbConn;
   if (iDb) {
@@ -234,11 +253,19 @@ export const getOrCreateSchemaBrowserTab = (options: {
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const getOrCreateTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
+  dataSourceOrId:
+    | LocalDB
+    | RemoteDB
+    | IcebergCatalog
+    | DuckLakeCatalog
+    | QuackConnection
+    | MotherDuckConnection
+    | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
   objectType: 'table' | 'view',
   setActive: boolean = false,
+  databaseName?: string,
 ): LocalDBDataTab => {
   const state = useAppStore.getState();
 
@@ -246,7 +273,13 @@ export const getOrCreateTabFromLocalDBObject = (
   const dataSource = ensureDatabaseDataSource(dataSourceOrId, state.dataSources);
 
   // Check if object already has an associated tab
-  const existingTab = findTabFromLocalDBObjectImpl(state.tabs, dataSource, schemaName, objectName);
+  const existingTab = findTabFromLocalDBObjectImpl(
+    state.tabs,
+    dataSource,
+    schemaName,
+    objectName,
+    databaseName,
+  );
 
   // No need to create a new tab if one already exists
   if (existingTab) {
@@ -268,20 +301,11 @@ export const getOrCreateTabFromLocalDBObject = (
     objectName,
     objectType,
     dataViewStateCache: null,
+    ...(databaseName ? { databaseName } : {}),
   };
 
   // Add the new tab to the store
-  const newTabs = new Map(state.tabs).set(tabId, tab);
-  const newTabOrder = [...state.tabOrder, tabId];
-
-  useAppStore.setState(
-    (_) => ({
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-    }),
-    undefined,
-    'AppStore/createTabFromPersistentDataView',
-  );
+  const newTabOrder = createTabAction(tab);
 
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
@@ -340,17 +364,7 @@ export const getOrCreateTabFromFlatFileDataSource = (
   };
 
   // Add the new tab to the store
-  const newTabs = new Map(state.tabs).set(tabId, tab);
-  const newTabOrder = [...state.tabOrder, tabId];
-
-  useAppStore.setState(
-    (_) => ({
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-    }),
-    undefined,
-    'AppStore/createTabFromPersistentDataView',
-  );
+  const newTabOrder = createTabAction(tab);
 
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
@@ -416,17 +430,7 @@ export const getOrCreateTabFromScript = (
   };
 
   // Add the new tab to the store
-  const newTabs = new Map(state.tabs).set(tabId, tab);
-  const newTabOrder = [...state.tabOrder, tabId];
-
-  useAppStore.setState(
-    (_) => ({
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-    }),
-    undefined,
-    'AppStore/createTabFromScript',
-  );
+  const newTabOrder = createTabAction(tab);
 
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
@@ -463,6 +467,7 @@ export const findSchemaBrowserTab = (
   sourceType: 'file' | 'db' | 'folder' | 'all',
   schemaName?: string,
   objectNames?: string[],
+  databaseName?: string,
 ): SchemaBrowserTab | undefined => {
   const { tabs } = useAppStore.getState();
 
@@ -475,6 +480,7 @@ export const findSchemaBrowserTab = (
         ((sourceId === null && schemaBrowserTab.sourceId === null) ||
           (sourceId !== null && schemaBrowserTab.sourceId === sourceId)) &&
         schemaBrowserTab.schemaName === schemaName &&
+        schemaBrowserTab.databaseName === databaseName &&
         JSON.stringify(
           schemaBrowserTab.objectNames ? [...schemaBrowserTab.objectNames].sort() : undefined,
         ) === JSON.stringify(objectNames ? [...objectNames].sort() : undefined)
@@ -495,9 +501,17 @@ export const findSchemaBrowserTab = (
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const findTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
+  dataSourceOrId:
+    | LocalDB
+    | RemoteDB
+    | IcebergCatalog
+    | DuckLakeCatalog
+    | QuackConnection
+    | MotherDuckConnection
+    | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
+  databaseName?: string,
 ): LocalDBDataTab | undefined => {
   const state = useAppStore.getState();
 
@@ -505,7 +519,7 @@ export const findTabFromLocalDBObject = (
   const dataSource = ensureDatabaseDataSource(dataSourceOrId, state.dataSources);
 
   // Check if the script already has an associated tab
-  return findTabFromLocalDBObjectImpl(state.tabs, dataSource, schemaName, objectName);
+  return findTabFromLocalDBObjectImpl(state.tabs, dataSource, schemaName, objectName, databaseName);
 };
 
 /**
@@ -593,18 +607,7 @@ export const updateTabDataViewStaleDataCache = (
     }),
   };
 
-  // Update the store
-  const newTabs = new Map(tabs);
-  newTabs.set(currentTab.id, updatedTab);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      tabs: newTabs,
-    },
-    undefined,
-    'AppStore/updateTabDataViewStaleDataCache',
-  );
+  updateTabDataViewStaleDataCacheAction(updatedTab);
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -638,18 +641,7 @@ export const updateTabDataViewColumnSizesCache = (
     }),
   };
 
-  // Update the store
-  const newTabs = new Map(tabs);
-  newTabs.set(currentTab.id, updatedTab);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      tabs: newTabs,
-    },
-    undefined,
-    'AppStore/updateTabDataViewColumnSizesCache',
-  );
+  updateTabDataViewColumnSizesCacheAction(updatedTab);
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -680,18 +672,7 @@ export const updateTabDataViewDataPageCache = (tabId: TabId, newDataPage: number
     }),
   };
 
-  // Update the store
-  const newTabs = new Map(tabs);
-  newTabs.set(currentTab.id, updatedTab);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      tabs: newTabs,
-    },
-    undefined,
-    'AppStore/updateTabDataViewDataPageCache',
-  );
+  updateTabDataViewDataPageCacheAction(updatedTab);
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -743,18 +724,7 @@ export const updateScriptTabLastExecutedQuery = ({
     lastExecutedQuery,
   };
 
-  // Update the store
-  const newTabs = new Map(tabs);
-  newTabs.set(currentTab.id, updatedTab);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      tabs: newTabs,
-    },
-    undefined,
-    'AppStore/updateScriptTabLastExecutedQuery',
-  );
+  updateScriptTabLastExecutedQueryAction(updatedTab);
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -794,18 +764,7 @@ export const updateScriptTabLayout = (
     dataViewPaneHeight,
   };
 
-  // Update the store
-  const newTabs = new Map(tabs);
-  newTabs.set(currentTab.id, updatedTab);
-
-  // Update the store with changes
-  useAppStore.setState(
-    {
-      tabs: newTabs,
-    },
-    undefined,
-    'AppStore/updateScriptTabLayout',
-  );
+  updateScriptTabLayoutAction(updatedTab);
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -841,17 +800,7 @@ export const updateTabViewMode = (tabId: TabId, viewMode: ViewMode): void => {
     dataViewStateCache: updateDataViewStateCache(currentTab.dataViewStateCache, { viewMode }),
   };
 
-  // Update the store
-  const newTabs = new Map(tabs);
-  newTabs.set(currentTab.id, updatedTab);
-
-  useAppStore.setState(
-    {
-      tabs: newTabs,
-    },
-    undefined,
-    'AppStore/updateTabViewMode',
-  );
+  updateTabViewModeAction(updatedTab);
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -921,17 +870,7 @@ export const updateTabChartConfig = (tabId: TabId, chartConfig: Partial<ChartCon
     }),
   };
 
-  // Update the store
-  const newTabs = new Map(tabs);
-  newTabs.set(currentTab.id, updatedTab);
-
-  useAppStore.setState(
-    {
-      tabs: newTabs,
-    },
-    undefined,
-    'AppStore/updateTabChartConfig',
-  );
+  updateTabChartConfigAction(updatedTab);
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
@@ -962,9 +901,17 @@ function updateTabLRUTracking(tabId: TabId): void {
         dataSource &&
         (dataSource.type === 'attached-db' ||
           dataSource.type === 'remote-db' ||
-          dataSource.type === 'iceberg-catalog')
+          dataSource.type === 'iceberg-catalog' ||
+          dataSource.type === 'ducklake-catalog' ||
+          dataSource.type === 'quack' ||
+          dataSource.type === 'motherduck')
       ) {
-        const dbIdentifier = getDatabaseIdentifier(dataSource);
+        // For MotherDuck, use per-database identifier instead of the bare prefix,
+        // so access tracking is scoped to the individual database.
+        const dbIdentifier =
+          dataSource.type === 'motherduck' && tab.databaseName
+            ? formatMotherDuckDbKey(tab.databaseName)
+            : getDatabaseIdentifier(dataSource);
         updateTableAccessTime(dbIdentifier, tab.schemaName, tab.objectName);
       }
     }
@@ -987,7 +934,7 @@ export const setActiveTabId = (tabId: TabId | null) => {
   // If the tab is already active, skip state update and persistence
   if (activeTabId === tabId) return;
 
-  useAppStore.setState({ activeTabId: tabId }, undefined, 'AppStore/setActiveTabId');
+  setActiveTab(tabId);
 
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
@@ -1014,7 +961,7 @@ export const setActiveTabId = (tabId: TabId | null) => {
  * @param tabId - The id of the tab to set as preview or null to reset.
  */
 export const setPreviewTabId = (tabId: TabId | null) => {
-  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useAppStore.getState();
+  const { tabs, previewTabId, _iDbConn: iDbConn } = useAppStore.getState();
 
   // Check we have stuff to do
   if (previewTabId === tabId) return;
@@ -1029,24 +976,9 @@ export const setPreviewTabId = (tabId: TabId | null) => {
       saveScriptDataViewStateCache(previewTab.sqlScriptId, previewTab.dataViewStateCache);
     }
 
-    const { newTabs, newTabOrder, newActiveTabId } = deleteTabImpl({
-      deleteTabIds: [previewTabId],
-      tabs,
-      tabOrder,
-      activeTabId,
+    const { activeTabId: newActiveTabId, tabOrder: newTabOrder } = replacePreviewTab(
       previewTabId,
-    });
-
-    // Update the store with the new state
-    useAppStore.setState(
-      {
-        tabs: newTabs,
-        tabOrder: newTabOrder,
-        activeTabId: newActiveTabId,
-        previewTabId: tabId,
-      },
-      undefined,
-      'AppStore/setPreviewTabId',
+      tabId,
     );
 
     if (iDbConn) {
@@ -1057,7 +989,7 @@ export const setPreviewTabId = (tabId: TabId | null) => {
   }
 
   // Case 1 or 3
-  useAppStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTabId');
+  setPreviewTab(tabId);
 
   if (iDbConn) {
     iDbConn
@@ -1067,7 +999,7 @@ export const setPreviewTabId = (tabId: TabId | null) => {
 };
 
 export const setTabOrder = (tabOrder: TabId[]) => {
-  useAppStore.setState({ tabOrder }, undefined, 'AppStore/setTabOrder');
+  reorderTabs(tabOrder);
 
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
@@ -1132,58 +1064,30 @@ export const deleteTab = async (tabIds: TabId[]) => {
       }
     }
 
-    let persistencePayload: {
-      newActiveTabId: TabId | null;
-      newPreviewTabId: TabId | null;
-      newTabOrder: TabId[];
-    } | null = null;
+    const pool = getCurrentDuckDBConnectionPool();
+    if (pool) {
+      const scriptTabIds = tabIds.filter((id) => tabs.get(id)?.type === 'script');
+      // allSettled, not all: one unpin rejecting (e.g. a slot raced by a
+      // concurrent eviction) must not abandon the sibling unpins and leak
+      // their pinned connection slots.
+      const unpinResults = await Promise.allSettled(scriptTabIds.map((id) => pool.unpinTab(id)));
+      for (const result of unpinResults) {
+        if (result.status === 'rejected') {
+          console.error('Failed to unpin tab connection during tab deletion:', result.reason);
+        }
+      }
+    }
 
-    // Update the store with the latest snapshot to avoid racing with other deletions
-    useAppStore.setState(
-      (state) => {
-        const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({
-          deleteTabIds: tabIds,
-          tabs: state.tabs,
-          tabOrder: state.tabOrder,
-          activeTabId: state.activeTabId,
-          previewTabId: state.previewTabId,
-        });
-
-        const newTabExecutionErrors = new Map(state.tabExecutionErrors);
-        tabIds.forEach((tabId) => newTabExecutionErrors.delete(tabId));
-
-        persistencePayload = {
-          newActiveTabId,
-          newPreviewTabId,
-          newTabOrder,
-        };
-
-        return {
-          tabs: newTabs,
-          tabOrder: newTabOrder,
-          activeTabId: newActiveTabId,
-          previewTabId: newPreviewTabId,
-          tabExecutionErrors: newTabExecutionErrors,
-        };
-      },
-      undefined,
-      'AppStore/deleteTab',
-    );
-
-    // persistencePayload is definitely assigned by setState callback above
-    const payload = persistencePayload as {
-      newActiveTabId: TabId | null;
-      newPreviewTabId: TabId | null;
-      newTabOrder: TabId[];
-    } | null;
-    if (iDbConn && payload) {
+    // The action reads the latest snapshot to avoid racing with other deletions.
+    const payload = closeTabsAction(tabIds);
+    if (iDbConn) {
       // Now we can pass the entire array (or single ID) directly
       persistDeleteTab(
         iDbConn,
         tabIds,
-        payload.newActiveTabId,
-        payload.newPreviewTabId,
-        payload.newTabOrder,
+        payload.activeTabId,
+        payload.previewTabId,
+        payload.tabOrder,
       );
     }
   } finally {
@@ -1258,16 +1162,7 @@ export const deleteTabByDataSourceId = async (
  * @param error - The execution error details
  */
 export const setTabExecutionError = (tabId: TabId, error: TabExecutionError): void => {
-  const { tabExecutionErrors } = useAppStore.getState();
-
-  const newErrors = new Map(tabExecutionErrors);
-  newErrors.set(tabId, error);
-
-  useAppStore.setState(
-    { tabExecutionErrors: newErrors },
-    undefined,
-    'TabController/setExecutionError',
-  );
+  markTabExecutionError(tabId, error);
 };
 
 /**
@@ -1276,29 +1171,12 @@ export const setTabExecutionError = (tabId: TabId, error: TabExecutionError): vo
  * @param tabId - The ID of the tab
  */
 export const clearTabExecutionError = (tabId: TabId): void => {
-  const { tabExecutionErrors } = useAppStore.getState();
-
-  if (!tabExecutionErrors.has(tabId)) {
-    return; // No error to clear
-  }
-
-  const newErrors = new Map(tabExecutionErrors);
-  newErrors.delete(tabId);
-
-  useAppStore.setState(
-    { tabExecutionErrors: newErrors },
-    undefined,
-    'TabController/clearExecutionError',
-  );
+  clearTabExecutionErrorAction(tabId);
 };
 
 /**
  * Clears all tab execution errors.
  */
 export const clearAllTabExecutionErrors = (): void => {
-  useAppStore.setState(
-    { tabExecutionErrors: new Map() },
-    undefined,
-    'TabController/clearAllExecutionErrors',
-  );
+  clearAllTabExecutionErrorsAction();
 };

@@ -19,22 +19,24 @@ import {
   isAIAssistantVisible,
 } from '@features/editor/ai-assistant-tooltip';
 import { convertToFlowScopeSchema } from '@features/editor/auto-complete';
+import { monaco } from '@features/editor/monaco-setup';
 import { useAppTheme } from '@hooks/use-app-theme';
 import { Group } from '@mantine/core';
 import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { ScriptVersion } from '@models/script-version';
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
+import { TabId } from '@models/tab';
 import { useAppStore, useDuckDBFunctions } from '@store/app-store';
 import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { getScriptMetadata } from '@utils/script-version';
 import { setDataTestId } from '@utils/test-id';
-import * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { ScriptEditorDataStatePane } from './components';
 import { VersionHistorySidebar, VersionDiffEditor } from './components/version-history';
+import { ScriptSessionSelector } from './script-session-selector';
 
 // Version tracking state - tracks content and timing for version creation
 interface VersionTrackingState {
@@ -79,16 +81,20 @@ function versionTrackingReducer(
 
 interface ScriptEditorProps {
   id: SQLScriptId;
+  tabId: TabId;
   scriptState: ScriptExecutionState;
 
   active?: boolean;
+  databaseReady?: boolean;
 
   runScriptQuery: (query: string) => Promise<void>;
 }
 
 export const ScriptEditor = ({
   id: scriptId,
+  tabId,
   active,
+  databaseReady = true,
   runScriptQuery,
   scriptState,
 }: ScriptEditorProps) => {
@@ -99,7 +105,7 @@ export const ScriptEditor = ({
 
   const sqlScript = useAppStore((state) => state.sqlScripts.get(scriptId)!);
   const databaseMetadata = useAppStore.use.databaseMetadata();
-  const databaseModelsArray = Array.from(databaseMetadata.values());
+  const scriptSession = useAppStore((state) => state.sqlScriptSessions.get(scriptId));
   const iDbConn = useAppStore((state) => state._iDbConn);
 
   /**
@@ -209,19 +215,13 @@ export const ScriptEditor = ({
     return {};
   }, [duckDBFunctions]);
 
-  // Get the tab ID from the script
-  const tabId = useAppStore((state) => {
-    for (const [tId, tab] of state.tabs) {
-      if (tab.type === 'script' && tab.sqlScriptId === scriptId) {
-        return tId;
-      }
-    }
-    return null;
-  });
-
   const schema = useMemo(
-    () => convertToFlowScopeSchema(databaseModelsArray),
-    [databaseModelsArray],
+    () =>
+      convertToFlowScopeSchema(Array.from(databaseMetadata.values()), {
+        defaultCatalog: scriptSession?.currentCatalog,
+        defaultSchema: scriptSession?.currentSchema,
+      }),
+    [databaseMetadata, scriptSession?.currentCatalog, scriptSession?.currentSchema],
   );
 
   /**
@@ -292,6 +292,8 @@ export const ScriptEditor = ({
   );
 
   const handleRunQuery = async (mode?: RunScriptMode) => {
+    if (!databaseReady) return;
+
     const editorHandle = editorRef.current;
     const editor = editorHandle?.editor;
     const model = editor?.getModel();
@@ -593,11 +595,15 @@ export const ScriptEditor = ({
           dirty={dirty}
           handleRunQuery={handleRunQuery}
           scriptState={scriptState}
+          runDisabled={!databaseReady}
           onAIAssistantClick={handleAIAssistantClick}
           historyMode={historyMode}
           onEnterHistoryMode={shouldShowVersionHistory ? handleEnterHistoryMode : undefined}
           onExitHistoryMode={handleExitHistoryMode}
           selectedVersion={selectedVersionForDiff}
+          sessionSelector={
+            databaseReady ? <ScriptSessionSelector scriptId={scriptId} tabId={tabId} /> : undefined
+          }
           onRestoreVersion={handleRestoreVersion}
           onRenameVersion={handleRenameVersion}
         />

@@ -139,6 +139,7 @@ tests/test-tmp
 
 # Local module cahce
 .module-cache
+.local-bin/
 
 *.local.*
 
@@ -147,3 +148,4 @@ tests/test-tmp
 
 # ralphex progress logs
 progress*.txt
+.tmp/

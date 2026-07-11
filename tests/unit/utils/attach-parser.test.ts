@@ -4,6 +4,7 @@ import {
   parseAttachStatement,
   parseDetachStatement,
   parseIcebergAttachStatement,
+  parseMotherDuckAttachStatement,
   parseCreateSecretStatement,
   ATTACH_STATEMENT_REGEX,
 } from '../../../src/utils/attach-parser';
@@ -70,6 +71,21 @@ describe('attach-parser', () => {
       });
     });
 
+    it('should parse ATTACH with quoted database names containing spaces', () => {
+      expect(parseAttachStatement('ATTACH \'Sales Data.duckdb\' AS "Sales Data"')).toEqual({
+        rawUrl: 'Sales Data.duckdb',
+        dbName: 'Sales Data',
+        statement: 'ATTACH \'Sales Data.duckdb\' AS "Sales Data"',
+      });
+      expect(
+        parseAttachStatement('ATTACH \'Sales Data.duckdb\' AS "Sales Data" (READ_ONLY)'),
+      ).toEqual({
+        rawUrl: 'Sales Data.duckdb',
+        dbName: 'Sales Data',
+        statement: 'ATTACH \'Sales Data.duckdb\' AS "Sales Data" (READ_ONLY)',
+      });
+    });
+
     it('should parse ATTACH with both double quotes', () => {
       const result = parseAttachStatement('ATTACH "https://example.com/db.duckdb" AS "mydb"');
       expect(result).toEqual({
@@ -108,6 +124,48 @@ describe('attach-parser', () => {
       });
     });
 
+    it('should parse ATTACH options after the alias', () => {
+      expect(parseAttachStatement("ATTACH '/tmp/local.duckdb' AS local_db (READ_ONLY)")).toEqual({
+        rawUrl: '/tmp/local.duckdb',
+        dbName: 'local_db',
+        statement: "ATTACH '/tmp/local.duckdb' AS local_db (READ_ONLY)",
+      });
+      expect(parseAttachStatement("ATTACH 'quack:host' AS quack_db (TOKEN 'secret')")).toEqual({
+        rawUrl: 'quack:host',
+        dbName: 'quack_db',
+        statement: "ATTACH 'quack:host' AS quack_db (TOKEN 'secret')",
+      });
+    });
+
+    it('should parse ATTACH statements with surrounding SQL comments', () => {
+      const leadingComment = "-- note\nATTACH 'https://example.com/db.duckdb' AS mydb";
+      expect(parseAttachStatement(leadingComment)).toEqual({
+        rawUrl: 'https://example.com/db.duckdb',
+        dbName: 'mydb',
+        statement: leadingComment,
+      });
+
+      const trailingComment = "ATTACH 'https://example.com/db.duckdb' AS mydb -- note";
+      expect(parseAttachStatement(trailingComment)).toEqual({
+        rawUrl: 'https://example.com/db.duckdb',
+        dbName: 'mydb',
+        statement: trailingComment,
+      });
+
+      expect(
+        parseAttachStatement("/* note */\nATTACH '/tmp/db.duckdb' AS local_db /* done */"),
+      ).toEqual({
+        rawUrl: '/tmp/db.duckdb',
+        dbName: 'local_db',
+        statement: "/* note */\nATTACH '/tmp/db.duckdb' AS local_db /* done */",
+      });
+    });
+
+    it('should keep line-comment markers inside quoted ATTACH URLs', () => {
+      const result = parseAttachStatement("ATTACH 'https://example.com/db--copy.duckdb' AS mydb");
+      expect(result?.rawUrl).toBe('https://example.com/db--copy.duckdb');
+    });
+
     it('should handle proxy: prefix in URLs', () => {
       const result = parseAttachStatement("ATTACH 'proxy:https://example.com/db.duckdb' AS mydb");
       expect(result).toEqual({
@@ -125,6 +183,7 @@ describe('attach-parser', () => {
 
     it('should return null for invalid statements', () => {
       expect(parseAttachStatement('SELECT * FROM table')).toBeNull();
+      expect(parseAttachStatement("SELECT 'ATTACH /tmp/db.duckdb AS local_db'")).toBeNull();
       expect(parseAttachStatement('CREATE TABLE foo (id INT)')).toBeNull();
       expect(parseAttachStatement('DETACH mydb')).toBeNull();
       expect(parseAttachStatement('')).toBeNull();
@@ -137,6 +196,52 @@ describe('attach-parser', () => {
     });
   });
 
+  describe('parseMotherDuckAttachStatement', () => {
+    it('should parse AS-less MotherDuck ATTACH statements', () => {
+      expect(parseMotherDuckAttachStatement("ATTACH IF NOT EXISTS 'md:'")).toEqual({
+        rawUrl: 'md:',
+        dbName: 'md:',
+        statement: "ATTACH IF NOT EXISTS 'md:'",
+      });
+      expect(parseMotherDuckAttachStatement('ATTACH DATABASE "md:";')).toEqual({
+        rawUrl: 'md:',
+        dbName: 'md:',
+        statement: 'ATTACH DATABASE "md:";',
+      });
+      expect(parseMotherDuckAttachStatement("-- note\nATTACH IF NOT EXISTS 'md:' -- done")).toEqual(
+        {
+          rawUrl: 'md:',
+          dbName: 'md:',
+          statement: "-- note\nATTACH IF NOT EXISTS 'md:' -- done",
+        },
+      );
+    });
+
+    it('should parse AS-less per-database MotherDuck ATTACH statements', () => {
+      expect(parseMotherDuckAttachStatement("ATTACH IF NOT EXISTS 'md:my_db'")).toEqual({
+        rawUrl: 'md:my_db',
+        dbName: 'my_db',
+        statement: "ATTACH IF NOT EXISTS 'md:my_db'",
+      });
+      expect(parseMotherDuckAttachStatement('ATTACH DATABASE "md:analytics";')).toEqual({
+        rawUrl: 'md:analytics',
+        dbName: 'analytics',
+        statement: 'ATTACH DATABASE "md:analytics";',
+      });
+      expect(parseMotherDuckAttachStatement("ATTACH 'md:pp_db2'")).toEqual({
+        rawUrl: 'md:pp_db2',
+        dbName: 'pp_db2',
+        statement: "ATTACH 'md:pp_db2'",
+      });
+    });
+
+    it('should return null for regular aliased ATTACH statements', () => {
+      expect(parseMotherDuckAttachStatement("ATTACH 'md:' AS md")).toBeNull();
+      expect(parseMotherDuckAttachStatement("ATTACH 'md:my_db' AS foo")).toBeNull();
+      expect(parseMotherDuckAttachStatement("ATTACH 'https://example.com/db.duckdb'")).toBeNull();
+    });
+  });
+
   describe('parseDetachStatement', () => {
     it('should parse basic DETACH statement', () => {
       const result = parseDetachStatement('DETACH mydb');
@@ -146,6 +251,11 @@ describe('attach-parser', () => {
     it('should parse DETACH with DATABASE keyword', () => {
       const result = parseDetachStatement('DETACH DATABASE mydb');
       expect(result).toBe('mydb');
+    });
+
+    it('should parse DETACH with IF EXISTS', () => {
+      expect(parseDetachStatement('DETACH IF EXISTS mydb')).toBe('mydb');
+      expect(parseDetachStatement('DETACH DATABASE IF EXISTS "my-db"')).toBe('my-db');
     });
 
     it('should be case-insensitive', () => {
@@ -163,8 +273,15 @@ describe('attach-parser', () => {
       expect(result).toBe('db123');
     });
 
+    it('should parse DETACH statements with surrounding SQL comments', () => {
+      expect(parseDetachStatement('-- note\nDETACH mydb')).toBe('mydb');
+      expect(parseDetachStatement('DETACH DATABASE IF EXISTS "my-db" -- done')).toBe('my-db');
+      expect(parseDetachStatement('/* note */ DETACH mydb /* done */')).toBe('mydb');
+    });
+
     it('should return null for invalid statements', () => {
       expect(parseDetachStatement('SELECT * FROM table')).toBeNull();
+      expect(parseDetachStatement("SELECT 'DETACH local_db'")).toBeNull();
       expect(parseDetachStatement('ATTACH db AS mydb')).toBeNull();
       expect(parseDetachStatement('')).toBeNull();
     });
@@ -188,6 +305,12 @@ describe('attach-parser', () => {
         secretName: 'my_secret',
         statement: sql,
       });
+    });
+
+    it('should return null for Iceberg-like text inside another statement', () => {
+      expect(
+        parseIcebergAttachStatement("SELECT 'ATTACH warehouse AS cat (TYPE ICEBERG, ENDPOINT x)'"),
+      ).toBeNull();
     });
 
     it('should parse Iceberg ATTACH with ENDPOINT_TYPE GLUE', () => {
@@ -287,6 +410,14 @@ describe('attach-parser', () => {
       const result = parseIcebergAttachStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.catalogAlias).toBe('my.catalog');
+    });
+
+    it('should parse Iceberg ATTACH statements with surrounding SQL comments', () => {
+      const sql = "-- note\nATTACH 'wh' AS cat (TYPE ICEBERG, SECRET s) -- done";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.catalogAlias).toBe('cat');
+      expect(result?.warehouseName).toBe('wh');
     });
   });
 

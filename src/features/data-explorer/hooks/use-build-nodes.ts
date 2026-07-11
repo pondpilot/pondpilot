@@ -1,18 +1,29 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
+import {
+  DuckLakeCatalog,
+  IcebergCatalog,
+  LocalDB,
+  MotherDuckConnection,
+  QuackConnection,
+  RemoteDB,
+} from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 import { DataExplorerNodeMap } from '../model';
+import { useDuckLakeCatalogNodes } from './use-ducklake-catalog-nodes';
 import { useIcebergCatalogNodes } from './use-iceberg-catalog-nodes';
 import { useLocalDbNodes } from './use-local-db-nodes';
+import { useMotherDuckNodes } from './use-motherduck-nodes';
 import { useRemoteDbNodes } from './use-remote-db-nodes';
 import { useSystemDbNode } from './use-system-db-node';
 
 type UseBuildNodesProps = {
   systemDatabase: LocalDB | undefined;
   localDatabases: LocalDB[];
-  remoteDatabases: RemoteDB[];
+  remoteDatabases: Array<RemoteDB | QuackConnection>;
   icebergCatalogs: IcebergCatalog[];
+  duckLakeCatalogs: DuckLakeCatalog[];
+  motherduckConnections: MotherDuckConnection[];
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
   conn: AsyncDuckDBConnectionPool;
@@ -35,6 +46,8 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     localDatabases,
     remoteDatabases,
     icebergCatalogs,
+    duckLakeCatalogs,
+    motherduckConnections,
     nodeMap,
     anyNodeIdToNodeTypeMap,
     conn,
@@ -88,6 +101,32 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     comparisonByTableName,
   });
 
+  // Build DuckLake catalog nodes
+  const duckLakeCatalogNodes = useDuckLakeCatalogNodes({
+    duckLakeCatalogs,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
+  });
+
+  // Build MotherDuck connection nodes
+  const motherduckConnectionNodes = useMotherDuckNodes({
+    motherduckConnections,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
+  });
+
   // Build system database node
   const { systemDbNode, systemDbNodeForDisplay } = useSystemDbNode({
     systemDatabase,
@@ -107,6 +146,8 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     localDbNodes,
     remoteDatabaseNodes,
     icebergCatalogNodes,
+    duckLakeCatalogNodes,
+    motherduckConnectionNodes,
     systemDbNode,
     systemDbNodeForDisplay,
   };

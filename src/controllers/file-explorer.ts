@@ -1,7 +1,7 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntryId } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import { findUniqueName } from '@utils/helpers';
 
@@ -28,7 +28,10 @@ export const renameFile = async (
     !dataSource ||
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
-    dataSource.type === 'iceberg-catalog'
+    dataSource.type === 'iceberg-catalog' ||
+    dataSource.type === 'ducklake-catalog' ||
+    dataSource.type === 'quack' ||
+    dataSource.type === 'motherduck'
   ) {
     throw new Error(`File source ${fileDataSourceId} not found`);
   }
@@ -146,6 +149,9 @@ export const renameXlsxFile = async (
       ds.type !== 'attached-db' &&
       ds.type !== 'remote-db' &&
       ds.type !== 'iceberg-catalog' &&
+      ds.type !== 'ducklake-catalog' &&
+      ds.type !== 'quack' &&
+      ds.type !== 'motherduck' &&
       ds.fileSourceId === localEntryId,
   );
 

@@ -8,12 +8,12 @@ import {
 } from '@controllers/db';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
-import { getDatabaseIdentifier, isDatabaseDataSource } from '@utils/data-source';
+import { getDatabaseIdentifier, isDatabaseDataSource, isMotherDuckDbKey } from '@utils/data-source';
 import { parseTableAccessKey } from '@utils/table-access';
 
 import { persistDeleteDataSource } from './persist';
@@ -57,6 +57,7 @@ export const deleteDataSources = async (
     dataSources,
     dataSourceAccessTimes,
     tableAccessTimes,
+    databaseMetadata,
     tabs,
     tabOrder,
     activeTabId,
@@ -91,11 +92,21 @@ export const deleteDataSources = async (
     Array.from(dataSourceAccessTimes).filter(([id]) => !dataSourceIdsToDelete.has(id)),
   );
 
-  const deletedDbNames = new Set(
+  const deletedDbIdentifiers = new Set(
     deletedDataSources
       .filter(isDatabaseDataSource)
       .map((dataSource) => getDatabaseIdentifier(dataSource)),
   );
+  const shouldClearMotherDuckMetadata = deletedDataSources.some(
+    (dataSource) => dataSource.type === 'motherduck',
+  );
+  if (shouldClearMotherDuckMetadata) {
+    for (const dbName of databaseMetadata.keys()) {
+      if (isMotherDuckDbKey(dbName)) {
+        deletedDbIdentifiers.add(dbName);
+      }
+    }
+  }
   const newTableAccessTimes = new Map(
     Array.from(tableAccessTimes).filter(([key]) => {
       const parsed = parseTableAccessKey(key);
@@ -103,7 +114,7 @@ export const deleteDataSources = async (
         return true;
       }
       const [dbName] = parsed;
-      return !deletedDbNames.has(dbName);
+      return !deletedDbIdentifiers.has(dbName);
     }),
   );
 
@@ -147,7 +158,9 @@ export const deleteDataSources = async (
     Array.from(registeredFiles).filter(([id, _]) => !entryIdsToDelete.has(id)),
   );
 
-  // Update the store with the new state
+  // Explorer actions are fire-and-forget and have historically removed their nodes synchronously.
+  // Keep that interaction contract while retaining fail-fast DuckDB cleanup: unexpected cleanup
+  // failures restore the complete pre-delete application state below.
   useAppStore.setState(
     {
       dataSources: newDataSources,
@@ -164,78 +177,144 @@ export const deleteDataSources = async (
     'AppStore/deleteDataSource',
   );
 
+  try {
+    // XLSX sheets have separate views but share one registered workbook. Unregister it only after
+    // the first view is dropped; later sheets have no independent file registration to clean up.
+    const unregisteredFileIds = new Set<string>();
+
+    // Delete the data sources from the database
+    for (const dataSource of deletedDataSources) {
+      if (dataSource.type === 'iceberg-catalog') {
+        // For Iceberg catalogs: detach, drop DuckDB secret, and remove encrypted secret
+        await detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.warehouseName);
+        try {
+          const { buildDropSecretQuery } = await import('@utils/iceberg-sql-builder');
+          await conn.query(buildDropSecretQuery(dataSource.secretName));
+        } catch (secretError) {
+          console.warn('Failed to drop Iceberg secret during deletion:', secretError);
+        }
+        if (dataSource.secretRef) {
+          try {
+            const { _iDbConn } = useAppStore.getState();
+            if (_iDbConn) {
+              const { deleteSecret } = await import('@services/secret-store');
+              await deleteSecret(_iDbConn, dataSource.secretRef);
+            }
+          } catch (storeError) {
+            console.warn('Failed to delete secret from store during deletion:', storeError);
+          }
+        }
+        continue;
+      }
+
+      if (dataSource.type === 'motherduck') {
+        // For MotherDuck connections: disconnect and remove encrypted secret
+        try {
+          const { detachMotherDuckDatabases } = await import('@utils/motherduck');
+          await detachMotherDuckDatabases(conn);
+        } catch (disconnectError) {
+          console.warn('Failed to disconnect MotherDuck during deletion:', disconnectError);
+        }
+        if (dataSource.secretRef) {
+          try {
+            const { _iDbConn } = useAppStore.getState();
+            if (_iDbConn) {
+              const { deleteSecret } = await import('@services/secret-store');
+              await deleteSecret(_iDbConn, dataSource.secretRef);
+            }
+          } catch (storeError) {
+            console.warn(
+              'Failed to delete MotherDuck secret from store during deletion:',
+              storeError,
+            );
+          }
+        }
+        continue;
+      }
+
+      if (dataSource.type === 'remote-db') {
+        // For remote databases, just detach
+        await detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
+        continue;
+      }
+
+      if (dataSource.type === 'quack') {
+        await detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.uri);
+        if (dataSource.secretRef) {
+          try {
+            const { _iDbConn } = useAppStore.getState();
+            if (_iDbConn) {
+              const { deleteSecret } = await import('@services/secret-store');
+              await deleteSecret(_iDbConn, dataSource.secretRef);
+            }
+          } catch (storeError) {
+            console.warn('Failed to delete Quack secret from store during deletion:', storeError);
+          }
+        }
+        continue;
+      }
+
+      if (dataSource.type === 'ducklake-catalog') {
+        // For DuckLake catalogs, just detach
+        await detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.url);
+        continue;
+      }
+
+      if (!('fileSourceId' in dataSource)) {
+        continue;
+      }
+
+      const file = localEntries.get(dataSource.fileSourceId);
+      if (!file || file.kind !== 'file' || file.fileType !== 'data-source') {
+        continue;
+      }
+      if (dataSource.type === 'attached-db') {
+        await detachAndUnregisterDatabase(
+          conn,
+          dataSource.dbName,
+          `${file.uniqueAlias}.${file.ext}`,
+        );
+      } else if ('viewName' in dataSource) {
+        // Wait for the view to be dropped to get fresh views metadata after that.
+        const fileName = unregisteredFileIds.has(file.id)
+          ? undefined
+          : `${file.uniqueAlias}.${file.ext}`;
+        await dropViewAndUnregisterFile(conn, dataSource.viewName, fileName);
+        unregisteredFileIds.add(file.id);
+      }
+    }
+  } catch (error) {
+    useAppStore.setState(
+      {
+        dataSources,
+        dataSourceAccessTimes,
+        tableAccessTimes,
+        localEntries,
+        registeredFiles,
+        tabs,
+        tabOrder,
+        activeTabId,
+        previewTabId,
+      },
+      undefined,
+      'AppStore/deleteDataSourceRollback',
+    );
+    throw error;
+  }
+
   if (iDbConn) {
-    // Delete data sources from IndexedDB
     persistDeleteDataSource(iDbConn, dataSourceIds, entryIdsToDelete);
 
-    // Delete associated tabs from IndexedDB if any. For simplicty we do not bother
-    // doing this in a single transaction, highly unlikely to be a problem.
-    // This also takes care of the data view cache entries associated with the tabs
     if (tabsToDelete.length) {
       persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
     }
   }
 
-  // Delete the data sources from the database
-  for (const dataSource of deletedDataSources) {
-    if (dataSource.type === 'iceberg-catalog') {
-      // For Iceberg catalogs: detach, drop DuckDB secret, and remove encrypted secret
-      try {
-        detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.warehouseName);
-      } catch (detachError) {
-        console.warn('Failed to detach Iceberg catalog during deletion:', detachError);
-      }
-      try {
-        const { buildDropSecretQuery } = await import('@utils/iceberg-sql-builder');
-        await conn.query(buildDropSecretQuery(dataSource.secretName));
-      } catch (secretError) {
-        console.warn('Failed to drop Iceberg secret during deletion:', secretError);
-      }
-      if (dataSource.secretRef) {
-        try {
-          const { _iDbConn } = useAppStore.getState();
-          if (_iDbConn) {
-            const { deleteSecret } = await import('@services/secret-store');
-            await deleteSecret(_iDbConn, dataSource.secretRef);
-          }
-        } catch (storeError) {
-          console.warn('Failed to delete secret from store during deletion:', storeError);
-        }
-      }
-      continue;
-    }
-
-    if (dataSource.type === 'remote-db') {
-      // For remote databases, just detach
-      detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
-      continue;
-    }
-
-    if (!('fileSourceId' in dataSource)) {
-      continue;
-    }
-
-    const file = localEntries.get(dataSource.fileSourceId);
-    if (!file || file.kind !== 'file' || file.fileType !== 'data-source') {
-      continue;
-    }
-    if (dataSource.type === 'attached-db') {
-      detachAndUnregisterDatabase(conn, dataSource.dbName, `${file.uniqueAlias}.${file.ext}`);
-    } else if ('viewName' in dataSource) {
-      // Wait for the view to be dropped to get fresh views metadata after that
-      await dropViewAndUnregisterFile(conn, dataSource.viewName, `${file.uniqueAlias}.${file.ext}`);
-    }
-  }
-
   // After database is updated (views are dropped), create the updated state for database metadata
-  const { databaseMetadata } = useAppStore.getState();
-  const deletedDataBases = new Set(
-    deletedDataSources.filter(isDatabaseDataSource).map((ds) => getDatabaseIdentifier(ds)),
-  );
   // Filter out deleted databases from the metadata
   // eslint-disable-next-line prefer-const
   let newDatabaseMetadata = new Map(
-    Array.from(databaseMetadata).filter(([dbName, _]) => !deletedDataBases.has(dbName)),
+    Array.from(databaseMetadata).filter(([dbName, _]) => !deletedDbIdentifiers.has(dbName)),
   );
   // Update metadata views
   if (deletedDataSources.some((ds) => !isDatabaseDataSource(ds))) {

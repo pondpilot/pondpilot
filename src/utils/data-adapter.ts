@@ -1,4 +1,3 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   ChartAggregatedData,
   ChartAggregationType,
@@ -7,20 +6,25 @@ import {
   ColumnDistribution,
   ColumnStats,
   DataAdapterQueries,
+  DataAdapterStreamReader,
   MetadataColumnType,
 } from '@models/data-adapter';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
+  DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
+  QuackConnection,
   RemoteDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
 } from '@models/data-source';
-import { DBColumn } from '@models/db';
+import { ARROW_STREAMING_BATCH_SIZE, DBColumn } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { getDatabaseIdentifier } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
@@ -29,21 +33,137 @@ import { isFlatFileDataSource } from './data-source';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { quote } from './helpers';
 
+function buildOrderedSelectQuery(
+  fqn: string,
+  sort: Parameters<NonNullable<DataAdapterQueries['getSortableReader']>>[0],
+): string {
+  let baseQuery = `SELECT * FROM ${fqn}`;
+
+  if (sort.length > 0) {
+    const orderBy = sort
+      .map((s) => `${toDuckDBIdentifier(s.column)} ${s.order || 'asc'}`)
+      .join(', ');
+    baseQuery += ` ORDER BY ${orderBy}`;
+  }
+
+  return baseQuery;
+}
+
+class PagedQueryReader implements DataAdapterStreamReader<any> {
+  private currentReader: DataAdapterStreamReader<any> | null = null;
+
+  private currentPageRowCount = 0;
+
+  private currentOffset = 0;
+
+  private currentPageAbortController: AbortController | null = null;
+
+  private isClosed = false;
+
+  constructor(
+    private readonly pool: AsyncDuckDBConnectionPool,
+    private readonly baseQuery: string,
+    private readonly outerAbortSignal: AbortSignal,
+    private readonly pageSize: number = ARROW_STREAMING_BATCH_SIZE,
+  ) {}
+
+  public get closed(): boolean {
+    return this.isClosed;
+  }
+
+  private async loadPageReader(): Promise<DataAdapterStreamReader<any> | null> {
+    if (this.isClosed || this.outerAbortSignal.aborted) {
+      await this.cancel();
+      return null;
+    }
+
+    this.currentPageAbortController = new AbortController();
+    const pageAbortController = this.currentPageAbortController;
+    const abortPageLoad = () => pageAbortController.abort();
+    this.outerAbortSignal.addEventListener('abort', abortPageLoad, { once: true });
+
+    try {
+      const pageQuery = `${this.baseQuery} LIMIT ${this.pageSize} OFFSET ${this.currentOffset}`;
+      return await this.pool.sendAbortable(pageQuery, pageAbortController.signal, true);
+    } finally {
+      this.outerAbortSignal.removeEventListener('abort', abortPageLoad);
+    }
+  }
+
+  public async cancel(): Promise<void> {
+    if (this.isClosed) return;
+
+    this.isClosed = true;
+    this.currentPageAbortController?.abort();
+
+    const reader = this.currentReader;
+    this.currentReader = null;
+    this.currentPageAbortController = null;
+
+    if (reader) {
+      await reader.cancel();
+    }
+  }
+
+  public async next(): ReturnType<DataAdapterStreamReader['next']> {
+    if (this.isClosed) {
+      return { done: true, value: null };
+    }
+
+    while (!this.isClosed) {
+      if (!this.currentReader) {
+        this.currentPageRowCount = 0;
+        this.currentReader = await this.loadPageReader();
+
+        if (!this.currentReader) {
+          return { done: true, value: null };
+        }
+      }
+
+      const result = await this.currentReader.next();
+
+      if (!result.done) {
+        this.currentPageRowCount += result.value.numRows;
+        return result;
+      }
+
+      this.currentReader = null;
+      this.currentPageAbortController = null;
+
+      if (this.currentPageRowCount < this.pageSize) {
+        await this.cancel();
+        return { done: true, value: null };
+      }
+
+      this.currentOffset += this.currentPageRowCount;
+      this.currentPageRowCount = 0;
+    }
+
+    return { done: true, value: null };
+  }
+}
+
 function getGetSortableReaderApiFromFQN(
   pool: AsyncDuckDBConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getSortableReader'] {
   return async (sort, abortSignal) => {
-    let baseQuery = `SELECT * FROM ${fqn}`;
-
-    if (sort.length > 0) {
-      const orderBy = sort
-        .map((s) => `${toDuckDBIdentifier(s.column)} ${s.order || 'asc'}`)
-        .join(', ');
-      baseQuery += ` ORDER BY ${orderBy}`;
-    }
+    const baseQuery = buildOrderedSelectQuery(fqn, sort);
     const reader = await pool.sendAbortable(baseQuery, abortSignal, true);
     return reader;
+  };
+}
+
+function getGetPagedSortableReaderApiFromFQN(
+  pool: AsyncDuckDBConnectionPool,
+  fqn: string,
+): DataAdapterQueries['getSortableReader'] {
+  return async (sort, abortSignal) => {
+    if (abortSignal.aborted) {
+      return null;
+    }
+
+    return new PagedQueryReader(pool, buildOrderedSelectQuery(fqn, sort), abortSignal);
   };
 }
 
@@ -698,14 +818,21 @@ function getFlatFileDataAdapterQueries(
 // for database operations (both have dbName and dbType fields)
 function getDatabaseDataAdapterApi(
   pool: AsyncDuckDBConnectionPool,
-  dataSource: LocalDB | RemoteDB | IcebergCatalog,
+  dataSource:
+    LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection,
   tab: TabReactiveState<LocalDBDataTab>,
+  options: {
+    usePagedReader?: boolean;
+  } = {},
 ): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
-  const rawDbName = getDatabaseIdentifier(dataSource);
+  const rawDbName = tab.databaseName ?? getDatabaseIdentifier(dataSource);
   const dbName = toDuckDBIdentifier(rawDbName);
   const schemaName = toDuckDBIdentifier(tab.schemaName);
   const tableName = toDuckDBIdentifier(tab.objectName);
   const fqn = `${dbName}.${schemaName}.${tableName}`;
+  const getSortableReader = options.usePagedReader
+    ? getGetPagedSortableReaderApiFromFQN(pool, fqn)
+    : getGetSortableReaderApiFromFQN(pool, fqn);
 
   return {
     adapter: {
@@ -733,7 +860,7 @@ function getDatabaseDataAdapterApi(
               }
             : undefined
           : undefined,
-      getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
+      getSortableReader,
       getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
       getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
       getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
@@ -793,13 +920,15 @@ export function getFileDataAdapterQueries({
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 
-  if (dataSource.type === 'remote-db') {
+  if (dataSource.type === 'remote-db' || dataSource.type === 'quack') {
+    const label = dataSource.type === 'quack' ? 'Quack server' : 'Remote database';
+
     if (tab.dataSourceType !== 'db') {
       return {
         adapter: null,
         userErrors: [],
         internalErrors: [
-          `Tried creating a remote db object data adapter from a tab with different source type: ${tab.dataSourceType}`,
+          `Tried creating a ${label} data adapter from a tab with different source type: ${tab.dataSourceType}`,
         ],
       };
     }
@@ -808,12 +937,12 @@ export function getFileDataAdapterQueries({
     if (dataSource.connectionState !== 'connected') {
       return {
         adapter: null,
-        userErrors: [`Remote database '${dataSource.dbName}' is not connected`],
+        userErrors: [`${label} '${dataSource.dbName}' is not connected`],
         internalErrors: [],
       };
     }
 
-    // Remote databases use the same logic as local databases
+    // Remote databases and Quack connections use the same logic as local databases
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 
@@ -877,6 +1006,52 @@ export function getFileDataAdapterQueries({
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 
+  if (dataSource.type === 'ducklake-catalog') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating a DuckLake catalog data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: [`DuckLake catalog '${dataSource.catalogAlias}' is not connected`],
+        internalErrors: [],
+      };
+    }
+
+    return getDatabaseDataAdapterApi(pool, dataSource, tab, {
+      usePagedReader: true,
+    });
+  }
+
+  if (dataSource.type === 'motherduck') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating a MotherDuck data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: ['MotherDuck is not connected'],
+        internalErrors: [],
+      };
+    }
+
+    return getDatabaseDataAdapterApi(pool, dataSource, tab);
+  }
+
   const _exhaustiveCheck: never = dataSource;
   return {
     adapter: null,
@@ -910,6 +1085,18 @@ export function getScriptAdapterQueries({
   return {
     adapter: {
       sourceQuery: classifiedStmt.isAllowedInSubquery ? trimmedQuery : undefined,
+      copyToParquet: classifiedStmt.isAllowedInSubquery
+        ? async (tempFileName: string, compression: string) => {
+            const conn = await pool.pinForTabDataOperation(tab.id);
+            try {
+              await conn.query(
+                `COPY (${trimmedQuery}) TO '${tempFileName}' (FORMAT PARQUET, COMPRESSION '${compression}')`,
+              );
+            } finally {
+              await conn.close();
+            }
+          }
+        : undefined,
       // As of today we do not allow runnig even an estimated row count on
       // arbitrary queries, so we do no create these functions
       getSortableReader: classifiedStmt.isAllowedInSubquery
@@ -922,20 +1109,24 @@ export function getScriptAdapterQueries({
                 .join(', ');
               queryToRun = `SELECT * FROM (${trimmedQuery}) ORDER BY ${orderBy}`;
             }
-            const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
+            const reader = await pool.sendAbortableForTab(tab.id, queryToRun, abortSignal, true);
             return reader;
           }
         : undefined,
       getReader: !classifiedStmt.isAllowedInSubquery
         ? async (abortSignal) => {
-            const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
+            const reader = await pool.sendAbortableForTab(tab.id, trimmedQuery, abortSignal, true);
             return reader;
           }
         : undefined,
       getColumnAggregate: classifiedStmt.isAllowedInSubquery
         ? async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
             const queryToRun = `SELECT ${aggType}(${columnName}) FROM (${trimmedQuery})`;
-            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+            const { value, aborted } = await pool.queryAbortableForTab(
+              tab.id,
+              queryToRun,
+              abortSignal,
+            );
 
             if (aborted) {
               return { value: undefined, aborted };
@@ -947,7 +1138,11 @@ export function getScriptAdapterQueries({
         ? async (columns: DBColumn[], abortSignal: AbortSignal) => {
             const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
             const queryToRun = `SELECT ${columnNames} FROM (${trimmedQuery})`;
-            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+            const { value, aborted } = await pool.queryAbortableForTab(
+              tab.id,
+              queryToRun,
+              abortSignal,
+            );
 
             if (aborted) {
               return { value: [], aborted };
@@ -975,7 +1170,7 @@ export function getScriptAdapterQueries({
               sortOrder,
             );
 
-            const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+            const { value, aborted } = await pool.queryAbortableForTab(tab.id, query, abortSignal);
 
             if (aborted) {
               return { value: [], aborted };

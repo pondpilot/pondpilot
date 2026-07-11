@@ -29,3 +29,27 @@ export function isSchemaError(error: Error): boolean {
     errorMessage.includes('Contents of view were altered')
   );
 }
+
+/**
+ * Checks whether a schema error is likely caused by a flat-file schema drift
+ * that can be fixed by re-syncing files and recreating managed views.
+ *
+ * Missing tables/views are intentionally excluded because re-running file sync
+ * does not help for deleted database objects and can cause repeated retries.
+ *
+ * @param error - The error object to check
+ * @returns true if auto-recovery is worth attempting, false otherwise
+ */
+export function isRecoverableSchemaError(error: Error): boolean {
+  if (!error.message) {
+    return false;
+  }
+
+  const errorMessage = error.message;
+
+  return (
+    errorMessage.includes('Binder Error') ||
+    errorMessage.includes('Invalid column') ||
+    errorMessage.includes('Contents of view were altered')
+  );
+}

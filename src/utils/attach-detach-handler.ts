@@ -13,7 +13,7 @@ import {
   AnyDataSource,
   PersistentDataSourceId,
 } from '@models/data-source';
-import { makeSecretId, putSecret } from '@services/secret-store';
+import { deleteSecret, makeSecretId, putSecret } from '@services/secret-store';
 import type { SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import {
@@ -262,11 +262,13 @@ export async function handleAttachStatements(
           Array.from(context.updatedDataSources.values()).find(
             (ds) =>
               (ds.type === 'remote-db' && ds.dbName === dbName) ||
+              (ds.type === 'quack' && ds.dbName === dbName) ||
               (ds.type === 'attached-db' && ds.dbName === dbName),
           ) ??
           Array.from(context.dataSources.values()).find(
             (ds) =>
               (ds.type === 'remote-db' && ds.dbName === dbName) ||
+              (ds.type === 'quack' && ds.dbName === dbName) ||
               (ds.type === 'attached-db' && ds.dbName === dbName),
           );
 
@@ -315,8 +317,10 @@ export async function handleDetachStatements(
     const dbToRemove = Array.from(context.updatedDataSources.entries()).find(
       ([, ds]) =>
         (ds.type === 'remote-db' && ds.dbName === dbName) ||
+        (ds.type === 'quack' && ds.dbName === dbName) ||
         (ds.type === 'attached-db' && ds.dbName === dbName) ||
-        (ds.type === 'iceberg-catalog' && ds.catalogAlias === dbName),
+        (ds.type === 'iceberg-catalog' && ds.catalogAlias === dbName) ||
+        (ds.type === 'ducklake-catalog' && ds.catalogAlias === dbName),
     );
 
     if (dbToRemove) {
@@ -326,10 +330,14 @@ export async function handleDetachStatements(
 
       const { _iDbConn } = useAppStore.getState();
       if (_iDbConn) {
-        // Encrypted secrets are intentionally NOT deleted on DETACH.
-        // DETACH only affects the current DuckDB session; credentials
-        // remain in the secret store so the user can re-attach later.
-        // Secrets are only deleted through the explicit UI delete path.
+        // Best-effort: secret cleanup must not block the primary data-source
+        // removal. A failed deleteSecret used to throw out of this handler and
+        // leave the (already-detached) data source in app state/persistence.
+        if (ds.type === 'quack' && ds.secretRef) {
+          deleteSecret(_iDbConn, ds.secretRef).catch((error) => {
+            console.warn('Failed to delete secret on DETACH:', error);
+          });
+        }
         await persistDeleteDataSource(_iDbConn, [dbId], []);
       }
     }

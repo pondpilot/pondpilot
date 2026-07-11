@@ -1,7 +1,7 @@
 import { TreeNodeData } from '@components/explorer-tree/model';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
 import { LocalDB, SYSTEM_DATABASE_ID } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 import { buildDatabaseNode } from '../builders/database-tree-builder';
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';

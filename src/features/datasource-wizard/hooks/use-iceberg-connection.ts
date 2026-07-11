@@ -1,8 +1,8 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { IcebergAuthType, IcebergCatalog } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { deleteSecret, makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makePersistentDataSourceId } from '@utils/data-source';

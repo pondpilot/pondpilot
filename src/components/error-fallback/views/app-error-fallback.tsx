@@ -5,7 +5,7 @@ import { APP_SUPPORT_URL } from '@models/app-urls';
 import { IconCircleCheck, IconRefresh, IconDownload, IconTrash } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
-import { useRouteError } from 'react-router-dom';
+import { useRouteError } from 'react-router';
 
 import { deleteApplicationData } from '../utils';
 

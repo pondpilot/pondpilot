@@ -11,6 +11,8 @@ const mockPersistPut = jest.fn<any>().mockResolvedValue(undefined);
 const mockPersistDelete = jest.fn<any>().mockResolvedValue(undefined);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockPutSecret = jest.fn<any>().mockResolvedValue(undefined);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockDeleteSecret = jest.fn<any>().mockResolvedValue(undefined);
 let mockSecretIdCounter = 0;
 let mockStoreState: Record<string, unknown>;
 
@@ -20,8 +22,7 @@ jest.mock('@services/secret-store', () => ({
     mockSecretIdCounter += 1;
     return `test-secret-id-${mockSecretIdCounter}`;
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  deleteSecret: jest.fn<any>().mockResolvedValue(undefined),
+  deleteSecret: (...args: unknown[]) => mockDeleteSecret(...args),
 }));
 
 jest.mock('@controllers/data-source/persist', () => ({
@@ -86,6 +87,7 @@ describe('attach-detach-handler', () => {
     mockPersistPut.mockClear();
     mockPersistDelete.mockClear();
     mockPutSecret.mockClear();
+    mockDeleteSecret.mockClear();
     mockStoreState = { _iDbConn: { fake: true } };
   });
 
@@ -132,6 +134,35 @@ describe('attach-detach-handler', () => {
         connectionState: 'connected',
       });
       expect(mockPersistPut).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not create a remote-db duplicate for an existing Quack alias', async () => {
+      const quackId = 'existing-quack-id' as PersistentDataSourceId;
+      const existing = new Map<PersistentDataSourceId, AnyDataSource>([
+        [
+          quackId,
+          {
+            type: 'quack',
+            id: quackId,
+            uri: 'quack:localhost:9494',
+            dbName: 'remote_db',
+            disableSsl: true,
+            connectionState: 'connected',
+            attachedAt: 1000,
+            secretRef: 'quack-secret' as SecretId,
+          },
+        ],
+      ]);
+      const statements = [
+        makeStatement("ATTACH 'https://example.com/db.duckdb' AS remote_db", SQLStatement.ATTACH),
+      ];
+      const ctx = makeContext(existing);
+
+      await handleAttachStatements(statements, ctx);
+
+      expect(ctx.updatedDataSources.size).toBe(1);
+      expect(Array.from(ctx.updatedDataSources.values())[0]).toMatchObject({ type: 'quack' });
+      expect(mockPersistPut).not.toHaveBeenCalled();
     });
 
     it('should not duplicate an Iceberg catalog with the same alias', async () => {
@@ -566,6 +597,33 @@ describe('attach-detach-handler', () => {
       expect(mockPersistDelete).toHaveBeenCalledTimes(1);
     });
 
+    it('should remove a quack data source by dbName', async () => {
+      const quackId = 'quack-id' as PersistentDataSourceId;
+      const existing = new Map<PersistentDataSourceId, AnyDataSource>([
+        [
+          quackId,
+          {
+            type: 'quack',
+            id: quackId,
+            uri: 'quack:localhost:9494',
+            dbName: 'quack_remote',
+            disableSsl: true,
+            connectionState: 'connected',
+            attachedAt: 1000,
+            secretRef: 'quack-secret' as SecretId,
+          },
+        ],
+      ]);
+      const statements = [makeStatement('DETACH quack_remote', SQLStatement.DETACH)];
+      const ctx = makeContext(existing);
+
+      await handleDetachStatements(statements, ctx);
+
+      expect(ctx.updatedDataSources.size).toBe(0);
+      expect(mockDeleteSecret).toHaveBeenCalledWith({ fake: true }, 'quack-secret');
+      expect(mockPersistDelete).toHaveBeenCalledTimes(1);
+    });
+
     it('should remove an iceberg-catalog data source by catalogAlias', async () => {
       const catId = 'ice-id' as PersistentDataSourceId;
       const existing = new Map<PersistentDataSourceId, AnyDataSource>([
@@ -632,6 +690,44 @@ describe('attach-detach-handler', () => {
       await handleDetachStatements(statements, ctx);
 
       expect(mockPersistDelete).not.toHaveBeenCalled();
+    });
+
+    it('should still persist the deletion when secret cleanup rejects', async () => {
+      mockDeleteSecret.mockRejectedValueOnce(new Error('encryption store unavailable'));
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const quackId = 'quack-id' as PersistentDataSourceId;
+      const existing = new Map<PersistentDataSourceId, AnyDataSource>([
+        [
+          quackId,
+          {
+            type: 'quack',
+            id: quackId,
+            uri: 'quack:localhost:9494',
+            dbName: 'quack_remote',
+            disableSsl: true,
+            connectionState: 'connected',
+            attachedAt: 1000,
+            secretRef: 'quack-secret' as SecretId,
+          },
+        ],
+      ]);
+      const statements = [makeStatement('DETACH quack_remote', SQLStatement.DETACH)];
+      const ctx = makeContext(existing);
+
+      await handleDetachStatements(statements, ctx);
+
+      // Primary mutation must succeed even though the secret cleanup rejected
+      expect(ctx.updatedDataSources.size).toBe(0);
+      expect(mockPersistDelete).toHaveBeenCalledTimes(1);
+
+      // Allow the unawaited .catch() handler to run
+      await Promise.resolve();
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        'Failed to delete secret on DETACH:',
+        expect.any(Error),
+      );
+      consoleWarnSpy.mockRestore();
     });
   });
 });

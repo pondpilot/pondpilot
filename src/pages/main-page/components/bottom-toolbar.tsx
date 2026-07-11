@@ -9,7 +9,7 @@ import {
   IconBug,
 } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 interface BottomToolbarProps {
   onCollapse?: () => void;
@@ -23,14 +23,14 @@ export const BottomToolbar = ({ onCollapse }: BottomToolbarProps) => {
   const { openBugReportModal } = useBugReportModal();
 
   return (
-    <Box className="flex-shrink-0 h-[34px] px-3 flex items-center justify-between border-t border-borderPrimary-light dark:border-borderPrimary-dark">
-      <Group gap="xs" className="flex-shrink-0">
+    <Box className="shrink-0 h-[34px] px-3 flex items-center justify-between border-t border-borderPrimary-light dark:border-borderPrimary-dark">
+      <Group gap="xs" className="shrink-0">
         <Tooltip label="Settings" position="top" withArrow openDelay={500}>
           <ActionIcon
             size="sm"
             data-testid={setDataTestId('settings-button')}
             onClick={() => navigate('/settings')}
-            className="flex-shrink-0"
+            className="shrink-0"
             aria-label="Settings"
           >
             <IconSettings size={20} />
@@ -43,7 +43,7 @@ export const BottomToolbar = ({ onCollapse }: BottomToolbarProps) => {
             href={APP_GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-shrink-0"
+            className="shrink-0"
             aria-label="Visit GitHub repository"
           >
             <IconBrandGithub size={20} />
@@ -55,7 +55,7 @@ export const BottomToolbar = ({ onCollapse }: BottomToolbarProps) => {
               size="sm"
               data-testid={setDataTestId('expanded-bug-report-button')}
               onClick={openBugReportModal}
-              className="flex-shrink-0"
+              className="shrink-0"
               aria-label="Report a Bug"
             >
               <IconBug size={20} />
@@ -69,7 +69,7 @@ export const BottomToolbar = ({ onCollapse }: BottomToolbarProps) => {
             size="sm"
             data-testid={setDataTestId('collapse-sidebar-button')}
             onClick={onCollapse}
-            className="flex-shrink-0"
+            className="shrink-0"
             aria-label="Collapse sidebar"
           >
             <IconLayoutSidebarLeftCollapse size={20} />

@@ -9,6 +9,7 @@ export function getViteEnv() {
     const { env } = (globalThis as any).import.meta;
     return {
       VITE_CORS_PROXY_URL: env.VITE_CORS_PROXY_URL as string | undefined,
+      VITE_QUACK_WASM_EXTENSION_URL: env.VITE_QUACK_WASM_EXTENSION_URL as string | undefined,
       DEV: env.DEV as boolean,
     };
   }
@@ -16,6 +17,7 @@ export function getViteEnv() {
   // Fallback for tests
   return {
     VITE_CORS_PROXY_URL: undefined,
+    VITE_QUACK_WASM_EXTENSION_URL: undefined,
     DEV: false,
   };
 }

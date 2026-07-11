@@ -1,6 +1,6 @@
 import { getDuckDBFunctions } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { DBFunctionsMetadata } from '@models/db';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { setDuckDBFunctions } from '@store/app-store';
 
 /**

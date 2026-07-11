@@ -11,10 +11,10 @@ import {
   buildDatabaseFileNode,
 } from '@features/data-explorer/builders/file-system-node-builder';
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '@features/data-explorer/model';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { AnyFlatFileDataSource, XlsxSheetView, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFolder, LocalFile } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { copyToClipboard } from '@utils/clipboard';
 import {
   getFlatFileDataSourceIcon,
@@ -128,7 +128,9 @@ describe('file-system-node-builder', () => {
 
       expect(node.onDelete).toBeDefined();
       node.onDelete?.(node);
-      expect(deleteLocalFileOrFolders).toHaveBeenCalledWith(mockContext.conn, ['folder-123']);
+      expect(deleteLocalFileOrFolders).toHaveBeenCalledWith(mockContext.conn, [
+        'folder-123' as LocalEntryId,
+      ]);
     });
 
     it('should not enable deletion for non-user-added folders', () => {
@@ -172,7 +174,7 @@ describe('file-system-node-builder', () => {
       const schemaItem = menuItems.find((item) => item.label === 'Show Schema');
       schemaItem?.onClick?.(node, {} as any);
       expect(getOrCreateSchemaBrowserTab).toHaveBeenCalledWith({
-        sourceId: 'folder-123',
+        sourceId: 'folder-123' as LocalEntryId,
         sourceType: 'folder',
         setActive: true,
       });
@@ -383,7 +385,11 @@ describe('file-system-node-builder', () => {
 
       // Test rename submit
       node.renameCallbacks?.onRenameSubmit(node, 'new_name');
-      expect(renameXlsxFile).toHaveBeenCalledWith('xlsx-123', 'new_name', mockContext.conn);
+      expect(renameXlsxFile).toHaveBeenCalledWith(
+        'xlsx-123' as LocalEntryId,
+        'new_name',
+        mockContext.conn,
+      );
     });
   });
 
@@ -446,7 +452,11 @@ describe('file-system-node-builder', () => {
 
       // Test rename submit
       node.renameCallbacks?.onRenameSubmit(node, 'new_view_name');
-      expect(renameFile).toHaveBeenCalledWith('ds-123', 'new_view_name', mockContext.conn);
+      expect(renameFile).toHaveBeenCalledWith(
+        'ds-123' as PersistentDataSourceId,
+        'new_view_name',
+        mockContext.conn,
+      );
     });
 
     it('should enable deletion for user-added files', () => {
@@ -473,7 +483,9 @@ describe('file-system-node-builder', () => {
 
       expect(node.onDelete).toBeDefined();
       node.onDelete?.(node);
-      expect(deleteDataSources).toHaveBeenCalledWith(mockContext.conn, ['ds-123']);
+      expect(deleteDataSources).toHaveBeenCalledWith(mockContext.conn, [
+        'ds-123' as PersistentDataSourceId,
+      ]);
     });
 
     it('should have comprehensive context menu', () => {

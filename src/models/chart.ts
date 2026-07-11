@@ -3,13 +3,7 @@
  */
 
 export type ChartType =
-  | 'bar'
-  | 'line'
-  | 'scatter'
-  | 'pie'
-  | 'area'
-  | 'stacked-bar'
-  | 'horizontal-bar';
+  'bar' | 'line' | 'scatter' | 'pie' | 'area' | 'stacked-bar' | 'horizontal-bar';
 
 export type AggregationType = 'none' | 'sum' | 'avg' | 'count' | 'min' | 'max';
 

@@ -3,18 +3,19 @@ import { ContentViewPersistence } from '@models/content-view';
 import { PersistentDataSourceId, AnyDataSource } from '@models/data-source';
 import { LocalEntryId, LocalEntryPersistence } from '@models/file-system';
 import { ScriptVersion, ScriptVersionId, SCRIPT_VERSION_TABLE_NAME } from '@models/script-version';
-import { SQLScript, SQLScriptId } from '@models/sql-script';
+import { SQLScript, SQLScriptId, SQLScriptSession } from '@models/sql-script';
 import { AnyTab, TabId } from '@models/tab';
 import { DBSchema } from 'idb';
 
 import type { SecretId, PersistedSecret } from '../services/secret-store';
 
 export const APP_DB_NAME = 'app-data';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 // Stores
 export const TAB_TABLE_NAME = 'tab';
 export const SQL_SCRIPT_TABLE_NAME = 'sql-script';
+export const SQL_SCRIPT_SESSION_TABLE_NAME = 'sql-script-session';
 export const COMPARISON_TABLE_NAME = 'comparison';
 export const CONTENT_VIEW_TABLE_NAME = 'content-view';
 export const LOCAL_ENTRY_TABLE_NAME = 'local-entry';
@@ -35,6 +36,7 @@ export const ALL_TABLE_NAMES = [
   LOCAL_ENTRY_TABLE_NAME,
   SCRIPT_ACCESS_TIME_TABLE_NAME,
   SECRET_TABLE_NAME,
+  SQL_SCRIPT_SESSION_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   SCRIPT_VERSION_TABLE_NAME,
   TAB_TABLE_NAME,
@@ -49,6 +51,10 @@ export type AppIdbSchema = DBSchema & {
   [SQL_SCRIPT_TABLE_NAME]: {
     key: SQLScriptId;
     value: SQLScript;
+  };
+  [SQL_SCRIPT_SESSION_TABLE_NAME]: {
+    key: SQLScriptId;
+    value: Omit<SQLScriptSession, 'isTransient'>;
   };
   [COMPARISON_TABLE_NAME]: {
     key: ComparisonId;

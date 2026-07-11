@@ -7,10 +7,18 @@
 import { formatSQLInEditor } from '@controllers/sql-formatter';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
-import type { CompletionItemsResult, Span } from '@pondpilot/flowscope-core';
+import type { CompletionItemsResult, Issue, LintConfig, Span } from '@pondpilot/flowscope-core';
+import { applyEdits, edgesInStatement, nodesInStatement } from '@pondpilot/flowscope-core';
 import { useAppStore } from '@store/app-store';
+import { getEditorPreferences, updateEditorPreference } from '@store/editor-preferences';
 import { safeSliceBySpan, isSpanValid, type Utf16Span } from '@utils/editor/spans';
-import * as monaco from 'monaco-editor';
+import {
+  buildLintConfig,
+  collectAllFixEdits,
+  getFixableIssues,
+  isLintIssue,
+  shouldDisplayLintIssue,
+} from '@utils/lint-config';
 import {
   forwardRef,
   useCallback,
@@ -23,10 +31,12 @@ import {
 
 import { registerAIAssistant, showAIAssistant, hideAIAssistant } from './ai-assistant-tooltip';
 import { useEditorTheme } from './hooks';
+import { monaco } from './monaco-setup';
 import {
   CancelledError,
   getFlowScopeClient,
   getCompletionClient,
+  getInteractiveFlowScopeClient,
   terminateFlowScopeClients,
 } from '../../workers/flowscope-client';
 import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
@@ -222,6 +232,11 @@ type AnalysisCache = {
   promise: Promise<import('@pondpilot/flowscope-core').AnalyzeResult> | null;
 };
 
+type StatementAnalysisCacheEntry = {
+  result: AnalysisCache['result'];
+  promise: Promise<AnalysisCache['result']> | null;
+};
+
 type CompletionItem = CompletionItemsResult['items'][number];
 type CompletionItemKind = CompletionItem['kind'];
 
@@ -242,11 +257,18 @@ function getFontWeightValue(weight: FontWeight): string {
 
 /**
  * Converts a UTF-16 span to a Monaco Range.
- * Returns null if the span is missing or invalid.
- *
- * @param model - The Monaco text model
- * @param span - The span to convert (may be null/undefined)
- * @returns A Monaco Range, or null if span is invalid
+ */
+function spanToMonacoRange(
+  model: monaco.editor.ITextModel,
+  span: { start: number; end: number },
+): monaco.Range {
+  const startPos = model.getPositionAt(span.start);
+  const endPos = model.getPositionAt(span.end);
+  return new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
+}
+
+/**
+ * Converts a UTF-16 span to a Monaco Range, returning null for invalid or missing spans.
  */
 function spanToRange(
   model: monaco.editor.ITextModel,
@@ -259,11 +281,47 @@ function spanToRange(
     return null;
   }
 
-  const startPos = model.getPositionAt(span.start);
-  const endPos = model.getPositionAt(span.end);
-
-  return new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
+  return spanToMonacoRange(model, span);
 }
+
+/**
+ * Check whether a cursor position falls within a marker's range.
+ */
+function isPositionInMarker(position: monaco.Position, m: monaco.editor.IMarker): boolean {
+  if (position.lineNumber < m.startLineNumber || position.lineNumber > m.endLineNumber) {
+    return false;
+  }
+  if (position.lineNumber === m.startLineNumber && position.column < m.startColumn) return false;
+  if (position.lineNumber === m.endLineNumber && position.column > m.endColumn) return false;
+  return true;
+}
+
+/**
+ * Extract a string rule code from a Monaco marker's code field.
+ */
+function extractMarkerCode(marker: monaco.editor.IMarker): string | null {
+  const { code } = marker;
+  if (typeof code === 'string') return code;
+  if (code && typeof code === 'object' && 'value' in code) return String(code.value);
+  return null;
+}
+
+/**
+ * Map a FlowScope severity string to a Monaco MarkerSeverity.
+ */
+function getMarkerSeverity(severity: string): monaco.MarkerSeverity {
+  switch (severity) {
+    case 'error':
+      return monaco.MarkerSeverity.Error;
+    case 'warning':
+      return monaco.MarkerSeverity.Warning;
+    default:
+      return monaco.MarkerSeverity.Info;
+  }
+}
+
+// Context menu ordering: place lint actions at the bottom of the navigation group
+const LINT_CONTEXT_MENU_ORDER = 99;
 
 /**
  * Detects user's preference for reduced motion (accessibility setting).
@@ -423,7 +481,9 @@ function hasCteWithLabel(
 ): boolean {
   const targetLabel = label.toLowerCase();
   return analysis.statements.some((stmt) =>
-    stmt.nodes.some((node) => node.type === 'cte' && node.label.toLowerCase() === targetLabel),
+    nodesInStatement(analysis, stmt.statementIndex).some(
+      (node) => node.type === 'cte' && node.label.toLowerCase() === targetLabel,
+    ),
   );
 }
 
@@ -510,7 +570,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       spans: Span[];
       promise: Promise<Span[]> | null;
     }>({ sql: '', spans: [], promise: null });
-    const statementAnalysisCacheRef = useRef(new Map<string, AnalysisCache['result']>());
+    const statementAnalysisCacheRef = useRef(new Map<string, StatementAnalysisCacheEntry>());
+    const schemaRef = useRef(schema);
+    schemaRef.current = schema;
     const cursorOffsetRef = useRef(0);
     const mountedRef = useRef(true);
     const [assistantVisible, setAssistantVisible] = useState(false);
@@ -518,10 +580,15 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
     const schemaCacheKey = useMemo(() => (schema ? JSON.stringify(schema) : ''), [schema]);
 
+    const lintConfig: LintConfig = useMemo(
+      () => buildLintConfig(preferences),
+      [preferences.lintEnabled, preferences.lintDisabledRules],
+    );
+
     useEffect(() => {
       analysisCacheRef.current = { sql: '', result: null, promise: null };
       statementAnalysisCacheRef.current.clear();
-    }, [schemaCacheKey]);
+    }, [schemaCacheKey, lintConfig]);
 
     const getFlowScopeAnalysis = useCallback(
       async (sqlText: string) => {
@@ -542,7 +609,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         const client = getFlowScopeClient();
         cache.sql = sqlText;
         cache.promise = client
-          .analyze(sqlText, schema)
+          .analyze(sqlText, schema, 'duckdb', lintConfig)
           .then((result) => {
             cache.result = result;
             cache.promise = null;
@@ -556,7 +623,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
         return cache.promise;
       },
-      [schema],
+      [schema, lintConfig],
     );
 
     const getStatementSpans = useCallback(async (sqlText: string): Promise<Span[]> => {
@@ -801,27 +868,58 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
         const cacheKey = `${schemaCacheKey}:${context.sql}`;
         const cache = statementAnalysisCacheRef.current;
-        if (cache.has(cacheKey)) {
+        const cached = cache.get(cacheKey);
+        if (cached?.result) {
           return {
-            analysis: cache.get(cacheKey) ?? null,
+            analysis: cached.result,
+            span: context.span,
+          };
+        }
+        if (cached?.promise) {
+          return {
+            analysis: await cached.promise,
             span: context.span,
           };
         }
 
-        const client = getFlowScopeClient();
-        const analysis = await client.analyze(context.sql, schema);
-        cache.set(cacheKey, analysis);
-        if (cache.size > 100) {
-          cache.clear();
-          cache.set(cacheKey, analysis);
-        }
+        const client = getInteractiveFlowScopeClient();
+        const pendingAnalysis = client
+          .analyze(context.sql, schema, 'duckdb', lintConfig, {
+            cancelPrevious: true,
+            requestKey: 'interactiveAnalyze',
+          })
+          .then((analysis) => {
+            cache.set(cacheKey, {
+              result: analysis,
+              promise: null,
+            });
+            if (cache.size > 100) {
+              cache.clear();
+              cache.set(cacheKey, {
+                result: analysis,
+                promise: null,
+              });
+            }
+            return analysis;
+          })
+          .catch((error) => {
+            cache.delete(cacheKey);
+            throw error;
+          });
+
+        cache.set(cacheKey, {
+          result: null,
+          promise: pendingAnalysis,
+        });
+
+        const analysis = await pendingAnalysis;
 
         return {
           analysis,
           span: context.span,
         };
       },
-      [getStatementContext, schema, schemaCacheKey],
+      [getStatementContext, lintConfig, schema, schemaCacheKey],
     );
 
     const updateStatementHighlight = useCallback(
@@ -893,7 +991,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
         const decorations: monaco.editor.IModelDeltaDecoration[] = [];
         analysis.statements.forEach((statement) => {
-          statement.nodes.forEach((node) => {
+          nodesInStatement(analysis, statement.statementIndex).forEach((node) => {
             if (
               !node.span ||
               (node.type !== 'table' && node.type !== 'view' && node.type !== 'cte')
@@ -933,44 +1031,51 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           return;
         }
 
-        const getMarkerSeverity = (severity: string): monaco.MarkerSeverity => {
-          switch (severity) {
-            case 'error':
-              return monaco.MarkerSeverity.Error;
-            case 'warning':
-              return monaco.MarkerSeverity.Warning;
-            default:
-              return monaco.MarkerSeverity.Info;
-          }
-        };
-        const markers: monaco.editor.IMarkerData[] = analysis.issues.map((issue) => {
-          if (!issue.span) {
+        const severityFilter = preferences.lintSeverityFilter;
+
+        // Show lint issues filtered by severity preference, plus any non-lint errors
+        // (e.g. parse errors) which are always actionable.
+        const markers: monaco.editor.IMarkerData[] = analysis.issues
+          .filter((issue) => {
+            if (isLintIssue(issue.code)) {
+              return shouldDisplayLintIssue(issue.severity, severityFilter);
+            }
+            return issue.severity === 'error';
+          })
+          .map((issue) => {
+            const source = isLintIssue(issue.code) ? 'flowscope-lint' : 'flowscope';
+
+            if (!issue.span) {
+              return {
+                severity: getMarkerSeverity(issue.severity),
+                message: `${issue.message} [${issue.code}]`,
+                startLineNumber: 1,
+                startColumn: 1,
+                endLineNumber: 1,
+                endColumn: 1,
+                source,
+                code: issue.code,
+              };
+            }
+
+            const startPos = model.getPositionAt(issue.span.start);
+            const endPos = model.getPositionAt(issue.span.end);
+
             return {
-              severity: monaco.MarkerSeverity.Info,
-              message: issue.message,
-              startLineNumber: 1,
-              startColumn: 1,
-              endLineNumber: 1,
-              endColumn: 1,
+              severity: getMarkerSeverity(issue.severity),
+              message: `${issue.message} [${issue.code}]`,
+              startLineNumber: startPos.lineNumber,
+              startColumn: startPos.column,
+              endLineNumber: endPos.lineNumber,
+              endColumn: endPos.column,
+              source,
+              code: issue.code,
             };
-          }
-
-          const startPos = model.getPositionAt(issue.span.start);
-          const endPos = model.getPositionAt(issue.span.end);
-
-          return {
-            severity: getMarkerSeverity(issue.severity),
-            message: issue.message,
-            startLineNumber: startPos.lineNumber,
-            startColumn: startPos.column,
-            endLineNumber: endPos.lineNumber,
-            endColumn: endPos.column,
-          };
-        });
+          });
 
         monacoRef.current.editor.setModelMarkers(model, 'flowscope', markers);
       },
-      [],
+      [preferences.lintSeverityFilter],
     );
 
     const scheduleFullAnalysis = useCallback(
@@ -1193,6 +1298,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
             // Schedule full re-split in background (for accuracy, with long debounce)
             scheduleStatementSplit(editorModel);
+            scheduleFullAnalysis(editorModel);
           }
         }),
       );
@@ -1257,6 +1363,36 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           }
         }
       });
+
+      disposablesRef.current.push(
+        editor.addAction({
+          id: 'pondpilot.disableLintRule',
+          label: 'Disable Lint Rule',
+          contextMenuGroupId: 'navigation',
+          contextMenuOrder: LINT_CONTEXT_MENU_ORDER,
+          precondition: undefined,
+          run: (ed) => {
+            const position = ed.getPosition();
+            const model = ed.getModel();
+            if (!position || !model) return;
+
+            const markers = monacoRef.current?.editor
+              .getModelMarkers({ resource: model.uri })
+              .filter((m) => m.source === 'flowscope-lint' && isPositionInMarker(position, m));
+
+            if (!markers || markers.length === 0) return;
+
+            const ruleCode = extractMarkerCode(markers[0]);
+            if (!ruleCode || !isLintIssue(ruleCode)) return;
+
+            // Read fresh state to avoid stale closure over React preferences
+            const current = getEditorPreferences().lintDisabledRules;
+            if (!current.includes(ruleCode)) {
+              updateEditorPreference('lintDisabledRules', [...current, ruleCode]);
+            }
+          },
+        }),
+      );
 
       const completionProvider = monacoInstance.languages.registerCompletionItemProvider('sql', {
         triggerCharacters: ['.'],
@@ -1327,7 +1463,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             const result = await client.completionItems(
               statementContext.sql,
               statementContext.cursorOffset,
-              schema,
+              schemaRef.current,
             );
             debugLog(
               'completion: completionItems() took',
@@ -1384,8 +1520,14 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       });
 
       const hoverProvider = monacoInstance.languages.registerHoverProvider('sql', {
-        provideHover: async (hoverModel: monaco.editor.ITextModel, position: monaco.Position) => {
+        provideHover: async (
+          hoverModel: monaco.editor.ITextModel,
+          position: monaco.Position,
+          token: monaco.CancellationToken,
+        ) => {
           try {
+            if (token.isCancellationRequested) return null;
+
             const word = hoverModel.getWordAtPosition(position);
             if (!word) return null;
 
@@ -1413,12 +1555,16 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) return null;
             const cursorOffset = hoverModel.getOffsetAt(position);
             const statementResult = await getStatementAnalysis(sqlText, cursorOffset);
+            if (token.isCancellationRequested) return null;
             if (!statementResult?.analysis) return null;
 
             const [statement] = statementResult.analysis.statements;
             if (!statement) return null;
 
-            const matchingNode = statement.nodes.find((node) => {
+            const matchingNode = nodesInStatement(
+              statementResult.analysis,
+              statement.statementIndex,
+            ).find((node) => {
               if (node.type === 'column') return false;
               return node.label.toLowerCase() === word.word.toLowerCase();
             });
@@ -1429,11 +1575,15 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             if (matchingNode.qualifiedName && matchingNode.qualifiedName !== matchingNode.label) {
               contents.push(`\n*${matchingNode.qualifiedName}*`);
             }
-            if (matchingNode.joinType) {
-              contents.push(`\n**Join:** ${matchingNode.joinType}`);
+            const matchingJoin = edgesInStatement(
+              statementResult.analysis,
+              statement.statementIndex,
+            ).find((edge) => edge.from === matchingNode.id && edge.joinType);
+            if (matchingJoin?.joinType) {
+              contents.push(`\n**Join:** ${matchingJoin.joinType}`);
             }
-            if (matchingNode.joinCondition) {
-              contents.push(`\n\`\`\`sql\nON ${matchingNode.joinCondition}\n\`\`\``);
+            if (matchingJoin?.joinCondition) {
+              contents.push(`\n\`\`\`sql\nON ${matchingJoin.joinCondition}\n\`\`\``);
             }
             if (matchingNode.filters?.length) {
               const filters = matchingNode.filters
@@ -1585,7 +1735,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
               // Find the first CTE definition with this label (first occurrence is the definition)
               for (const statement of analysis.statements) {
-                for (const node of statement.nodes) {
+                for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                   if (node.type === 'cte' && node.label.toLowerCase() === targetLabel) {
                     const range = spanToRange(model, node.span);
                     if (!range) {
@@ -1625,7 +1775,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
               // Find all nodes matching the label (tables, CTEs, views)
               for (const statement of analysis.statements) {
-                for (const node of statement.nodes) {
+                for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                   if (
                     (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
                     node.label.toLowerCase() === targetLabel
@@ -1827,7 +1977,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
             // Find all occurrences with spans
             for (const statement of analysis.statements) {
-              for (const node of statement.nodes) {
+              for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                 if (
                   (node.type === 'table' || node.type === 'cte') &&
                   node.label.toLowerCase() === targetLabel
@@ -1865,14 +2015,20 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
       // Code lens provider: show reference counts above CTE definitions
       const codeLensProvider = monacoInstance.languages.registerCodeLensProvider('sql', {
-        provideCodeLenses: async (model) => {
+        provideCodeLenses: async (model, token) => {
           try {
+            if (token.isCancellationRequested) {
+              return { lenses: [], dispose: () => {} };
+            }
             const sqlText = model.getValue();
             // Skip full analysis for large documents to avoid blocking the worker
             if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) {
               return { lenses: [], dispose: () => {} };
             }
             const analysis = await getFlowScopeAnalysis(sqlText);
+            if (token.isCancellationRequested) {
+              return { lenses: [], dispose: () => {} };
+            }
             if (!analysis) return { lenses: [], dispose: () => {} };
 
             const lenses: monaco.languages.CodeLens[] = [];
@@ -1883,7 +2039,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             const ctesWithoutSpan: string[] = [];
 
             for (const statement of analysis.statements) {
-              for (const node of statement.nodes) {
+              for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                 if (node.type === 'cte') {
                   const label = node.label.toLowerCase();
                   const count = cteReferences.get(label) || 0;
@@ -1945,8 +2101,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       const linkedEditingProvider = monacoInstance.languages.registerLinkedEditingRangeProvider(
         'sql',
         {
-          provideLinkedEditingRanges: async (model, position) => {
+          provideLinkedEditingRanges: async (model, position, token) => {
             try {
+              if (token.isCancellationRequested) return null;
               const sqlText = model.getValue();
               // Skip full analysis for large documents to avoid blocking the worker
               if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) return null;
@@ -1954,6 +2111,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               if (!word) return null;
 
               const analysis = await getFlowScopeAnalysis(sqlText);
+              if (token.isCancellationRequested) return null;
               if (!analysis) return null;
 
               const targetLabel = word.word.toLowerCase();
@@ -1962,7 +2120,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
               // Check if this is a CTE, table, or view
               const isLinkedIdentifier = analysis.statements.some((stmt) =>
-                stmt.nodes.some(
+                nodesInStatement(analysis, stmt.statementIndex).some(
                   (node) =>
                     (node.type === 'cte' || node.type === 'table' || node.type === 'view') &&
                     node.label.toLowerCase() === targetLabel,
@@ -1973,7 +2131,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
               // Find all occurrences with spans
               for (const statement of analysis.statements) {
-                for (const node of statement.nodes) {
+                for (const node of nodesInStatement(analysis, statement.statementIndex)) {
                   if (
                     (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
                     node.label.toLowerCase() === targetLabel
@@ -2008,6 +2166,98 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         },
       );
 
+      // Code action provider: "Fix" and "Fix All" for lint issues with autofix
+      const codeActionProvider = monacoInstance.languages.registerCodeActionProvider('sql', {
+        provideCodeActions(model, range, context) {
+          try {
+            const lintMarkers = context.markers.filter((m) => m.source === 'flowscope-lint');
+            if (lintMarkers.length === 0) return { actions: [], dispose() {} };
+
+            const cached = analysisCacheRef.current;
+            if (!cached.result) return { actions: [], dispose() {} };
+
+            // Don't offer fixes when the text has changed since the analysis
+            const sqlText = model.getValue();
+            if (cached.sql !== sqlText) return { actions: [], dispose() {} };
+
+            const actions: monaco.languages.CodeAction[] = [];
+
+            // "Fix: <message>" for each fixable issue overlapping a marker
+            for (const marker of lintMarkers) {
+              const markerSpan = {
+                start: model.getOffsetAt(
+                  new monacoInstance.Position(marker.startLineNumber, marker.startColumn),
+                ),
+                end: model.getOffsetAt(
+                  new monacoInstance.Position(marker.endLineNumber, marker.endColumn),
+                ),
+              };
+              const fixable = getFixableIssues(cached.result.issues, markerSpan);
+
+              for (const issue of fixable) {
+                const edits: monaco.languages.IWorkspaceTextEdit[] = issue.autofix!.edits.map(
+                  (patchEdit) => ({
+                    resource: model.uri,
+                    versionId: undefined,
+                    textEdit: {
+                      range: spanToMonacoRange(model, patchEdit.span),
+                      text: patchEdit.replacement,
+                    },
+                  }),
+                );
+
+                actions.push({
+                  title: `Fix: ${issue.message}`,
+                  kind: 'quickfix',
+                  diagnostics: [marker],
+                  isPreferred: issue.autofix!.applicability === 'safe',
+                  edit: { edits },
+                });
+              }
+            }
+
+            // "Fix all lint issues (N)" when multiple fixable issues exist
+            const allFixable = cached.result.issues.filter(
+              (i: Issue) =>
+                isLintIssue(i.code) &&
+                i.autofix != null &&
+                i.autofix.applicability !== 'displayOnly',
+            );
+            if (allFixable.length > 1) {
+              const allEdits = collectAllFixEdits(cached.result.issues);
+              try {
+                const fixedText = applyEdits(sqlText, allEdits);
+                actions.push({
+                  title: `Fix all lint issues (${allFixable.length})`,
+                  kind: 'quickfix',
+                  edit: {
+                    edits: [
+                      {
+                        resource: model.uri,
+                        versionId: undefined,
+                        textEdit: {
+                          range: model.getFullModelRange(),
+                          text: fixedText,
+                        },
+                      },
+                    ],
+                  },
+                });
+              } catch (error) {
+                if (!(error instanceof Error && error.message.startsWith('Overlapping edits:'))) {
+                  throw error;
+                }
+              }
+            }
+
+            return { actions, dispose() {} };
+          } catch (error) {
+            console.error('Code action provider error:', error);
+            return { actions: [], dispose() {} };
+          }
+        },
+      });
+
       disposablesRef.current.push(
         completionProvider,
         hoverProvider,
@@ -2019,6 +2269,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         renameProvider,
         codeLensProvider,
         linkedEditingProvider,
+        codeActionProvider,
       );
     };
 
@@ -2049,6 +2300,16 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         });
       }
     }, [preferences.fontSize, preferences.fontWeight, preferences.minimap]);
+
+    // Re-apply diagnostics from cached results when severity filter changes
+    // (avoids re-running WASM — just re-filters existing issues)
+    useEffect(() => {
+      const model = editorRef.current?.getModel();
+      const cached = analysisCacheRef.current;
+      if (model && cached.result) {
+        applyDiagnostics(model, cached.result);
+      }
+    }, [applyDiagnostics]);
 
     return (
       <div className="relative w-full h-full">

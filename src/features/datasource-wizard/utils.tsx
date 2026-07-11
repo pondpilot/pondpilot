@@ -18,7 +18,7 @@ export const useOpenDataWizardModal = () => {
         classNames: {
           content: cn(
             'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-2xl',
-            'max-w-4xl w-fit min-w-96',
+            'w-4xl max-w-[calc(100vw-2rem)] min-w-96',
           ),
           header: 'p-4 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
         },

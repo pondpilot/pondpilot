@@ -14,6 +14,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Audit dependencies
+        run: yarn npm audit --environment production --severity high
+
       - name: Type check
         run: yarn typecheck
 
@@ -55,6 +59,7 @@ jobs:
   build-test:
     name: Build & Test
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -85,7 +90,7 @@ jobs:
         run: yarn install --immutable
 
       - name: Run unit tests
-        run: yarn test:unit
+        run: yarn test:unit:coverage
         env:
           CI: true
 
@@ -120,6 +125,9 @@ jobs:
         run: yarn build
         env:
           VITE_BUG_REPORT_PROXY_URL: ${{ vars.VITE_BUG_REPORT_PROXY_URL }}
+
+      - name: Check bundle size
+        run: yarn check:bundle
 
       - name: Upload Build
         uses: actions/upload-artifact@v4

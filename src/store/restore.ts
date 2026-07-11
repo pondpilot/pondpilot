@@ -6,11 +6,10 @@ import {
   createXlsxSheetView,
   dropViewAndUnregisterFile,
 } from '@controllers/db/data-source';
-import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { hasDatabaseObjects } from '@controllers/db/duckdb-meta';
 import { persistAddLocalEntry } from '@controllers/file-system/persist';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison, ComparisonId } from '@models/comparison';
 import {
   AnyDataSource,
@@ -23,6 +22,7 @@ import {
   SYSTEM_DATABASE_NAME,
   SYSTEM_DATABASE_FILE_SOURCE_ID,
 } from '@models/data-source';
+import { DataBaseModel } from '@models/db';
 import {
   ignoredFolders,
   LocalEntry,
@@ -41,14 +41,16 @@ import {
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
   SCRIPT_ACCESS_TIME_TABLE_NAME,
+  SQL_SCRIPT_SESSION_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   SCRIPT_VERSION_TABLE_NAME,
   TAB_TABLE_NAME,
   TABLE_ACCESS_TIME_TABLE_NAME,
   AppIdbSchema,
 } from '@models/persisted-store';
-import { SQLScript, SQLScriptId } from '@models/sql-script';
-import { ComparisonTab, TabId } from '@models/tab';
+import { SQLScript, SQLScriptId, SQLScriptSession } from '@models/sql-script';
+import { AnyTab, ComparisonTab, TabId } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';
@@ -68,6 +70,7 @@ import {
 import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import { shouldResetRestoredScriptQuery } from '@utils/script-query-persistence';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
 
@@ -99,7 +102,9 @@ async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
           const legacyDataSource = dv as { lastUsed?: number };
           const lastUsed =
             legacyDataSource.lastUsed ??
-            (dv.type === 'remote-db' ? dv.attachedAt : now - dataSourcesArray.length + index);
+            (dv.type === 'remote-db' || dv.type === 'quack'
+              ? dv.attachedAt
+              : now - dataSourcesArray.length + index);
           dataSourceAccessStore.put(lastUsed, dv.id);
         });
 
@@ -114,6 +119,9 @@ async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
       // Migration to version 4: add script version table with index
       // The table and index are created in the loop above (via special handling
       // for SCRIPT_VERSION_TABLE_NAME which creates the store with keyPath and index)
+
+      // Migration to version 6: add persisted per-script session state.
+      // The table is created in the loop above and starts empty for existing users.
     },
   });
 }
@@ -122,6 +130,88 @@ type DiscardedEntry = {
   entry: LocalEntryPersistence;
   type: 'denied' | 'removed' | 'error' | 'warning';
   reason: string;
+};
+
+export type CoreAppDataSnapshot = {
+  iDbConn: IDBPDatabase<AppIdbSchema>;
+  sqlScripts: Map<SQLScriptId, SQLScript>;
+  tabs: Map<TabId, AnyTab>;
+  tabOrder: TabId[];
+  activeTabId: TabId | null;
+  previewTabId: TabId | null;
+  scriptAccessTimes: Map<SQLScriptId, number>;
+};
+
+type LegacySQLScript = SQLScript & { lastUsed?: number };
+
+const deserializeSqlScripts = (sqlScriptsArray: SQLScript[]): Map<SQLScriptId, SQLScript> => {
+  return new Map(
+    sqlScriptsArray.map((script) => {
+      const { lastUsed: _lastUsed, ...scriptWithoutLastUsed } = script as LegacySQLScript;
+      return [script.id, scriptWithoutLastUsed as SQLScript];
+    }),
+  );
+};
+
+const rebaseMapChanges = <K, V>(
+  restored: Map<K, V>,
+  baseline: Map<K, V>,
+  current: Map<K, V>,
+): Map<K, V> => {
+  const rebased = new Map(restored);
+
+  for (const key of baseline.keys()) {
+    if (!current.has(key)) rebased.delete(key);
+  }
+  for (const [key, value] of current) {
+    if (!baseline.has(key) || baseline.get(key) !== value) rebased.set(key, value);
+  }
+
+  return rebased;
+};
+
+export const rebaseCoreReadyChanges = ({
+  restoredSqlScripts,
+  restoredTabs,
+  restoredTabOrder,
+  restoredActiveTabId,
+  restoredPreviewTabId,
+  restoredScriptAccessTimes,
+  baseline,
+  current,
+}: {
+  restoredSqlScripts: Map<SQLScriptId, SQLScript>;
+  restoredTabs: Map<TabId, AnyTab>;
+  restoredTabOrder: TabId[];
+  restoredActiveTabId: TabId | null;
+  restoredPreviewTabId: TabId | null;
+  restoredScriptAccessTimes: Map<SQLScriptId, number>;
+  baseline: CoreAppDataSnapshot;
+  current: Pick<
+    CoreAppDataSnapshot,
+    'sqlScripts' | 'tabs' | 'tabOrder' | 'activeTabId' | 'previewTabId' | 'scriptAccessTimes'
+  >;
+}) => {
+  const tabsChanged = baseline.tabs !== current.tabs;
+  const baselineTabIds = new Set(baseline.tabs.keys());
+  const currentTabIds = new Set(current.tabs.keys());
+  const restoredOnlyTabOrder = restoredTabOrder.filter(
+    (tabId) => !baselineTabIds.has(tabId) && !currentTabIds.has(tabId),
+  );
+  const currentVisibleTabOrder = current.tabOrder.filter((tabId) => currentTabIds.has(tabId));
+
+  return {
+    sqlScripts: rebaseMapChanges(restoredSqlScripts, baseline.sqlScripts, current.sqlScripts),
+    tabs: rebaseMapChanges(restoredTabs, baseline.tabs, current.tabs),
+    tabOrder: tabsChanged ? [...restoredOnlyTabOrder, ...currentVisibleTabOrder] : restoredTabOrder,
+    activeTabId: tabsChanged ? current.activeTabId : restoredActiveTabId,
+    previewTabId: tabsChanged ? current.previewTabId : restoredPreviewTabId,
+    scriptAccessTimes: rebaseMapChanges(
+      restoredScriptAccessTimes,
+      baseline.scriptAccessTimes,
+      current.scriptAccessTimes,
+    ),
+  };
 };
 
 function createDiscardedEntryFromRemoved(entry: LocalEntryPersistence): DiscardedEntry {
@@ -449,6 +539,40 @@ async function restoreLocalEntries(
 }
 
 /**
+ * Restores only the persisted state needed for script browsing and editing.
+ * DuckDB-backed tabs, sessions, sources, and content-view state remain owned by
+ * the full restore once the connection pool is available.
+ */
+export const restoreCoreAppDataFromIDB = async (): Promise<CoreAppDataSnapshot> => {
+  const iDbConn = await getAppDataDBConnection();
+
+  // Script editing exposes the AI assistant, so initialize its persisted config
+  // before publishing core-ready even though it does not depend on DuckDB.
+  const { initAIConfigFromSecretStore } = await import('@utils/ai-config');
+  await initAIConfigFromSecretStore(iDbConn);
+
+  const sqlScriptsArray = await iDbConn.getAll(SQL_SCRIPT_TABLE_NAME);
+  const sqlScripts = deserializeSqlScripts(sqlScriptsArray);
+  const state = useAppStore.getState();
+
+  useAppStore.setState(
+    { _iDbConn: iDbConn, sqlScripts },
+    undefined,
+    'AppStore/restoreCoreAppDataFromIDB',
+  );
+
+  return {
+    iDbConn,
+    sqlScripts,
+    tabs: state.tabs,
+    tabOrder: state.tabOrder,
+    activeTabId: state.activeTabId,
+    previewTabId: state.previewTabId,
+    scriptAccessTimes: state.scriptAccessTimes,
+  };
+};
+
+/**
  * Hydrates the app data from IndexedDB into the store.
  *
  * This is not a hook, so can be used anywhere in the app.
@@ -458,15 +582,18 @@ async function restoreLocalEntries(
 export const restoreAppDataFromIDB = async (
   conn: AsyncDuckDBConnectionPool,
   onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
+  coreSnapshot?: CoreAppDataSnapshot,
 ): Promise<{ discardedEntries: DiscardedEntry[]; warnings: string[] }> => {
-  const iDbConn = await getAppDataDBConnection();
+  const iDbConn = coreSnapshot?.iDbConn ?? (await getAppDataDBConnection());
 
   // Initialize AI config from the encrypted secret store (or migrate from cookie).
   // This must happen before reconnection triggers any `getAIConfig()` calls.
   // Dynamic import to avoid pulling ai-service.ts (which uses import.meta) into
   // the static import graph — Jest doesn't support import.meta outside modules.
-  const { initAIConfigFromSecretStore } = await import('@utils/ai-config');
-  await initAIConfigFromSecretStore(iDbConn);
+  if (!coreSnapshot) {
+    const { initAIConfigFromSecretStore } = await import('@utils/ai-config');
+    await initAIConfigFromSecretStore(iDbConn);
+  }
 
   const warnings: string[] = [];
   // iDB doesn't allow holding transaction while we await something
@@ -509,12 +636,11 @@ export const restoreAppDataFromIDB = async (
 
   // Read & Convert data to the appropriate types
   const sqlScriptsArray = await tx.objectStore(SQL_SCRIPT_TABLE_NAME).getAll();
-  type LegacySQLScript = SQLScript & { lastUsed?: number };
-  const sqlScripts = new Map(
-    sqlScriptsArray.map((script) => {
-      const { lastUsed: _lastUsed, ...scriptWithoutLastUsed } = script as LegacySQLScript;
-      return [script.id, scriptWithoutLastUsed as SQLScript];
-    }),
+  const sqlScripts = deserializeSqlScripts(sqlScriptsArray);
+
+  const sqlScriptSessionsArray = await tx.objectStore(SQL_SCRIPT_SESSION_TABLE_NAME).getAll();
+  const sqlScriptSessions = new Map<SQLScriptId, SQLScriptSession>(
+    sqlScriptSessionsArray.map((session) => [session.scriptId, { ...session, isTransient: false }]),
   );
 
   const comparisonsArray = await tx.objectStore(COMPARISON_TABLE_NAME).getAll();
@@ -681,7 +807,9 @@ export const restoreAppDataFromIDB = async (
       const legacyDs = dv as LegacyDataSource;
       const lastUsed =
         legacyDs.lastUsed ??
-        (dv.type === 'remote-db' ? dv.attachedAt : now - dataSourcesArray.length + index);
+        (dv.type === 'remote-db' || dv.type === 'quack'
+          ? dv.attachedAt
+          : now - dataSourcesArray.length + index);
       dataSourceAccessTimes.set(dv.id, lastUsed);
     });
   }
@@ -949,7 +1077,13 @@ export const restoreAppDataFromIDB = async (
   // 2. We want to handle connection errors properly
   // Just mark them as valid so they don't get deleted
   for (const ds of dataSources.values()) {
-    if (ds.type === 'remote-db' || ds.type === 'iceberg-catalog') {
+    if (
+      ds.type === 'remote-db' ||
+      ds.type === 'iceberg-catalog' ||
+      ds.type === 'ducklake-catalog' ||
+      ds.type === 'quack' ||
+      ds.type === 'motherduck'
+    ) {
       validDataSources.add(ds.id);
     }
   }
@@ -1070,8 +1204,11 @@ export const restoreAppDataFromIDB = async (
     await persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
   }
 
-  // Read database meta data
-  const databaseMetadata = await getDatabaseModel(conn);
+  // Restored script results that reference the system database are only valid
+  // when that database still has objects. Check that without loading full
+  // column metadata, which is hydrated after the app becomes ready.
+  const systemDatabaseHasObjects = await hasDatabaseObjects(conn, SYSTEM_DATABASE_NAME, 'main');
+  const databaseMetadata = new Map<string, DataBaseModel>();
 
   // Always add the PondPilot system database to dataSources
   // This ensures it's visible even when empty on fresh start
@@ -1097,6 +1234,43 @@ export const restoreAppDataFromIDB = async (
         },
       ],
     });
+  }
+
+  let restoredSystemDbScriptQueriesCleared = 0;
+  newTabs = new Map(
+    Array.from(newTabs.entries()).map(([tabId, tab]) => {
+      if (tab.type !== 'script') {
+        return [tabId, tab];
+      }
+
+      if (!shouldResetRestoredScriptQuery(tab.lastExecutedQuery, !systemDatabaseHasObjects)) {
+        return [tabId, tab];
+      }
+
+      restoredSystemDbScriptQueriesCleared += 1;
+
+      return [
+        tabId,
+        {
+          ...tab,
+          lastExecutedQuery: null,
+          dataViewStateCache: tab.dataViewStateCache
+            ? {
+                ...tab.dataViewStateCache,
+                staleData: null,
+                sort: null,
+                dataViewPage: 0,
+              }
+            : null,
+        },
+      ];
+    }),
+  );
+
+  if (restoredSystemDbScriptQueriesCleared > 0) {
+    warnings.push(
+      `Reset ${restoredSystemDbScriptQueriesCleared} restored query tab(s) that referenced ${SYSTEM_DATABASE_NAME}.main objects because the system database was empty after reload.`,
+    );
   }
 
   // Clean up orphaned data sources if browser doesn't support persistent file handles
@@ -1177,6 +1351,43 @@ export const restoreAppDataFromIDB = async (
     }
   }
 
+  // User actions remain enabled while the connection-dependent restore runs.
+  // Rebase any script/tab mutations made after core-ready onto the restored data.
+  const currentStateBeforeRestoreCommit = useAppStore.getState();
+  const hasCoreReadyTabChanges =
+    coreSnapshot !== undefined && coreSnapshot.tabs !== currentStateBeforeRestoreCommit.tabs;
+  const coreReadyChanges = coreSnapshot
+    ? rebaseCoreReadyChanges({
+        restoredSqlScripts: sqlScripts,
+        restoredTabs: newTabs,
+        restoredTabOrder: newTabOrder,
+        restoredActiveTabId: newActiveTabId,
+        restoredPreviewTabId: newPreviewTabId,
+        restoredScriptAccessTimes: scriptAccessTimes,
+        baseline: coreSnapshot,
+        current: currentStateBeforeRestoreCommit,
+      })
+    : {
+        sqlScripts,
+        tabs: newTabs,
+        tabOrder: newTabOrder,
+        activeTabId: newActiveTabId,
+        previewTabId: newPreviewTabId,
+        scriptAccessTimes,
+      };
+
+  if (hasCoreReadyTabChanges) {
+    // Restore cleanup can persist content-view changes after a core-ready tab
+    // action's fire-and-forget transaction. Write the rebased navigation state
+    // last so the gap tab also survives the next reload.
+    const contentViewTx = iDbConn.transaction(CONTENT_VIEW_TABLE_NAME, 'readwrite');
+    const contentViewStore = contentViewTx.objectStore(CONTENT_VIEW_TABLE_NAME);
+    await contentViewStore.put(coreReadyChanges.tabOrder, 'tabOrder');
+    await contentViewStore.put(coreReadyChanges.activeTabId, 'activeTabId');
+    await contentViewStore.put(coreReadyChanges.previewTabId, 'previewTabId');
+    await contentViewTx.done;
+  }
+
   // Finally update the store with the hydrated data
   useAppStore.setState(
     {
@@ -1185,14 +1396,15 @@ export const restoreAppDataFromIDB = async (
       dataSources,
       localEntries: localEntriesMap,
       registeredFiles,
-      sqlScripts,
+      sqlScripts: coreReadyChanges.sqlScripts,
+      sqlScriptSessions,
       comparisons,
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-      activeTabId: newActiveTabId,
-      previewTabId: newPreviewTabId,
+      tabs: coreReadyChanges.tabs,
+      tabOrder: coreReadyChanges.tabOrder,
+      activeTabId: coreReadyChanges.activeTabId,
+      previewTabId: coreReadyChanges.previewTabId,
       dataSourceAccessTimes,
-      scriptAccessTimes,
+      scriptAccessTimes: coreReadyChanges.scriptAccessTimes,
       tableAccessTimes,
     },
     undefined,

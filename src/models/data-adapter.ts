@@ -1,5 +1,5 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
+import type { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
+import type * as arrow from 'apache-arrow';
 
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
 
@@ -142,6 +142,18 @@ export interface DataAdapterApi {
    * See `dataVersion` for the latter.
    */
   dataSourceVersion: number;
+
+  /**
+   * An ever increasing number that is incremented whenever the data source is
+   * logically (re)loaded: a new source query, a re-run, or a sort change.
+   *
+   * Unlike `dataSourceVersion`, it is NOT bumped when the main reader is
+   * transparently paused and restored to free the shared connection for a
+   * helper query (column stats, chart aggregation, export). Derived views such
+   * as charts should react to this instead of `dataSourceVersion`/`isStale`, so
+   * that running their own aggregation does not re-trigger themselves.
+   */
+  chartSourceVersion: number;
 
   /**
    * An ever increasing number that is incremented
@@ -341,10 +353,20 @@ export interface DataAdapterApi {
   pool: AsyncDuckDBConnectionPool | null;
 
   /**
-   * Cancels the current data read and prevents further reads
-   * until user asks for more data by paging/scrolling
+   * Optional native Parquet COPY implementation for adapters that need
+   * session-aware execution, such as script tabs with pinned DuckDB sessions.
    */
-  cancelDataRead: () => void;
+  copyToParquet: ((tempFileName: string, compression: string) => Promise<void>) | null;
+
+  /**
+   * Cancels the current data read.
+   *
+   * By default the read is only paused and resumes when the user pages or
+   * scrolls. Pass `releaseReader: true` to also close the underlying reader
+   * (used by the script-run path to free the tab-pinned connection); a released
+   * read does not resume on scroll and requires a reset/re-run.
+   */
+  cancelDataRead: (options?: { releaseReader?: boolean }) => Promise<void>;
 
   /**
    * Resets the data read cancelled state. This is used to
@@ -352,6 +374,22 @@ export interface DataAdapterApi {
    * the cancellation and wants to be able to start a new read.
    */
   ackDataReadCancelled: () => void;
+}
+
+export interface DataAdapterStreamReader<
+  T extends {
+    [key: string]: arrow.DataType;
+  } = any,
+> {
+  readonly closed: boolean;
+  cancel: () => Promise<void>;
+  next: () => Promise<
+    | { done: false; value: arrow.RecordBatch<T> }
+    | {
+        done: true;
+        value: null;
+      }
+  >;
 }
 
 /**
@@ -363,6 +401,12 @@ export interface DataAdapterQueries {
    * Used by formats like Parquet that leverage DuckDB's native COPY TO.
    */
   sourceQuery?: string;
+
+  /**
+   * Optional native Parquet COPY implementation for data sources that must
+   * execute COPY in a particular connection/session.
+   */
+  copyToParquet?: (tempFileName: string, compression: string) => Promise<void>;
   /**
    * If data source supports quick precise row count retrieval, returns the count.
    */
@@ -384,7 +428,7 @@ export interface DataAdapterQueries {
   getSortableReader?: (
     sort: ColumnSortSpecList,
     abortSignal: AbortSignal,
-  ) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
+  ) => Promise<DataAdapterStreamReader<any> | null>;
 
   /**
    * Returns a streaming reader.
@@ -394,7 +438,7 @@ export interface DataAdapterQueries {
    *
    * If both are missing it essentially means no data source exists.
    */
-  getReader?: (abortSignal: AbortSignal) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
+  getReader?: (abortSignal: AbortSignal) => Promise<DataAdapterStreamReader<any> | null>;
 
   /**
    * Returns column aggregate for the given column.

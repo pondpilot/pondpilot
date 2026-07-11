@@ -23,7 +23,7 @@ By participating, you agree to maintain a respectful and inclusive environment f
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/my-feature`
 3. Make your changes
-4. Run tests and ensure code quality: `npm run lint && npm run typecheck`
+4. Run tests and ensure code quality: `yarn lint && yarn typecheck && yarn test:all`
 5. Commit with a descriptive message
 6. Push to your fork: `git push origin feature/my-feature`
 7. Submit a pull request
@@ -86,11 +86,28 @@ Thank you for contributing to make PondPilot better!
 
 We use a couple of tools, some of which are not strictly necessary, but make development easier. The following is a list of tools you should install to get started:
 
-- [Node.js](https://nodejs.org/en/download/) - JavaScript runtime
-- [yarn](https://yarnpkg.com/getting-started/install) - Package manager
-  - Note that project uses the corepack approach, so yarn should be installed via corepack, which is bundled with Node.js v16.9.0 and later. Make sure to run `corepack enable` to enable it.
+- [Node.js](https://nodejs.org/en/download/) 18 or later - JavaScript runtime
+- [yarn](https://yarnpkg.com/getting-started/install) 4.4.0 - Package manager
+  - The project uses Corepack to select the project-pinned Yarn version. Install Corepack if your Node.js distribution does not include it, then run `corepack enable`.
 - [prettier](https://prettier.io/) - Code formatter
 - [eslint](https://eslint.org/) - Linter
 - [typescript](https://www.typescriptlang.org/) - TypeScript compiler
 - [DuckDB](https://duckdb.org/) - SQL database engine, used in testing
 - [just](https://just.systems/man/en/packages.html) - Task runner (yes, in addition to yarn. Not strictly necessary, but makes life easier)
+
+After installing Node.js, enable Corepack and install the project dependencies:
+
+```bash
+corepack enable
+yarn install --immutable
+```
+
+### Optional read_stat WASM Extension
+
+The `read_stat` DuckDB extension WASM is optional and enables local SAS, SPSS, and Stata file support. Its acquisition source is not documented in the repository; a prebuilt `read_stat.duckdb_extension.wasm` is provided by the maintainers or CI. Set `READ_STAT_WASM_SOURCE` to the locally available artifact and run:
+
+```bash
+READ_STAT_WASM_SOURCE=/path/to/read_stat.duckdb_extension.wasm yarn readstat:install
+```
+
+The script verifies the source file, creates `public/duckdb-extensions/read_stat/`, and copies the artifact there. The hosted app configures the extension through `VITE_READ_STAT_EXTENSION_URL`.

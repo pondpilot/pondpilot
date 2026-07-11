@@ -1,12 +1,22 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { ReadStatViewType, supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
+
+const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const withContext = (context: string, error: unknown, rollbackError?: unknown): Error => {
+  const rollbackContext = rollbackError
+    ? `. Rollback also failed: ${errorMessage(rollbackError)}`
+    : '';
+  return new Error(`${context}: ${errorMessage(error)}${rollbackContext}`, { cause: error });
+};
 
 /**
  * Helper function to create a view for CSV files with proper configuration
@@ -44,8 +54,6 @@ async function createReadStatView(
 /**
  * Register regular data source file (not a databse) and create a view
  *
- * TODO: error handling - currently assumes this never fails
- *
  * @param conn - DuckDB connection
  * @param handle - File handle pointing to a supported source file
  * @param fileExt - The file extension of the file
@@ -69,37 +77,53 @@ export async function registerFileSourceAndCreateView(
   /**
    * Drop file if it already exists
    */
-  await db.dropFile(fileName).catch(console.error);
+  try {
+    await db.dropFile(fileName);
+  } catch {
+    // First-time registration normally has nothing to drop. registerFileHandle below is the
+    // authoritative operation and will still fail if an existing registration cannot be replaced.
+  }
 
   /**
    * Register file handle
    */
-  await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
-
-  if (isReadStatViewType(fileExt)) {
-    await createReadStatView(conn, viewName, fileExt, fileName);
-    return file;
+  try {
+    await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+  } catch (error) {
+    throw withContext(`Failed to register file "${fileName}"`, error);
   }
 
-  /**
-   * Create view
-   */
+  try {
+    if (isReadStatViewType(fileExt)) {
+      await createReadStatView(conn, viewName, fileExt, fileName);
+      return file;
+    }
 
-  if (fileExt === 'csv') {
-    await createCSVView(conn, viewName, fileName);
+    if (fileExt === 'csv') {
+      await createCSVView(conn, viewName, fileName);
+      return file;
+    }
+
+    await conn.query(
+      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
+    );
     return file;
+  } catch (error) {
+    try {
+      await db.dropFile(fileName);
+    } catch (rollbackError) {
+      throw withContext(
+        `Failed to create view "${viewName}" for file "${fileName}"`,
+        error,
+        rollbackError,
+      );
+    }
+    throw withContext(`Failed to create view "${viewName}" for file "${fileName}"`, error);
   }
-
-  await conn.query(
-    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
-  );
-  return file;
 }
 
 /**
  * Drop a view and unregister its file handle
- *
- * TODO: error handling - currently assumes this never fails
  *
  * @param conn - DuckDB connection
  * @param viewName - The view name that was created
@@ -114,7 +138,11 @@ export async function dropViewAndUnregisterFile(
    * Drop the view
    */
   const dropQuery = buildDropViewQuery(viewName, true);
-  await conn.query(dropQuery).catch(console.error);
+  try {
+    await conn.query(dropQuery);
+  } catch (error) {
+    throw withContext(`Failed to drop view "${viewName}"`, error);
+  }
 
   if (!fileName) {
     return;
@@ -125,13 +153,15 @@ export async function dropViewAndUnregisterFile(
   /**
    * Unregister file handle
    */
-  await db.dropFile(fileName).catch(console.error);
+  try {
+    await db.dropFile(fileName);
+  } catch (error) {
+    throw withContext(`Failed to unregister file "${fileName}"`, error);
+  }
 }
 
 /**
  * Recreate a view with a new name
- *
- * TODO: error handling - currently assumes this never fails
  *
  * @param conn - DuckDB connection
  * @param fileExt - The file extension of the file
@@ -149,35 +179,51 @@ export async function reCreateView(
   oldViewName: string,
   newViewName: string,
 ): Promise<void> {
-  /**
-   * Drop the old view
-   */
+  const createView = async () => {
+    if (isReadStatViewType(fileExt)) {
+      await createReadStatView(conn, newViewName, fileExt, fileName);
+      return;
+    }
+
+    if (fileExt === 'csv') {
+      await createCSVView(conn, newViewName, fileName);
+      return;
+    }
+
+    await conn.query(
+      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(newViewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
+    );
+  };
+
+  try {
+    await createView();
+  } catch (error) {
+    throw withContext(`Failed to create replacement view "${newViewName}"`, error);
+  }
+
+  if (oldViewName === newViewName) {
+    return;
+  }
+
   const dropQuery = buildDropViewQuery(oldViewName, true);
-  await conn.query(dropQuery).catch(console.error);
-
-  /**
-   * Create view with the new name
-   */
-
-  if (isReadStatViewType(fileExt)) {
-    await createReadStatView(conn, newViewName, fileExt, fileName);
-    return;
+  try {
+    await conn.query(dropQuery);
+  } catch (error) {
+    try {
+      await conn.query(buildDropViewQuery(newViewName, true));
+    } catch (rollbackError) {
+      throw withContext(
+        `Failed to replace view "${oldViewName}" with "${newViewName}"`,
+        error,
+        rollbackError,
+      );
+    }
+    throw withContext(`Failed to replace view "${oldViewName}" with "${newViewName}"`, error);
   }
-
-  if (fileExt === 'csv') {
-    await createCSVView(conn, newViewName, fileName);
-    return;
-  }
-
-  await conn.query(
-    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(newViewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
-  );
 }
 
 /**
  * Register a database file and attach it to the DuckDB instance
- *
- * TODO: error handling - currently assumes this never fails
  *
  * @param conn - DuckDB connection
  * @param handle - File handle pointing to a supported source file
@@ -200,32 +246,65 @@ export async function registerAndAttachDatabase(
   /**
    * Drop file if it already exists
    */
-  await db.dropFile(fileName).catch(console.error);
+  try {
+    await db.dropFile(fileName);
+  } catch {
+    // First-time registration normally has nothing to drop. registerFileHandle below is the
+    // authoritative operation and will still fail if an existing registration cannot be replaced.
+  }
 
   /**
    * Register file handle
    */
-  await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+  try {
+    await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+  } catch (error) {
+    throw withContext(`Failed to register database file "${fileName}"`, error);
+  }
 
   /**
    * Detach any existing database with the same name
    */
   const detachQuery = buildDetachQuery(dbName, true);
-  await conn.query(detachQuery).catch(console.error);
+  try {
+    await conn.query(detachQuery);
+  } catch (error) {
+    try {
+      await db.dropFile(fileName);
+    } catch (rollbackError) {
+      throw withContext(
+        `Failed to prepare database "${dbName}" for attachment`,
+        error,
+        rollbackError,
+      );
+    }
+    throw withContext(`Failed to prepare database "${dbName}" for attachment`, error);
+  }
 
   /**
    * Attach the database
    */
   const attachQuery = buildAttachQuery(fileName, dbName, { readOnly: true });
-  await conn.query(attachQuery);
+  try {
+    await conn.query(attachQuery);
+  } catch (error) {
+    try {
+      await db.dropFile(fileName);
+    } catch (rollbackError) {
+      throw withContext(
+        `Failed to attach database "${dbName}" from file "${fileName}"`,
+        error,
+        rollbackError,
+      );
+    }
+    throw withContext(`Failed to attach database "${dbName}" from file "${fileName}"`, error);
+  }
 
   return file;
 }
 
 /**
  * Detach a database and unregister its file handle
- *
- * TODO: error handling - currently assumes this never fails
  *
  * @param conn - DuckDB connection
  * @param dbName - The database name that was used when attaching
@@ -240,7 +319,11 @@ export async function detachAndUnregisterDatabase(
    * Detach the database
    */
   const detachQuery = buildDetachQuery(dbName, true);
-  await conn.query(detachQuery).catch(console.error);
+  try {
+    await conn.query(detachQuery);
+  } catch (error) {
+    throw withContext(`Failed to detach database "${dbName}"`, error);
+  }
 
   if (!fileName) {
     return;
@@ -251,13 +334,15 @@ export async function detachAndUnregisterDatabase(
   /**
    * Unregister file handle
    */
-  await db.dropFile(fileName).catch(console.error);
+  try {
+    await db.dropFile(fileName);
+  } catch (error) {
+    throw withContext(`Failed to unregister database file "${fileName}"`, error);
+  }
 }
 
 /**
  * Detach old database and register a new one
- *
- * TODO: error handling - currently assumes this never fails
  *
  * @param conn - DuckDB connection
  * @param fileName - A valid, unique file name to register.
@@ -277,19 +362,33 @@ export async function reAttachDatabase(
    * Detach the old database
    */
   const detachOldQuery = buildDetachQuery(oldDbName, true);
-  await conn.query(detachOldQuery).catch(console.error);
+  try {
+    await conn.query(detachOldQuery);
+  } catch (error) {
+    throw withContext(`Failed to detach database "${oldDbName}" for rename`, error);
+  }
 
-  /**
-   * Detach any existing database with the new name
-   */
-  const detachNewQuery = buildDetachQuery(newDbName, true);
-  await conn.query(detachNewQuery).catch(console.error);
+  try {
+    if (oldDbName !== newDbName) {
+      const detachNewQuery = buildDetachQuery(newDbName, true);
+      await conn.query(detachNewQuery);
+    }
 
-  /**
-   * Attach the database with the new name
-   */
-  const attachQuery = buildAttachQuery(fileName, newDbName, { readOnly: true });
-  await conn.query(attachQuery);
+    const attachQuery = buildAttachQuery(fileName, newDbName, { readOnly: true });
+    await conn.query(attachQuery);
+  } catch (error) {
+    try {
+      const rollbackQuery = buildAttachQuery(fileName, oldDbName, { readOnly: true });
+      await conn.query(rollbackQuery);
+    } catch (rollbackError) {
+      throw withContext(
+        `Failed to rename database "${oldDbName}" to "${newDbName}"`,
+        error,
+        rollbackError,
+      );
+    }
+    throw withContext(`Failed to rename database "${oldDbName}" to "${newDbName}"`, error);
+  }
 }
 
 /**

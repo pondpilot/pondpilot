@@ -1,3 +1,5 @@
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
+
 import { DATABASE_LIMITS, MENTION_AUTOCOMPLETE, FUZZY_SCORE, UI_SELECTORS } from './constants';
 import { DatabaseModel, DatabaseModelCache } from './model';
 import {
@@ -7,7 +9,6 @@ import {
 } from './utils/dropdown-styles';
 import { sanitizeText } from './utils/sanitization';
 import { getDatabaseModel } from '../../../controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
 export interface MentionSuggestion {
   value: string;

@@ -18,7 +18,7 @@ export const SettingsNavigation = ({
   onSectionClick,
 }: SettingsNavigationProps) => {
   return (
-    <Box component="aside" className="w-64 flex-shrink-0 p-4" visibleFrom="md">
+    <Box component="aside" className="w-64 shrink-0 p-4" visibleFrom="md">
       <Stack className="gap-2">
         {navigationItems.map((item) => (
           <button

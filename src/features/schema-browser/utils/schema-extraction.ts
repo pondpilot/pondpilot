@@ -1,5 +1,5 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { DescribeResult } from '@utils/duckdb/models';
 import { Node } from 'reactflow';
 
@@ -26,7 +26,7 @@ export async function extractFlatFileSchema(
 
   try {
     // Query the schema information with timeout
-    const pooledConn = await pool.getPooledConnection();
+    const pooledConn = await pool.getBackgroundConnection();
     try {
       // Set up query with timeout
       const queryPromise = pooledConn.query(`

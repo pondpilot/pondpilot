@@ -1,8 +1,59 @@
+import { createRequire } from 'node:module';
+
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { VitePWA } from 'vite-plugin-pwa';
 import svgr from 'vite-plugin-svgr';
+
+const require = createRequire(import.meta.url);
+
+const getNodeModulesPackage = (id) => {
+  const normalizedId = id.replaceAll('\\', '/');
+  const nodeModulesIndex = normalizedId.lastIndexOf('/node_modules/');
+
+  if (nodeModulesIndex === -1) {
+    return undefined;
+  }
+
+  const [scopeOrName, scopedName] = normalizedId
+    .slice(nodeModulesIndex + '/node_modules/'.length)
+    .split('/');
+
+  return scopeOrName.startsWith('@')
+    ? `${scopeOrName}/${scopedName}`
+    : scopeOrName;
+};
+
+const getManualChunkName = (id) => {
+  const packageName = getNodeModulesPackage(id);
+
+  if (packageName === 'monaco-editor' || packageName === '@monaco-editor/react') {
+    return 'monaco';
+  }
+
+  if (packageName?.startsWith('@mantine/')) {
+    return 'mantine';
+  }
+
+  if (packageName === 'reactflow' || packageName === '@dagrejs/dagre') {
+    return 'flow';
+  }
+
+  if (packageName === 'recharts') {
+    return 'charts';
+  }
+
+  if (packageName === 'apache-arrow') {
+    return 'arrow';
+  }
+
+  if (packageName === '@duckdb/duckdb-wasm') {
+    return 'duckdb';
+  }
+
+  return undefined;
+};
 
 const getVersionInfo = () => {
   try {
@@ -37,12 +88,17 @@ export default defineConfig(({ mode }) => {
 
   const basePath = getNormalizedBasePath(process.env.VITE_BASE_PATH);
   // Provide build-time visibility (won't ship to client bundle)
-  // eslint-disable-next-line no-console
   console.log(`[build] Using base path: ${basePath}`);
 
   return {
     mode: mode === 'int-test-build' ? 'production' : mode,
     base: basePath,
+    server: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+      },
+    },
     define: {
       __INTEGRATION_TEST__: mode === 'int-test-build',
       __VERSION__: JSON.stringify(getVersionInfo()),
@@ -53,10 +109,10 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         disable: mode !== 'production' || isDockerBuild, // Disable PWA for Docker builds
         registerType: 'autoUpdate',
-        clientsClaim: true,
-        skipWaiting: true,
-        cleanupOutdatedCaches: true,
         workbox: {
+          clientsClaim: true,
+          skipWaiting: true,
+          cleanupOutdatedCaches: true,
           maximumFileSizeToCacheInBytes: 25000000,
           // Cache duckdb CDN resources
           runtimeCaching: [
@@ -147,6 +203,17 @@ export default defineConfig(({ mode }) => {
 
     build: {
       sourcemap: mode === 'development',
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: (id) => getManualChunkName(id) ?? null,
+              },
+            ],
+          },
+        },
+      },
     },
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm'],

@@ -3,6 +3,7 @@ import { DatabaseManagementSettings } from '@components/database-management/data
 import { AISettings } from './components/ai-settings';
 import { CorsProxySettings } from './components/cors-proxy-settings';
 import { EditorSettings } from './components/editor-settings';
+import { LintSettings } from './components/lint-settings';
 import { ClearDataSection } from './components/sections/clear-data-section';
 import { ExportQueriesSection } from './components/sections/export-queries-section';
 import { ThemeSwitcher } from './components/theme-switcher';
@@ -25,6 +26,12 @@ export const settingsConfig: SettingsConfig = {
           title: 'SQL Editor Font',
           description: 'Adjust the SQL editor font size and style.',
           component: EditorSettings,
+        },
+        {
+          id: 'sql-linting',
+          title: 'SQL Linting',
+          description: 'Configure SQL lint rules and severity filtering.',
+          component: LintSettings,
         },
       ],
     },

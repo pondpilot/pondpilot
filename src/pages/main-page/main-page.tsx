@@ -166,7 +166,7 @@ export const MainPage = () => {
     <>
       {hasTabs && (
         <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark gap-0 border-l border-borderPrimary-light dark:border-borderPrimary-dark">
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             <TabsPane />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">

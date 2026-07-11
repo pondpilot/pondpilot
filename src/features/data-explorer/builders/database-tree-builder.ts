@@ -1,18 +1,41 @@
+import { showError } from '@components/app-notifications';
 import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
+import {
+  DuckLakeCatalog,
+  IcebergCatalog,
+  LocalDB,
+  MotherDuckConnection,
+  QuackConnection,
+  RemoteDB,
+} from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
+import { isMotherDuckDbKey, parseMotherDuckDbKey } from '@utils/data-source';
+import { reconnectDuckLakeCatalog, disconnectDuckLakeCatalog } from '@utils/ducklake-catalog';
 import { disconnectIcebergCatalog } from '@utils/iceberg-catalog';
+import {
+  disconnectMotherDuckConnection,
+  getMotherDuckDatabaseModel,
+  attachAllMotherDuckDatabases,
+  registerMotherDuckDatabaseAttaches,
+  withMotherDuckConnection,
+} from '@utils/motherduck';
 import { getLocalDBDataSourceName } from '@utils/navigation';
+import {
+  disconnectQuackConnection,
+  reconnectQuackDataSource,
+  refreshQuackMetadata,
+} from '@utils/quack';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 import { buildSchemaTreeNode } from './database-node-builder';
@@ -32,6 +55,13 @@ interface DatabaseTreeBuilderContext {
   comparisonTableNames?: Set<string>;
   comparisonByTableName?: Map<string, Comparison>;
 }
+
+const showDatabaseOperationError = (title: string, error: unknown): void => {
+  showError({
+    title,
+    message: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+  });
+};
 
 /**
  * Builds a complete database tree node with all schemas, tables, views, and columns
@@ -59,12 +89,12 @@ interface DatabaseTreeBuilderContext {
  * @returns TreeNodeData configured as a complete database node with all children
  */
 export function buildDatabaseNode(
-  dataSource: LocalDB | RemoteDB,
+  dataSource: LocalDB | RemoteDB | QuackConnection,
   isSystemDb: boolean,
   context: DatabaseTreeBuilderContext,
 ): TreeNodeData<DataExplorerNodeTypeMap> {
   const { id: dbId, dbName } = dataSource;
-  const isRemoteDb = dataSource.type === 'remote-db';
+  const isRemoteDb = dataSource.type === 'remote-db' || dataSource.type === 'quack';
   const {
     nodeMap,
     anyNodeIdToNodeTypeMap,
@@ -94,7 +124,7 @@ export function buildDatabaseNode(
 
   // For remote databases, append connection state indicator
   if (isRemoteDb) {
-    const remoteDb = dataSource as RemoteDB;
+    const remoteDb = dataSource as RemoteDB | QuackConnection;
     const stateIcon =
       remoteDb.connectionState === 'connected'
         ? '✓'
@@ -155,30 +185,46 @@ export function buildDatabaseNode(
         {
           label: 'Copy URL',
           onClick: () => {
-            copyToClipboard((dataSource as RemoteDB).url, {
-              showNotification: true,
-              notificationTitle: 'URL Copied',
-            });
+            copyToClipboard(
+              dataSource.type === 'quack' ? dataSource.uri : (dataSource as RemoteDB).url,
+              {
+                showNotification: true,
+                notificationTitle: 'URL Copied',
+              },
+            );
           },
         },
         {
-          label: (dataSource as RemoteDB).connectionState === 'connected' ? 'Refresh' : 'Reconnect',
+          label:
+            (dataSource as RemoteDB | QuackConnection).connectionState === 'connected'
+              ? 'Refresh'
+              : 'Reconnect',
           onClick: async () => {
-            if ((dataSource as RemoteDB).connectionState === 'connected') {
+            if ((dataSource as RemoteDB | QuackConnection).connectionState === 'connected') {
               // Refresh metadata
-              await refreshDatabaseMetadata(conn, [dbName]);
+              if (dataSource.type === 'quack') {
+                await refreshQuackMetadata(conn, dataSource);
+              } else {
+                await refreshDatabaseMetadata(conn, [dbName]);
+              }
+            } else if (dataSource.type === 'quack') {
+              await reconnectQuackDataSource(conn, dataSource);
             } else {
               // Attempt reconnection
               await reconnectRemoteDatabase(conn, dataSource as RemoteDB);
             }
           },
         },
-        ...((dataSource as RemoteDB).connectionState === 'connected'
+        ...((dataSource as RemoteDB | QuackConnection).connectionState === 'connected'
           ? [
               {
                 label: 'Disconnect',
                 onClick: async () => {
-                  await disconnectRemoteDatabase(conn, dataSource as RemoteDB);
+                  if (dataSource.type === 'quack') {
+                    await disconnectQuackConnection(conn, dataSource);
+                  } else {
+                    await disconnectRemoteDatabase(conn, dataSource as RemoteDB);
+                  }
                 },
               },
             ]
@@ -196,7 +242,9 @@ export function buildDatabaseNode(
       // No need to rename if the name is the same
       return;
     }
-    renameDB(db.id, newName, conn);
+    Promise.resolve(renameDB(db.id, newName, conn)).catch((error) =>
+      showDatabaseOperationError('Failed to rename database', error),
+    );
   };
 
   return {
@@ -219,7 +267,9 @@ export function buildDatabaseNode(
       !isSystemDb && (isRemoteDb || localFile?.userAdded)
         ? (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
             if (node.nodeType === 'db') {
-              deleteDataSources(conn, [node.value]);
+              Promise.resolve(deleteDataSources(conn, [node.value])).catch((error) =>
+                showDatabaseOperationError('Failed to delete database', error),
+              );
             }
           }
         : undefined,
@@ -230,7 +280,8 @@ export function buildDatabaseNode(
     ],
     children: sortedSchemas?.map((schema) =>
       buildSchemaTreeNode({
-        dbId,
+        nodeDbId: dbId,
+        sourceDbId: dbId,
         dbName,
         schema,
         fileViewNames: isSystemDb ? fileViewNames : undefined,
@@ -366,7 +417,9 @@ export function buildIcebergCatalogNode(
     isSelectable: true,
     onDelete: (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
       if (node.nodeType === 'db') {
-        deleteDataSources(conn, [node.value]);
+        Promise.resolve(deleteDataSources(conn, [node.value])).catch((error) =>
+          showDatabaseOperationError('Failed to delete database', error),
+        );
       }
     },
     contextMenu: [
@@ -376,7 +429,8 @@ export function buildIcebergCatalogNode(
     ],
     children: sortedSchemas?.map((schema) =>
       buildSchemaTreeNode({
-        dbId: catalogId,
+        nodeDbId: catalogId,
+        sourceDbId: catalogId,
         dbName: catalogAlias,
         schema,
         context: {
@@ -389,5 +443,340 @@ export function buildIcebergCatalogNode(
         initialExpandedState,
       }),
     ),
+  };
+}
+
+/**
+ * Builds a tree node for a DuckLake catalog.
+ * Follows the same pattern as buildIcebergCatalogNode but without credential handling.
+ */
+export function buildDuckLakeCatalogNode(
+  catalog: DuckLakeCatalog,
+  context: DatabaseTreeBuilderContext,
+): TreeNodeData<DataExplorerNodeTypeMap> {
+  const { id: catalogId, catalogAlias } = catalog;
+  const {
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
+  } = context;
+
+  // Build label with connection state indicator
+  const stateIcon =
+    catalog.connectionState === 'connected'
+      ? '\u2713'
+      : catalog.connectionState === 'connecting'
+        ? '\u27F3'
+        : catalog.connectionState === 'error'
+          ? '\u26A0'
+          : '\u2715';
+  const dbLabel = `${catalogAlias} ${stateIcon}`;
+
+  nodeMap.set(catalogId, { db: catalogId, schemaName: null, objectName: null, columnName: null });
+  anyNodeIdToNodeTypeMap.set(catalogId, 'db');
+
+  const metadata = databaseMetadata.get(catalogAlias);
+  const sortedSchemas = metadata
+    ? [...metadata.schemas].sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+
+  const baseContextMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy name',
+      onClick: () => {
+        copyToClipboard(catalogAlias, { showNotification: true });
+      },
+    },
+    {
+      label: 'Show Schema',
+      onClick: () => {
+        const firstSchema = sortedSchemas?.[0];
+        getOrCreateSchemaBrowserTab({
+          sourceId: catalogId,
+          sourceType: 'db',
+          schemaName: firstSchema?.name,
+          setActive: true,
+        });
+      },
+    },
+  ];
+
+  const duckLakeMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy URL',
+      onClick: () => {
+        copyToClipboard(catalog.url, {
+          showNotification: true,
+          notificationTitle: 'URL Copied',
+        });
+      },
+    },
+  ];
+
+  if (catalog.connectionState === 'connected') {
+    duckLakeMenuItems.push({
+      label: 'Refresh',
+      onClick: async () => {
+        await refreshDatabaseMetadata(conn, [catalogAlias]);
+      },
+    });
+    duckLakeMenuItems.push({
+      label: 'Disconnect',
+      onClick: async () => {
+        await disconnectDuckLakeCatalog(conn, catalog);
+      },
+    });
+  }
+
+  if (catalog.connectionState !== 'connected' && catalog.connectionState !== 'connecting') {
+    duckLakeMenuItems.push({
+      label: 'Reconnect',
+      onClick: async () => {
+        await reconnectDuckLakeCatalog(conn, catalog);
+      },
+    });
+  }
+
+  return {
+    nodeType: 'db',
+    value: catalogId,
+    label: dbLabel,
+    iconType: 'db',
+    isDisabled: false,
+    isSelectable: true,
+    onDelete: (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
+      if (node.nodeType === 'db') {
+        Promise.resolve(deleteDataSources(conn, [node.value])).catch((error) =>
+          showDatabaseOperationError('Failed to delete database', error),
+        );
+      }
+    },
+    contextMenu: [
+      {
+        children: [...baseContextMenuItems, ...duckLakeMenuItems],
+      },
+    ],
+    children: sortedSchemas?.map((schema) =>
+      buildSchemaTreeNode({
+        nodeDbId: catalogId,
+        sourceDbId: catalogId,
+        dbName: catalogAlias,
+        schema,
+        context: {
+          nodeMap,
+          anyNodeIdToNodeTypeMap,
+          flatFileSources: context.flatFileSources,
+          comparisonByTableName,
+          comparisonTableNames,
+        },
+        initialExpandedState,
+      }),
+    ),
+  };
+}
+
+/**
+ * Builds a tree node for a MotherDuck connection.
+ * Shows as a top-level node with MotherDuck databases as children.
+ * Each child database is a full database node with schemas/tables.
+ */
+export function buildMotherDuckConnectionNode(
+  connection: MotherDuckConnection,
+  context: DatabaseTreeBuilderContext,
+): TreeNodeData<DataExplorerNodeTypeMap> {
+  const { id: connectionId } = connection;
+  const {
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
+  } = context;
+
+  // Build label with connection state indicator
+  const stateIcon =
+    connection.connectionState === 'connected'
+      ? '\u2713'
+      : connection.connectionState === 'connecting'
+        ? '\u27F3'
+        : connection.connectionState === 'credentials-required'
+          ? '\uD83D\uDD12'
+          : connection.connectionState === 'error'
+            ? '\u26A0'
+            : '\u2715';
+  const dbLabel = `MotherDuck ${stateIcon}`;
+
+  nodeMap.set(connectionId, {
+    db: connectionId,
+    schemaName: null,
+    objectName: null,
+    columnName: null,
+  });
+  anyNodeIdToNodeTypeMap.set(connectionId, 'db');
+
+  const childNodes: TreeNodeData<DataExplorerNodeTypeMap>[] = [];
+
+  if (connection.connectionState === 'connected') {
+    for (const [dbName, dbModel] of databaseMetadata) {
+      if (!isMotherDuckDbKey(dbName)) continue;
+
+      const displayName = parseMotherDuckDbKey(dbName)!;
+      // Use a connection-and-database scoped ID to avoid collisions across MD databases
+      const dbNodeId = `${connectionId}::${displayName}` as any;
+
+      const sortedSchemas = dbModel.schemas
+        ? [...dbModel.schemas].sort((a, b) => a.name.localeCompare(b.name))
+        : [];
+
+      nodeMap.set(dbNodeId, {
+        db: connectionId,
+        databaseName: displayName,
+        schemaName: null,
+        objectName: null,
+        columnName: null,
+      });
+      anyNodeIdToNodeTypeMap.set(dbNodeId, 'db');
+
+      childNodes.push({
+        nodeType: 'db',
+        value: dbNodeId,
+        label: displayName,
+        iconType: 'db',
+        isDisabled: false,
+        isSelectable: true,
+        contextMenu: [
+          {
+            children: [
+              {
+                label: 'Copy name',
+                onClick: () => {
+                  copyToClipboard(displayName, { showNotification: true });
+                },
+              },
+              {
+                label: 'Show Schema',
+                onClick: () => {
+                  const firstSchema = sortedSchemas?.[0];
+                  getOrCreateSchemaBrowserTab({
+                    sourceId: connectionId,
+                    sourceType: 'db',
+                    schemaName: firstSchema?.name,
+                    databaseName: displayName,
+                    setActive: true,
+                  });
+                },
+              },
+            ],
+          },
+        ],
+        children: sortedSchemas.map((schema) =>
+          buildSchemaTreeNode({
+            nodeDbId: dbNodeId,
+            sourceDbId: connectionId,
+            // Use plain name for SQL queries (DuckDB knows it as 'my_db', not 'md:my_db')
+            dbName: displayName,
+            databaseName: displayName,
+            schema,
+            context: {
+              nodeMap,
+              anyNodeIdToNodeTypeMap,
+              flatFileSources: context.flatFileSources,
+              comparisonByTableName,
+              comparisonTableNames,
+            },
+            initialExpandedState,
+          }),
+        ),
+      });
+    }
+  }
+
+  // Context menu items
+  const contextMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy name',
+      onClick: () => {
+        copyToClipboard('MotherDuck', { showNotification: true });
+      },
+    },
+  ];
+
+  if (connection.connectionState === 'connected') {
+    contextMenuItems.push({
+      label: 'Refresh',
+      onClick: async () => {
+        // Re-discover databases from MotherDuck on a SINGLE connection: the
+        // ATTACH 'md:' handshake attaches the databases connection-locally, so
+        // discovery and metadata (which uses USE) must share that connection.
+        await withMotherDuckConnection(conn, async (mdConn) => {
+          const dbNames = await attachAllMotherDuckDatabases(mdConn);
+          registerMotherDuckDatabaseAttaches(conn, dbNames);
+          const currentMetadata = useAppStore.getState().databaseMetadata;
+          const newMetadata = new Map(currentMetadata);
+          // Remove stale MotherDuck entries that no longer exist
+          for (const key of currentMetadata.keys()) {
+            const plainName = parseMotherDuckDbKey(key);
+            if (plainName && !dbNames.includes(plainName)) {
+              newMetadata.delete(key);
+              conn.registerGlobalDetach(plainName);
+            }
+          }
+          if (dbNames.length > 0) {
+            const metadata = await getMotherDuckDatabaseModel(mdConn, dbNames);
+            for (const [key, model] of metadata) {
+              newMetadata.set(key, model);
+            }
+          }
+          useAppStore.setState({ databaseMetadata: newMetadata }, false, 'MotherDuck/refresh');
+        });
+      },
+    });
+    contextMenuItems.push({
+      label: 'Disconnect',
+      onClick: async () => {
+        await disconnectMotherDuckConnection(conn, connection);
+      },
+    });
+  }
+
+  if (connection.connectionState !== 'connected' && connection.connectionState !== 'connecting') {
+    contextMenuItems.push({
+      label: 'Reconnect',
+      onClick: () => {
+        useAppStore.setState(
+          { motherduckReconnectConnectionId: connection.id },
+          false,
+          'MotherDuck/requestReconnect',
+        );
+      },
+    });
+  }
+
+  return {
+    nodeType: 'db',
+    value: connectionId,
+    label: dbLabel,
+    iconType: 'db',
+    isDisabled: false,
+    isSelectable: true,
+    onDelete: (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
+      if (node.nodeType === 'db') {
+        Promise.resolve(deleteDataSources(conn, [node.value])).catch((error) =>
+          showDatabaseOperationError('Failed to delete database', error),
+        );
+      }
+    },
+    contextMenu: [
+      {
+        children: contextMenuItems,
+      },
+    ],
+    children: childNodes.length > 0 ? childNodes : undefined,
   };
 }

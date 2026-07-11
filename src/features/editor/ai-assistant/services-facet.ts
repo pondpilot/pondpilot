@@ -2,6 +2,8 @@
  * Service injection for AI Assistant
  */
 
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
+
 import { SQLScript } from '../../../models/sql-script';
 import { getAIConfig } from '../../../utils/ai-config';
 import { AIService, getAIService, AIServiceConfig } from '../../../utils/ai-service';
@@ -9,7 +11,6 @@ import {
   SchemaContextService,
   getSchemaContextService,
 } from '../../../utils/schema-context-service';
-import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
 export interface AIAssistantServices {
   aiService: AIService;

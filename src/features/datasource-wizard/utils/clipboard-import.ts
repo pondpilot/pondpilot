@@ -1,5 +1,5 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { OPFSUtil } from '@utils/opfs';
 

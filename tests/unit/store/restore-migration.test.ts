@@ -165,6 +165,31 @@ describe('LRU Migration Logic', () => {
       );
     });
 
+    it('should use attachedAt for Quack when lastUsed is missing', () => {
+      const attachedAt = mockNow - 50000;
+      const dataSourcesArray = [
+        { id: 'quack1', type: 'quack', dbName: 'quack_remote', uri: 'quack:localhost', attachedAt },
+        { id: 'local1', type: 'attached-db', dbName: 'local' },
+      ];
+
+      const dataSources = new Map(
+        dataSourcesArray.map((dv, index) => [
+          dv.id,
+          {
+            ...dv,
+            lastUsed:
+              (dv as any).lastUsed ??
+              (dv.type === 'remote-db' || dv.type === 'quack'
+                ? (dv as any).attachedAt
+                : mockNow - dataSourcesArray.length + index),
+          },
+        ]),
+      );
+
+      expect(dataSources.get('quack1')?.lastUsed).toBe(attachedAt);
+      expect(dataSources.get('local1')?.lastUsed).toBeDefined();
+    });
+
     it('should preserve existing lastUsed over attachedAt for RemoteDB', () => {
       const attachedAt = mockNow - 50000;
       const existingLastUsed = mockNow - 10000;

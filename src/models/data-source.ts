@@ -248,9 +248,154 @@ export interface RemoteDB {
    * Whether to use CORS proxy when connecting to this remote database
    */
   useCorsProxy?: boolean;
+
+  /**
+   * Custom S3 endpoint for non-AWS S3-compatible services (e.g., MinIO).
+   * Only used when URL starts with s3:// and useCorsProxy is true.
+   * Example: 'minio.example.com:9000'
+   */
+  s3Endpoint?: string;
 }
 
-export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB | IcebergCatalog;
+/**
+ * DuckLake catalog attached via URL.
+ * Uses the DuckLake extension to attach a remote catalog file.
+ */
+export interface DuckLakeCatalog {
+  readonly type: 'ducklake-catalog';
+
+  /**
+   * Unique identifier for this data source
+   */
+  id: PersistentDataSourceId;
+
+  /**
+   * URL of the DuckLake catalog file (e.g., https://..., s3://...)
+   */
+  url: string;
+
+  /**
+   * Alias used in ATTACH ... AS clause
+   */
+  catalogAlias: string;
+
+  /**
+   * Connection state for handling network issues
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting';
+
+  /**
+   * Error message if connection failed
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this catalog was attached
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description
+   */
+  comment?: string;
+
+  /**
+   * Whether to use CORS proxy when connecting
+   */
+  useCorsProxy?: boolean;
+
+  /**
+   * Whether to attach as read-only
+   */
+  readOnly?: boolean;
+}
+
+/**
+ * Quack protocol connection to a live DuckDB server.
+ */
+export interface QuackConnection {
+  readonly type: 'quack';
+  id: PersistentDataSourceId;
+
+  /**
+   * Quack endpoint URI, e.g. quack:localhost or quack:example.com:9494.
+   */
+  uri: string;
+
+  /**
+   * Database alias used in ATTACH ... AS.
+   */
+  dbName: string;
+
+  /**
+   * Connection state for handling network/auth issues.
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting' | 'credentials-required';
+
+  /**
+   * Error message if connection failed.
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this connection was established.
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description.
+   */
+  comment?: string;
+
+  /**
+   * Reference to encrypted secret-store entry holding the Quack token.
+   */
+  secretRef?: SecretId;
+
+  /**
+   * Disable SSL for non-local endpoints. Intended for local/dev servers only.
+   */
+  disableSsl?: boolean;
+}
+
+export interface MotherDuckConnection {
+  readonly type: 'motherduck';
+  id: PersistentDataSourceId;
+
+  /**
+   * Connection state for handling network issues
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting' | 'credentials-required';
+
+  /**
+   * Error message if connection failed
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this connection was established
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description
+   */
+  comment?: string;
+
+  /**
+   * Reference to the encrypted secret store entry holding the token.
+   */
+  secretRef?: SecretId;
+}
+
+export type AnyDataSource =
+  | AnyFlatFileDataSource
+  | LocalDB
+  | RemoteDB
+  | IcebergCatalog
+  | DuckLakeCatalog
+  | QuackConnection
+  | MotherDuckConnection;
 
 // Special constant for the system database
 export const SYSTEM_DATABASE_ID = 'pondpilot-system-db' as PersistentDataSourceId;

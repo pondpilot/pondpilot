@@ -8,6 +8,7 @@ import { deleteTabImpl } from '@controllers/tab/pure';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { TabId } from '@models/tab';
+import { getCurrentDuckDBConnectionPool } from '@services/duckdb-pool/current-pool';
 import { useAppStore } from '@store/app-store';
 import { findUniqueName, getAllExistingNames } from '@utils/helpers';
 import { createPersistenceCatchHandler } from '@utils/persistence-logger';
@@ -164,6 +165,7 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
   const {
     sqlScripts,
     scriptAccessTimes,
+    sqlScriptSessions,
     tabs,
     tabOrder,
     activeTabId,
@@ -194,6 +196,24 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
   let newPreviewTabId = previewTabId;
 
   if (tabsToDelete.length > 0) {
+    const pool = getCurrentDuckDBConnectionPool();
+    if (pool) {
+      // allSettled, not all: one unpin rejecting (e.g. a slot raced by a
+      // concurrent eviction) must not abandon the sibling unpins and leak
+      // their pinned connection slots.
+      const unpinResults = await Promise.allSettled(
+        tabsToDelete.map((tabId) => pool.unpinTab(tabId)),
+      );
+      for (const result of unpinResults) {
+        if (result.status === 'rejected') {
+          console.error(
+            'Failed to unpin tab connection during SQL script deletion:',
+            result.reason,
+          );
+        }
+      }
+    }
+
     const result = deleteTabImpl({
       deleteTabIds: tabsToDelete,
       tabs,
@@ -211,11 +231,15 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
   const newScriptAccessTimes = new Map(
     Array.from(scriptAccessTimes).filter(([id]) => !sqlScriptIdsToDeleteSet.has(id)),
   );
+  const newSqlScriptSessions = new Map(
+    Array.from(sqlScriptSessions).filter(([id]) => !sqlScriptIdsToDeleteSet.has(id)),
+  );
 
   useAppStore.setState(
     {
       sqlScripts: newSqlScripts,
       scriptAccessTimes: newScriptAccessTimes,
+      sqlScriptSessions: newSqlScriptSessions,
       tabs: newTabs,
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,

@@ -34,14 +34,14 @@ const ThemeItem = ({ theme, title, onClick, active }: ThemeItemProps) => {
       >
         <Stack className="w-[150px] h-[72px] gap-3">
           <Group>
-            <div className={`size-3 ${tertiaryColor} rounded`} />
-            <div className={`size-3 w-24 ${tertiaryColor} rounded`} />
+            <div className={`size-3 ${tertiaryColor} rounded-sm`} />
+            <div className={`size-3 w-24 ${tertiaryColor} rounded-sm`} />
           </Group>
           <Group>
-            <div className={`size-3 ${tertiaryColor} rounded`} />
-            <div className={`size-3 w-28 ${tertiaryColor} rounded`} />
+            <div className={`size-3 ${tertiaryColor} rounded-sm`} />
+            <div className={`size-3 w-28 ${tertiaryColor} rounded-sm`} />
           </Group>
-          <div className={`size-3 w-12 ${accentColor} rounded mt-auto`} />
+          <div className={`size-3 w-12 ${accentColor} rounded-sm mt-auto`} />
         </Stack>
       </Box>
     </Stack>
@@ -68,26 +68,26 @@ const SystemTheme = ({ onClick, active }: SystemThemeProps) => (
     >
       <Stack className="gap-3 bg-backgroundPrimary-light p-6 pr-4 flex-nowrap">
         <Group className="w-[60px]">
-          <div className="size-3 bg-backgroundTertiary-light rounded" />
-          <div className="size-3 w-5 bg-backgroundTertiary-light rounded" />
+          <div className="size-3 bg-backgroundTertiary-light rounded-sm" />
+          <div className="size-3 w-5 bg-backgroundTertiary-light rounded-sm" />
         </Group>
         <Group>
-          <div className="size-3 bg-backgroundTertiary-light rounded" />
-          <div className="size-3 w-5 bg-backgroundTertiary-light rounded" />
+          <div className="size-3 bg-backgroundTertiary-light rounded-sm" />
+          <div className="size-3 w-5 bg-backgroundTertiary-light rounded-sm" />
         </Group>
-        <div className="size-3 w-5 bg-backgroundAccent-light rounded mt-3" />
+        <div className="size-3 w-5 bg-backgroundAccent-light rounded-sm mt-3" />
       </Stack>
       <Divider orientation="vertical" />
       <Stack className="gap-3 bg-backgroundPrimary-dark p-6 pl-4 flex-nowrap">
         <Group className="w-[60px]">
-          <div className="size-3 bg-backgroundTertiary-dark rounded" />
-          <div className="size-3 w-5 bg-backgroundTertiary-dark rounded" />
+          <div className="size-3 bg-backgroundTertiary-dark rounded-sm" />
+          <div className="size-3 w-5 bg-backgroundTertiary-dark rounded-sm" />
         </Group>
         <Group>
-          <div className="size-3 bg-backgroundTertiary-dark rounded" />
-          <div className="size-3 w-5 bg-backgroundTertiary-dark rounded" />
+          <div className="size-3 bg-backgroundTertiary-dark rounded-sm" />
+          <div className="size-3 w-5 bg-backgroundTertiary-dark rounded-sm" />
         </Group>
-        <div className="size-3 w-5 bg-backgroundAccent-dark rounded mt-3" />
+        <div className="size-3 w-5 bg-backgroundAccent-dark rounded-sm mt-3" />
       </Stack>
     </Group>
   </Stack>

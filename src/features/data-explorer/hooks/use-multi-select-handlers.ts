@@ -1,7 +1,7 @@
 import { TreeNodeData } from '@components/explorer-tree';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 import {
@@ -52,7 +52,7 @@ export function useMultiSelectHandlers({
     }
 
     // Use the utility function
-    handleMultiSelectDelete(nodes, {
+    await handleMultiSelectDelete(nodes, {
       nodeMap,
       anyNodeIdToNodeTypeMap,
       conn,

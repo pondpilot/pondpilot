@@ -155,7 +155,7 @@ const SchemaBrowserComponent = ({ tab }: SchemaBrowserProps) => {
             )}
 
             <Panel position="top-right">
-              <div className="p-2 bg-white dark:bg-slate-800 rounded shadow">
+              <div className="p-2 bg-white dark:bg-slate-800 rounded-sm shadow-sm">
                 <SchemaTitle tab={tab} nodeCount={nodes.length} />
               </div>
             </Panel>

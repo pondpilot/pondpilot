@@ -246,34 +246,41 @@ export async function attachAndVerifyIcebergCatalog(options: AttachIcebergOption
     }
   }
 
-  // Wait for catalog to settle
-  if (settleDelayMs > 0) {
-    await new Promise((resolve) => setTimeout(resolve, settleDelayMs));
-  }
+  pool.registerGlobalAttach(catalogAlias, attachQuery, [secretQuery]);
 
-  // Verify the catalog is attached
-  const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(catalogAlias)}'`;
-  let dbFound = false;
-  let attempts = 0;
-
-  while (!dbFound && attempts < maxVerifyAttempts) {
-    try {
-      const result = await pool.query(checkQuery);
-      if (result && result.numRows > 0) {
-        dbFound = true;
-      } else {
-        throw new Error('Catalog not found in duckdb_databases');
-      }
-    } catch (error) {
-      attempts += 1;
-      if (attempts >= maxVerifyAttempts) {
-        throw new Error(
-          `Catalog ${catalogAlias} could not be verified after ${maxVerifyAttempts} attempts`,
-        );
-      }
-      console.warn(`Attempt ${attempts}: Catalog not ready yet, waiting...`);
-      await new Promise((resolve) => setTimeout(resolve, VERIFICATION_RETRY_DELAY_MS));
+  try {
+    // Wait for catalog to settle
+    if (settleDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, settleDelayMs));
     }
+
+    // Verify the catalog is attached
+    const checkQuery = `SELECT database_name FROM duckdb_databases() WHERE database_name = '${escapeSqlStringValue(catalogAlias)}'`;
+    let dbFound = false;
+    let attempts = 0;
+
+    while (!dbFound && attempts < maxVerifyAttempts) {
+      try {
+        const result = await pool.query(checkQuery);
+        if (result && result.numRows > 0) {
+          dbFound = true;
+        } else {
+          throw new Error('Catalog not found in duckdb_databases');
+        }
+      } catch (error) {
+        attempts += 1;
+        if (attempts >= maxVerifyAttempts) {
+          throw new Error(
+            `Catalog ${catalogAlias} could not be verified after ${maxVerifyAttempts} attempts`,
+          );
+        }
+        console.warn(`Attempt ${attempts}: Catalog not ready yet, waiting...`);
+        await new Promise((resolve) => setTimeout(resolve, VERIFICATION_RETRY_DELAY_MS));
+      }
+    }
+  } catch (error) {
+    pool.registerGlobalDetach(catalogAlias);
+    throw error;
   }
 }
 

@@ -69,7 +69,7 @@ export const DndOverlay = ({ children, handleFileDrop }: DndOverlayProps) => {
           </Stack>
         </div>
       )}
-      <div className={cn('h-full w-full', isDragging && 'blur-sm')}>{children}</div>
+      <div className={cn('h-full w-full', isDragging && 'blur-xs')}>{children}</div>
     </div>
   );
 };

@@ -1,8 +1,9 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { registerAndAttachDatabase } from '@controllers/db/data-source';
 import type { ComparisonId, ComparisonSourceStat } from '@models/comparison';
 import { AnyFlatFileDataSource, SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { DataSourceLocalFile, LocalEntry } from '@models/file-system';
 import { ComparisonSource, SchemaComparisonResult } from '@models/tab';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import { setComparisonSourceStats } from '@store/comparison-metadata';
 import { quote } from '@utils/helpers';
@@ -77,6 +78,74 @@ const isFlatFileDataSource = (dataSource: unknown): dataSource is AnyFlatFileDat
 
 const isDataSourceLocalFile = (entry: LocalEntry | undefined): entry is DataSourceLocalFile => {
   return Boolean(entry) && entry?.kind === 'file' && entry?.fileType === 'data-source';
+};
+
+const databaseExists = async (
+  pool: AsyncDuckDBConnectionPool,
+  databaseName: string,
+): Promise<boolean> => {
+  try {
+    const result = await pool.query(
+      `SELECT database_name FROM duckdb_databases() WHERE database_name = ${quote(databaseName, { single: true })}`,
+    );
+    return result.numRows > 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('There must be at least one attached databases')) {
+      return false;
+    }
+    throw error;
+  }
+};
+
+const ensureLocalDuckDBCatalogAvailable = async (
+  pool: AsyncDuckDBConnectionPool,
+  databaseName: string,
+): Promise<void> => {
+  if (await databaseExists(pool, databaseName)) {
+    return;
+  }
+
+  const { dataSources, localEntries } = useAppStore.getState();
+  const dataSource = Array.from(dataSources.values()).find(
+    (source) => source.type === 'attached-db' && source.dbName === databaseName,
+  );
+  if (!dataSource || dataSource.type !== 'attached-db') {
+    return;
+  }
+
+  const entry = localEntries.get(dataSource.fileSourceId);
+  if (!isDataSourceLocalFile(entry) || entry.ext !== 'duckdb') {
+    return;
+  }
+
+  await registerAndAttachDatabase(
+    pool,
+    entry.handle,
+    `${entry.uniqueAlias}.${entry.ext}`,
+    dataSource.dbName,
+  );
+};
+
+const ensureSourcesAvailable = async (
+  pool: AsyncDuckDBConnectionPool,
+  sources: ComparisonSource[],
+): Promise<void> => {
+  const databaseNames = new Set<string>();
+
+  for (const source of sources) {
+    if (
+      source.type === 'table' &&
+      source.databaseName &&
+      source.databaseName !== SYSTEM_DATABASE_NAME
+    ) {
+      databaseNames.add(source.databaseName);
+    }
+  }
+
+  for (const databaseName of databaseNames) {
+    await ensureLocalDuckDBCatalogAvailable(pool, databaseName);
+  }
 };
 
 const getRowCountFromMetadata = async (
@@ -204,6 +273,8 @@ export const useSchemaAnalysis = (pool: AsyncDuckDBConnectionPool) => {
       setError(null);
 
       try {
+        await ensureSourcesAvailable(pool, [sourceA, sourceB]);
+
         const [schemaA, schemaB] = await Promise.all([
           getSourceSchema(pool, sourceA),
           getSourceSchema(pool, sourceB),
