@@ -1,22 +1,18 @@
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { getCorsProxyMacros } from '@utils/attach-cors-rewriter';
-import { getGSheetPublicReadMacros } from '@utils/gsheet-public-read';
 
 /**
- * Install helper macros into DuckDB
+ * Install CORS proxy macros into DuckDB
  *
  * Creates macros for explicit CORS proxy control:
  * - attach_with_proxy(url, db_name): Force proxy usage
  * - attach_direct(url, db_name): Skip proxy
- * - gsheet_public_csv_url(url, sheet, range): normalize URL to CSV export URL
- * - read_gsheet_public(url, sheet, range): read public Google Sheet as a table
- * - read_gsheet_authorized(url, sheet, range): read Google Sheet with bearer-token HTTP secret
  *
  * @param conn - DuckDB connection pool
  */
 export async function installCorsProxyMacros(conn: AsyncDuckDBConnectionPool): Promise<void> {
   try {
-    const macros = [...getCorsProxyMacros(), ...getGSheetPublicReadMacros()];
+    const macros = getCorsProxyMacros();
 
     for (const macro of macros) {
       await conn.query(macro);

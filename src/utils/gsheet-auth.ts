@@ -1,13 +1,12 @@
-import type { LocalEntryId } from '@models/file-system';
-
 import { toDuckDBIdentifier } from './duckdb/identifier';
 import { quote } from './helpers';
 
 const GSHEET_HTTP_SECRET_PREFIX = 'pondpilot_gsheet_http_';
 const SPREADSHEET_ID_FORMAT = /^[a-zA-Z0-9-_]+$/;
 
-export function buildGSheetHttpSecretName(sourceGroupId: LocalEntryId): string {
-  return `${GSHEET_HTTP_SECRET_PREFIX}${String(sourceGroupId).replace(/[^a-zA-Z0-9_]/g, '_')}`;
+export function buildGSheetHttpSecretName(spreadsheetId: string, connectionKey?: string): string {
+  const suffix = connectionKey ? `_${validateSpreadsheetId(connectionKey)}` : '';
+  return `${GSHEET_HTTP_SECRET_PREFIX}${validateSpreadsheetId(spreadsheetId)}${suffix}`;
 }
 
 export function validateSpreadsheetId(spreadsheetId: string): string {
@@ -30,6 +29,13 @@ export function buildCreateGSheetHttpSecretQuery(
     accessToken,
     { single: true },
   )}, SCOPE (${quote(buildGSheetSpreadsheetHttpScope(spreadsheetId), { single: true })}))`;
+}
+
+export function buildCreateGSheetSecretQuery(secretName: string, accessToken: string): string {
+  return `CREATE OR REPLACE SECRET ${toDuckDBIdentifier(secretName)} (TYPE GSHEET, PROVIDER ACCESS_TOKEN, ACCESS_TOKEN ${quote(
+    accessToken,
+    { single: true },
+  )})`;
 }
 
 export function buildDropGSheetHttpSecretQuery(secretName: string): string {

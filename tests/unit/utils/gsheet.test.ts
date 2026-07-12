@@ -72,4 +72,26 @@ describe('gsheet utils', () => {
       "CREATE OR REPLACE VIEW student_roster AS SELECT * FROM \"system\".main.read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Sheet1');",
     );
   });
+
+  it('omits the sheet argument when reading the first worksheet', () => {
+    const sql = createGSheetSheetViewQuery('sheet123', undefined, 'first_sheet');
+
+    expect(sql).toBe(
+      "CREATE OR REPLACE VIEW first_sheet AS SELECT * FROM read_gsheet('sheet123');",
+    );
+  });
+
+  it('references a named secret without putting its token in view SQL', () => {
+    const sql = createGSheetSheetViewQuery(
+      'sheet123',
+      'Private',
+      'private_sheet',
+      'system.main.read_gsheet',
+      'pondpilot_gsheet_http_sheet123',
+    );
+
+    expect(sql).toBe(
+      "CREATE OR REPLACE VIEW private_sheet AS SELECT * FROM \"system\".main.read_gsheet('sheet123', sheet:='Private', secret_name:='pondpilot_gsheet_http_sheet123');",
+    );
+  });
 });

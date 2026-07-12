@@ -46,22 +46,22 @@ test.describe('AI Assistant Integration', () => {
       await expect(widget).toBeHidden();
     });
 
-    test.fixme(
-      'should toggle AI assistant with repeated shortcut',
-      async ({ page, scriptEditorContent }) => {
-        // Focus the editor and open AI assistant
-        await scriptEditorContent.click();
-        await page.keyboard.press('ControlOrMeta+i');
-        const widget = page.locator('.cm-ai-assistant-widget');
-        await expect(widget).toBeVisible();
+    test.fixme('should toggle AI assistant with repeated shortcut', async ({
+      page,
+      scriptEditorContent,
+    }) => {
+      // Focus the editor and open AI assistant
+      await scriptEditorContent.click();
+      await page.keyboard.press('ControlOrMeta+i');
+      const widget = page.locator('.cm-ai-assistant-widget');
+      await expect(widget).toBeVisible();
 
-        // Focus the editor again (not the widget) before pressing the shortcut
-        await scriptEditorContent.click();
-        // Press shortcut again to close
-        await page.keyboard.press('ControlOrMeta+i');
-        await expect(widget).toBeHidden();
-      },
-    );
+      // Focus the editor again (not the widget) before pressing the shortcut
+      await scriptEditorContent.click();
+      // Press shortcut again to close
+      await page.keyboard.press('ControlOrMeta+i');
+      await expect(widget).toBeHidden();
+    });
   });
 
   test.describe('Mention autocomplete', () => {

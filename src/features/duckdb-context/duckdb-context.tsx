@@ -591,7 +591,10 @@ export const DuckDBConnectionPoolProvider = ({
                 checkpointDatabase: PERSISTENT_DB_NAME,
               },
               async (conn) => {
-                await configureConnectionForHttpfs(conn);
+                await configureConnectionForHttpfs(conn, {
+                  enableGsheetsCommunity: ENABLE_GSHEETS_COMMUNITY_EXTENSION,
+                  gsheetsExtensionUrl: GSHEETS_EXTENSION_URL,
+                });
                 try {
                   await conn.query("ATTACH IF NOT EXISTS ':memory:' AS memory;");
                 } catch (error) {

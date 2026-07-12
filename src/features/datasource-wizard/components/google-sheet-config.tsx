@@ -1,13 +1,13 @@
 import { showError } from '@components/app-notifications';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Stack, TextInput, Text, Button, Group, Radio, Loader } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import type { GSheetAccessMode } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { requestGoogleAccessToken } from '@services/google-identity-services';
 import { useAppStore } from '@store/app-store';
 import { IconBrandGoogle, IconCheck } from '@tabler/icons-react';
 import { getGoogleOAuthClientId } from '@utils/google-oauth-config';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import { useGSheetConnection } from '../hooks/use-gsheet-connection';
 
@@ -20,23 +20,29 @@ interface GoogleSheetConfigProps {
 export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConfigProps) {
   const [sheetRef, setSheetRef] = useInputState('');
   const [connectionName, setConnectionName] = useInputState('');
+  const [worksheetName, setWorksheetName] = useInputState('');
   const [accessToken, setAccessToken] = useInputState('');
   const [accessMode, setAccessMode] = useState<GSheetAccessMode>('public');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   const cachedToken = useAppStore((s) => s.googleOAuthToken);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!cachedToken) return undefined;
+    const delay = Math.max(0, cachedToken.expiresAt - Date.now() - 60_000);
+    const timer = window.setTimeout(() => setCurrentTime(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [cachedToken]);
 
   // Consider the cached token valid if it has >60s remaining
   const hasCachedToken = useMemo(
-    () => cachedToken != null && cachedToken.expiresAt > Date.now() + 60_000,
-    [cachedToken],
+    () => cachedToken != null && cachedToken.expiresAt > currentTime + 60_000,
+    [cachedToken, currentTime],
   );
 
   const oauthAuthenticated = hasCachedToken;
   const oauthAccessToken = cachedToken?.accessToken ?? '';
-  const oauthExpiresIn = cachedToken
-    ? Math.max(0, Math.floor((cachedToken.expiresAt - Date.now()) / 1000))
-    : undefined;
 
   const { isLoading, isTesting, discoveredSheets, testConnection, addGoogleSheet } =
     useGSheetConnection(pool);
@@ -57,7 +63,8 @@ export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConf
     connectionName,
     accessMode,
     accessToken: effectiveAccessToken,
-    tokenExpiresIn: oauthExpiresIn,
+    worksheetName,
+    tokenExpiresAt: cachedToken?.expiresAt,
   };
 
   const handleTest = () => testConnection(params);
@@ -93,14 +100,16 @@ export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConf
       onNavigate('/settings#google-sheets');
     } else {
       onClose();
-      window.location.href = '/settings#google-sheets';
+      window.location.href = new URL('settings#google-sheets', document.baseURI).toString();
     }
   }, [onClose, onNavigate]);
 
   return (
     <Stack gap={16}>
       <Text size="sm" c="text-secondary" className="pl-4">
-        Connect a Google Sheet and create one view per worksheet.
+        {accessMode === 'public'
+          ? 'Connect one worksheet from a public Google Sheet.'
+          : 'Connect a Google Sheet and create one view per worksheet.'}
       </Text>
 
       <Stack gap={12}>
@@ -131,6 +140,16 @@ export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConf
             <Radio value="authorized" label="Bearer Token (manual)" />
           </Group>
         </Radio.Group>
+
+        {accessMode === 'public' && (
+          <TextInput
+            label="Worksheet Name"
+            placeholder="First worksheet"
+            value={worksheetName}
+            onChange={setWorksheetName}
+            description="Optional. Leave blank to use the first worksheet."
+          />
+        )}
 
         {accessMode === 'oauth' && !oauthAuthenticated && (
           <Button

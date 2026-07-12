@@ -78,9 +78,9 @@ import {
 import { fileSystemService } from '@utils/file-system-adapter';
 import { buildGSheetSpreadsheetUrl, GSHEET_SECRET_LABEL_PREFIX } from '@utils/gsheet';
 import { resolveGSheetAccessToken } from '@utils/gsheet-auth';
-import { shouldResetRestoredScriptQuery } from '@utils/script-query-persistence';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import { shouldResetRestoredScriptQuery } from '@utils/script-query-persistence';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
 
@@ -455,7 +455,7 @@ async function restoreLocalEntries(
   const rootEntries: LocalEntry[] = [];
 
   // Also build a map from parentId to children, we'll do a lot of lookups on this.
-  const parentToChildEntriesMap: Map<LocalEntryId, LocalEntryPersistence[]> = new Map();
+  const parentToChildEntriesMap = new Map<LocalEntryId, LocalEntryPersistence[]>();
   const addToMap = (entry: LocalEntryPersistence) => {
     if (!entry.parentId) {
       return;
@@ -661,8 +661,8 @@ export const restoreAppDataFromIDB = async (
   const tabsArray = await tx.objectStore(TAB_TABLE_NAME).getAll();
   const tabs = new Map<TabId, any>(tabsArray.map((tab) => [tab.id as TabId, tab]));
 
-  const comparisonWrites: Map<ComparisonId, Comparison> = new Map();
-  const tabWrites: Map<TabId, ComparisonTab> = new Map();
+  const comparisonWrites = new Map<ComparisonId, Comparison>();
+  const tabWrites = new Map<TabId, ComparisonTab>();
 
   // Normalize existing comparison entries to include newer persistence fields
   for (const [comparisonId, comparisonData] of comparisons.entries()) {
@@ -897,7 +897,7 @@ export const restoreAppDataFromIDB = async (
   // Normally we should have all data sources in the store, but we allow recovering
   // from this specific inconsistency, as it is pretty easy to re-create them.
   // Except of course, none of the tabs may be using them as we generate new ids
-  const missingDataSources: Map<PersistentDataSourceId, AnyDataSource> = new Map();
+  const missingDataSources = new Map<PersistentDataSourceId, AnyDataSource>();
   const validDataSources = new Set<PersistentDataSourceId>();
 
   // For data source files collect all registered files
@@ -1126,34 +1126,33 @@ export const restoreAppDataFromIDB = async (
     }
   }
 
-  // Pass 2 (parallel): create views for each sheet concurrently.
-  await Promise.allSettled(
-    gsheetDataSources.map(async (dataSource) => {
-      try {
-        const spreadsheetRef =
-          dataSource.spreadsheetUrl || buildGSheetSpreadsheetUrl(dataSource.spreadsheetId);
-        const accessToken = dataSource.secretRef
-          ? (cachedGSheetTokens.get(String(dataSource.secretRef)) ?? undefined)
-          : undefined;
-        await createGSheetSheetView(
-          conn,
-          spreadsheetRef,
-          dataSource.sheetName,
-          dataSource.viewName,
-          dataSource.accessMode,
-          accessToken,
-        );
-      } catch (error) {
-        // Keep persisted Google Sheets data sources on transient restore failures
-        // (offline/expired token/API hiccups) so users can reconnect later.
-        warnings.push(
-          `Google Sheet ${dataSource.spreadsheetName}::${dataSource.sheetName} could not be restored. It will remain saved and can be retried later.`,
-        );
-        console.warn('Failed to restore Google Sheet view:', error);
-      }
-      validDataSources.add(dataSource.id);
-    }),
-  );
+  // Pass 2 (sequential): secret and view creation both mutate the DuckDB catalog.
+  for (const dataSource of gsheetDataSources) {
+    try {
+      const spreadsheetRef =
+        dataSource.spreadsheetUrl || buildGSheetSpreadsheetUrl(dataSource.spreadsheetId);
+      const accessToken = dataSource.secretRef
+        ? (cachedGSheetTokens.get(String(dataSource.secretRef)) ?? undefined)
+        : undefined;
+      await createGSheetSheetView(
+        conn,
+        spreadsheetRef,
+        dataSource.useFirstSheet ? undefined : dataSource.sheetName,
+        dataSource.viewName,
+        dataSource.accessMode,
+        accessToken,
+        dataSource.secretRef ? String(dataSource.secretRef) : undefined,
+      );
+    } catch (error) {
+      // Keep persisted Google Sheets data sources on transient restore failures
+      // (offline/expired token/API hiccups) so users can reconnect later.
+      warnings.push(
+        `Google Sheet ${dataSource.spreadsheetName}::${dataSource.sheetName} could not be restored. It will remain saved and can be retried later.`,
+      );
+      console.warn('Failed to restore Google Sheet view:', error);
+    }
+    validDataSources.add(dataSource.id);
+  }
 
   // Prune orphaned gsheet secrets: remove any secret referenced by a gsheet data
   // source that no longer exists (e.g. partial add/delete failures in prior sessions).

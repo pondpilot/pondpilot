@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
-import { LocalEntryId } from '@models/file-system';
 import {
   buildCreateGSheetHttpSecretQuery,
+  buildCreateGSheetSecretQuery,
   buildDropGSheetHttpSecretQuery,
   buildGSheetHttpSecretName,
   buildGSheetSpreadsheetHttpScope,
@@ -10,9 +10,11 @@ import {
 } from '@utils/gsheet-auth';
 
 describe('gsheet auth utils', () => {
-  it('builds deterministic secret names from source group id', () => {
-    expect(buildGSheetHttpSecretName('group-1' as LocalEntryId)).toBe(
-      'pondpilot_gsheet_http_group_1',
+  it('builds collision-free secret names from spreadsheet IDs', () => {
+    expect(buildGSheetHttpSecretName('group-1')).toBe('pondpilot_gsheet_http_group-1');
+    expect(buildGSheetHttpSecretName('group_1')).toBe('pondpilot_gsheet_http_group_1');
+    expect(buildGSheetHttpSecretName('group-1', 'secret-2')).toBe(
+      'pondpilot_gsheet_http_group-1_secret-2',
     );
   });
 
@@ -26,6 +28,12 @@ describe('gsheet auth utils', () => {
     const sql = buildCreateGSheetHttpSecretQuery('my_secret', "tok'en", 'sheet123');
     expect(sql).toBe(
       "CREATE OR REPLACE SECRET my_secret (TYPE HTTP, PROVIDER CONFIG, BEARER_TOKEN 'tok''en', SCOPE ('https://docs.google.com/spreadsheets/d/sheet123/'))",
+    );
+  });
+
+  it('builds a redacted gsheet access-token secret', () => {
+    expect(buildCreateGSheetSecretQuery('my_secret', "tok'en")).toBe(
+      "CREATE OR REPLACE SECRET my_secret (TYPE GSHEET, PROVIDER ACCESS_TOKEN, ACCESS_TOKEN 'tok''en')",
     );
   });
 

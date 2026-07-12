@@ -90,7 +90,8 @@ export const deleteDataSources = async (
     Array.from(dataSources).filter(([id, _]) => !dataSourceIdsToDelete.has(id)),
   );
 
-  const gsheetSecretsToCleanup = new Map<SecretId, string>();
+  const gsheetSecretRefsToCleanup = new Set<SecretId>();
+  const gsheetHttpSecretsToCleanup = new Set<string>();
   for (const dataSource of deletedDataSources) {
     if (dataSource.type !== 'gsheet-sheet' || !dataSource.secretRef) {
       continue;
@@ -101,9 +102,12 @@ export const deleteDataSources = async (
         remaining.type === 'gsheet-sheet' && remaining.secretRef === dataSource.secretRef,
     );
     if (!isStillReferenced) {
-      gsheetSecretsToCleanup.set(
-        dataSource.secretRef,
-        buildGSheetHttpSecretName(dataSource.fileSourceId),
+      gsheetSecretRefsToCleanup.add(dataSource.secretRef);
+    }
+
+    if (!isStillReferenced) {
+      gsheetHttpSecretsToCleanup.add(
+        buildGSheetHttpSecretName(dataSource.spreadsheetId, String(dataSource.secretRef)),
       );
     }
   }
@@ -280,6 +284,11 @@ export const deleteDataSources = async (
         continue;
       }
 
+      if (dataSource.type === 'gsheet-sheet') {
+        await dropViewAndUnregisterFile(conn, dataSource.viewName, undefined);
+        continue;
+      }
+
       if (!('fileSourceId' in dataSource)) {
         continue;
       }
@@ -330,22 +339,22 @@ export const deleteDataSources = async (
     }
   }
 
-  if (gsheetSecretsToCleanup.size > 0) {
-    for (const duckdbSecretName of gsheetSecretsToCleanup.values()) {
+  if (gsheetHttpSecretsToCleanup.size > 0) {
+    for (const duckdbSecretName of gsheetHttpSecretsToCleanup) {
       try {
         await conn.query(buildDropGSheetHttpSecretQuery(duckdbSecretName));
       } catch (error) {
         console.warn('Failed to drop Google Sheets HTTP secret during deletion:', error);
       }
     }
-    if (iDbConn) {
-      for (const secretRef of gsheetSecretsToCleanup.keys()) {
-        try {
-          const { deleteSecret } = await import('@services/secret-store');
-          await deleteSecret(iDbConn, secretRef);
-        } catch (error) {
-          console.warn('Failed to delete Google Sheets token from secret store:', error);
-        }
+  }
+  if (iDbConn && gsheetSecretRefsToCleanup.size > 0) {
+    for (const secretRef of gsheetSecretRefsToCleanup) {
+      try {
+        const { deleteSecret } = await import('@services/secret-store');
+        await deleteSecret(iDbConn, secretRef);
+      } catch (error) {
+        console.warn('Failed to delete Google Sheets token from secret store:', error);
       }
     }
   }

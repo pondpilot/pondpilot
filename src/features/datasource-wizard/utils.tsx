@@ -2,7 +2,7 @@ import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { modals } from '@mantine/modals';
 import { cn } from '@utils/ui/styles';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { DatasourceWizardModal, WizardStep } from './datasource-wizard-modal';
 

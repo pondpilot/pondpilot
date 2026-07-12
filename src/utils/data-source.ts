@@ -165,6 +165,7 @@ export function addGSheetSheetDataSource(
     spreadsheetUrl: string;
     exportUrl: string;
     sheetName: string;
+    useFirstSheet?: boolean;
     accessMode: GSheetAccessMode;
     secretRef?: GSheetSheetView['secretRef'];
     tokenExpiresAt?: number;
@@ -185,6 +186,7 @@ export function addGSheetSheetDataSource(
     spreadsheetUrl: params.spreadsheetUrl,
     exportUrl: params.exportUrl,
     sheetName: params.sheetName,
+    useFirstSheet: params.useFirstSheet,
     accessMode: params.accessMode,
     secretRef: params.secretRef,
     tokenExpiresAt: params.tokenExpiresAt,

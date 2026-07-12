@@ -38,14 +38,13 @@ export async function reauthGSheetOAuth(
     }
 
     // Update encrypted secret store
-    if (dataSource.secretRef) {
-      await putSecret(_iDbConn, dataSource.secretRef, {
-        label: `${GSHEET_SECRET_LABEL_PREFIX} ${dataSource.spreadsheetName}`,
-        data: { accessToken: result.accessToken },
-      });
-    } else {
-      console.warn('GSheet OAuth source missing secretRef; cannot update encrypted token.');
+    if (!dataSource.secretRef) {
+      throw new Error('Saved Google Sheet credentials are missing. Reconnect this data source.');
     }
+    await putSecret(_iDbConn, dataSource.secretRef, {
+      label: `${GSHEET_SECRET_LABEL_PREFIX} ${dataSource.spreadsheetName}`,
+      data: { accessToken: result.accessToken },
+    });
 
     // Cache the fresh token at app level so the wizard can reuse it
     const newExpiresAt = Date.now() + result.expiresIn * 1000;
@@ -80,7 +79,7 @@ export async function reauthGSheetOAuth(
       await persistPutDataSources(_iDbConn, updatedSources);
     }
 
-    // Recreate views with the fresh token embedded in the URL
+    // Recreate views after updating their named DuckDB secret.
     for (const source of updatedSources) {
       try {
         const spreadsheetRef =
@@ -88,10 +87,11 @@ export async function reauthGSheetOAuth(
         await createGSheetSheetView(
           pool as Parameters<typeof createGSheetSheetView>[0],
           spreadsheetRef,
-          source.sheetName,
+          source.useFirstSheet ? undefined : source.sheetName,
           source.viewName,
           source.accessMode,
           result.accessToken,
+          source.secretRef ? String(source.secretRef) : undefined,
         );
       } catch (viewError) {
         console.warn(`Failed to recreate view ${source.viewName} after re-auth:`, viewError);

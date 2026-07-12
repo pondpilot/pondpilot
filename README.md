@@ -127,11 +127,11 @@ yarn dev
 
 Visit `http://localhost:5173` in your browser to access the app.
 
-### Optional Google Sheets support (`gsheets`)
+### Google Sheets support (`gsheets`)
 
-PondPilot can try to bootstrap the DuckDB `gsheets` extension at startup, and also ships macro-based Google Sheets reads that work without the extension.
+PondPilot uses a patched build of the DuckDB `gsheets` extension for all Google Sheets network access.
 
-As of **February 17, 2026**, the checked-out upstream `duckdb_gsheets` repository (`main`, tag `v0.0.8`) still documents DuckDB-WASM as not supported, so extension loading is treated as best-effort.
+As of **July 12, 2026**, upstream `duckdb_gsheets` v0.0.9 still documents DuckDB-WASM as unsupported. PondPilot bundles a WASM-compatible fork artifact.
 
 1. Enable community bootstrap in `.env`:
 
@@ -175,28 +175,29 @@ VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS=true
 VITE_GSHEETS_EXTENSION_URL=/duckdb-extensions/gsheets/gsheets.duckdb_extension.wasm
 ```
 
-Public sheets can be read without the extension:
+Public sheets can be read through the extension:
 
 ```sql
-SELECT * FROM read_gsheet_public(
+SELECT * FROM read_gsheet(
   'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit?gid=<gid>#gid=<gid>'
 );
 ```
 
-Authorized reads (with a bearer token stored via the connection wizard):
+Authorized reads use a named DuckDB secret created from the token stored by the connection wizard:
 
 ```sql
-SELECT * FROM read_gsheet_authorized(
-  'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit?gid=<gid>#gid=<gid>'
+SELECT * FROM read_gsheet(
+  'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit',
+  secret_name := '<name>'
 );
 ```
 
 Authorized reads use tokens entered through the connection wizard and stored in the encrypted secret store — not environment variables.
 
-If the `gsheets` extension does load successfully, PondPilot also bootstraps:
+PondPilot creates the extension secret as:
 
 ```sql
-CREATE OR REPLACE SECRET "<name>" (TYPE gsheet, PROVIDER access_token, TOKEN '<google_access_token>')
+CREATE OR REPLACE SECRET "<name>" (TYPE gsheet, PROVIDER access_token, ACCESS_TOKEN '<google_access_token>')
 ```
 
 ## ⌨️ Keyboard Shortcuts

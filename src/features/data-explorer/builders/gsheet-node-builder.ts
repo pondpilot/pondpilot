@@ -11,9 +11,9 @@ import {
   deleteTabByDataSourceId,
 } from '@controllers/tab';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { GSheetSheetView } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 

@@ -118,7 +118,7 @@ export async function configureConnectionForHttpfs(
       if (!/already loaded/i.test(message)) {
         console.warn(
           'Failed to load gsheets extension from configured URL. ' +
-            'Using macro-based Google Sheets reads only.',
+            'Google Sheets connections will be unavailable.',
           message,
         );
       }
@@ -154,8 +154,8 @@ export async function configureConnectionForHttpfs(
     if (!/already loaded/i.test(message)) {
       console.warn(
         'Failed to load gsheets extension from community repository. ' +
-          'If community WASM is unavailable, set VITE_GSHEETS_EXTENSION_URL to a local/self-hosted wasm build. ' +
-          'Using macro-based Google Sheets reads only.',
+          'Set VITE_GSHEETS_EXTENSION_URL to a compatible WASM build. ' +
+          'Google Sheets connections will be unavailable.',
         message,
       );
     }

@@ -3,11 +3,11 @@ import { installCorsProxyMacros } from '@controllers/db/cors-proxy-macros-contro
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
-import type { GSheetSheetView } from '@models/data-source';
 import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
+import type { GSheetSheetView } from '@models/data-source';
 import { AnyDataSource } from '@models/data-source';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore, setAppLoadState } from '@store/app-store';
@@ -30,6 +30,7 @@ import {
   attachAndVerifyDuckLakeCatalog,
   updateDuckLakeConnectionState,
 } from '@utils/ducklake-catalog';
+import { notifyGSheetTokenExpired } from '@utils/gsheet-reauth';
 import {
   attachAndVerifyIcebergCatalog,
   resolveIcebergCredentials,
@@ -46,7 +47,6 @@ import {
   updateQuackConnectionState,
 } from '@utils/quack';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
-import { notifyGSheetTokenExpired } from '@utils/gsheet-reauth';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect, useRef } from 'react';

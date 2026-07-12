@@ -18,6 +18,12 @@ export interface GoogleAccessTokenResult {
   scope: string;
 }
 
+export function getGoogleOAuthCallbackUrl(): string {
+  const appBaseUrl =
+    typeof document === 'undefined' ? `${window.location.origin}/` : document.baseURI;
+  return new URL('google-oauth-callback.html', appBaseUrl).toString();
+}
+
 /**
  * Request a Google access token via a same-origin popup relay.
  *
@@ -31,7 +37,7 @@ export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccess
   }
 
   const state = crypto.randomUUID();
-  const callbackPath = `${window.location.origin}/google-oauth-callback.html`;
+  const callbackPath = getGoogleOAuthCallbackUrl();
   const popupUrl = `${callbackPath}?client_id=${encodeURIComponent(clientId)}&scope=${encodeURIComponent(GOOGLE_SHEETS_READONLY_SCOPE)}&state=${encodeURIComponent(state)}`;
 
   const popup = window.open(popupUrl, 'google-oauth', 'width=500,height=600,menubar=no,toolbar=no');
@@ -50,6 +56,7 @@ export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccess
       settled = true;
       bc.close();
       clearTimeout(timeoutTimer);
+      if (focusTimer) clearTimeout(focusTimer);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
     };
@@ -78,7 +85,7 @@ export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccess
     const handleFocus = () => {
       if (settled) return;
       focusTimer = setTimeout(() => {
-        if (!settled) {
+        if (!settled && popup.closed) {
           cleanup();
           reject(new Error('Google sign-in was cancelled'));
         }

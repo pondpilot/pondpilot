@@ -35,23 +35,26 @@ export function buildGSheetXlsxExportUrl(spreadsheetId: string): string {
 /**
  * Creates a DuckDB view query for a specific Google Sheet worksheet.
  *
- * Uses `read_gsheet(...)` so it works with:
- * - the gsheets extension table function when loaded
- * - macro fallback when extension loading is unavailable
+ * Uses the gsheets extension's `read_gsheet(...)` table function.
  */
 export function createGSheetSheetViewQuery(
   spreadsheetRef: string,
-  sheetName: string,
+  sheetName: string | undefined,
   viewName: string,
   readFunctionName = 'read_gsheet',
+  secretName?: string,
 ): string {
   const readFunctionSql = readFunctionName
     .split('.')
     .map((part) => toDuckDBIdentifier(part))
     .join('.');
 
+  const sheetArgument = sheetName ? `, sheet:=${quote(sheetName, { single: true })}` : '';
+  const secretArgument = secretName
+    ? `, secret_name:=${quote(secretName, { single: true })}`
+    : '';
   return `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${readFunctionSql}(${quote(
     spreadsheetRef,
     { single: true },
-  )}, sheet:=${quote(sheetName, { single: true })});`;
+  )}${sheetArgument}${secretArgument});`;
 }

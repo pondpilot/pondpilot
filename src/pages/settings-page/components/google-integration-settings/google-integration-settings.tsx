@@ -1,4 +1,5 @@
 import { Alert, Anchor, Button, Group, Stack, Text, TextInput } from '@mantine/core';
+import { getGoogleOAuthCallbackUrl } from '@services/google-identity-services';
 import { IconInfoCircle, IconShieldCheck } from '@tabler/icons-react';
 import { getGoogleOAuthClientId, saveGoogleOAuthClientId } from '@utils/google-oauth-config';
 import { useCallback, useState } from 'react';
@@ -87,6 +88,16 @@ export const GoogleIntegrationSettings = () => {
               to{' '}
               <Text span fw={500}>
                 Authorized JavaScript origins
+              </Text>
+            </li>
+            <li>
+              Add{' '}
+              <Text span className="font-mono" c="dimmed">
+                {getGoogleOAuthCallbackUrl()}
+              </Text>{' '}
+              to{' '}
+              <Text span fw={500}>
+                Authorized redirect URIs
               </Text>
             </li>
             <li>Copy the Client ID and paste it above</li>

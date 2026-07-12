@@ -2,9 +2,9 @@ import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { createGSheetSheetView } from '@controllers/db/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import type { GSheetAccessMode } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { deleteSecret, makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { addGSheetSheetDataSource, isFlatFileDataSource } from '@utils/data-source';
@@ -16,8 +16,9 @@ import {
   extractGSheetSpreadsheetId,
   GSHEET_SECRET_LABEL_PREFIX,
 } from '@utils/gsheet';
+import { buildDropGSheetHttpSecretQuery, buildGSheetHttpSecretName } from '@utils/gsheet-auth';
+import { quote } from '@utils/helpers';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
-import { getXlsxSheetNames } from '@utils/xlsx';
 import { useState, useCallback, useRef } from 'react';
 
 export type GSheetDiscoverResult = {
@@ -33,8 +34,9 @@ export interface GSheetConnectionParams {
   connectionName: string;
   accessMode: GSheetAccessMode;
   accessToken: string;
-  /** Token lifetime in seconds (from GIS response). Only used for `oauth` mode. */
-  tokenExpiresIn?: number;
+  worksheetName: string;
+  /** Absolute token expiry timestamp. Only used for `oauth` mode. */
+  tokenExpiresAt?: number;
 }
 
 type CachedDiscovery = {
@@ -42,6 +44,7 @@ type CachedDiscovery = {
   sheetRef: string;
   accessMode: GSheetAccessMode;
   accessToken: string;
+  worksheetName: string;
   result: GSheetDiscoverResult;
   cachedAt: number;
 };
@@ -49,77 +52,11 @@ type CachedDiscovery = {
 /** Discovery results are considered stale after 5 minutes. */
 const DISCOVERY_CACHE_TTL_MS = 5 * 60 * 1000;
 
-/** Timeout for fetching the spreadsheet XLSX export. */
-const FETCH_TIMEOUT_MS = 30_000;
-
 function toFriendlyError(error: unknown): string {
   if (error instanceof Error && error.message) {
     return sanitizeErrorMessage(error.message);
   }
   return 'Unknown error';
-}
-
-/** Discover sheet names via the Google Sheets API (requires bearer token). */
-async function discoverSheetsViaAPI(spreadsheetId: string, accessToken: string): Promise<string[]> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties.title`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      throw new Error(`Google Sheets API error (${response.status} ${response.statusText})`);
-    }
-    const data = (await response.json()) as {
-      sheets?: { properties?: { title?: string } }[];
-    };
-    return (data.sheets ?? [])
-      .map((s) => s.properties?.title ?? '')
-      .filter((name) => name.length > 0);
-  } catch (fetchError) {
-    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-      throw new Error('Spreadsheet discovery request timed out. Please try again.');
-    }
-    throw fetchError;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-/** Discover sheet names by fetching the XLSX export (public sheets only). */
-async function discoverSheetsViaExport(exportUrl: string): Promise<string[]> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const response = await fetch(exportUrl, { signal: controller.signal });
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch spreadsheet export (${response.status} ${response.statusText})`,
-      );
-    }
-    const blob = await response.blob();
-    if (!blob.size) {
-      throw new Error('Spreadsheet export returned an empty file');
-    }
-    const workbookFile = new File([blob], 'spreadsheet.xlsx', {
-      type: blob.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    return await getXlsxSheetNames(workbookFile);
-  } catch (fetchError) {
-    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-      throw new Error('Spreadsheet export request timed out. Please try again.');
-    }
-    if (fetchError instanceof Error && fetchError.message.startsWith('Failed to fetch')) {
-      throw fetchError;
-    }
-    throw new Error(
-      'Unable to fetch spreadsheet export. This is usually a CORS or access-permission issue.',
-    );
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
@@ -137,6 +74,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
   const discoverWorkbook = useCallback(
     async (params: GSheetConnectionParams): Promise<GSheetDiscoverResult> => {
       const resolvedAccessToken = params.accessToken.trim();
+      const worksheetName = params.worksheetName.trim();
       const spreadsheetId = extractGSheetSpreadsheetId(params.sheetRef);
       if (!spreadsheetId) {
         throw new Error('Enter a valid Google Sheets URL or spreadsheet ID');
@@ -154,6 +92,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         cached.sheetRef === params.sheetRef &&
         cached.accessMode === params.accessMode &&
         cached.accessToken === resolvedAccessToken &&
+        cached.worksheetName === worksheetName &&
         Date.now() - cached.cachedAt < DISCOVERY_CACHE_TTL_MS
       ) {
         return cached.result;
@@ -163,15 +102,34 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
       const spreadsheetUrl = buildGSheetSpreadsheetUrl(spreadsheetId);
       const resolvedName = params.connectionName.trim() || `gsheet_${spreadsheetId.slice(0, 8)}`;
 
+      if (!pool) {
+        throw new Error('DuckDB is not ready. Please try again.');
+      }
+
       let sheetNames: string[];
 
       if (needsBearerToken) {
-        // Use the Google Sheets API for authenticated discovery.
-        // The docs.google.com export URL doesn't support CORS with Authorization headers.
-        sheetNames = await discoverSheetsViaAPI(spreadsheetId, resolvedAccessToken);
+        const result = await pool.query(`
+          SELECT sheet_name
+          FROM get_gsheet_sheets(
+            ${quote(spreadsheetUrl, { single: true })},
+            access_token := ${quote(resolvedAccessToken, { single: true })}
+          )
+          WHERE sheet_type = 'GRID'
+          ORDER BY sheet_index
+        `);
+        sheetNames = result
+          .toArray()
+          .map((row) => String((row as { sheet_name?: unknown }).sheet_name ?? ''))
+          .filter(Boolean);
       } else {
-        // Public sheets: fetch the XLSX export and parse sheet names locally
-        sheetNames = await discoverSheetsViaExport(exportUrl);
+        const sheetArgument = worksheetName
+          ? `, sheet := ${quote(worksheetName, { single: true })}`
+          : '';
+        await pool.query(
+          `SELECT * FROM system.main.read_gsheet(${quote(spreadsheetUrl, { single: true })}${sheetArgument}) LIMIT 1`,
+        );
+        sheetNames = [worksheetName || 'First worksheet'];
       }
 
       if (!sheetNames.length) {
@@ -190,13 +148,14 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         sheetRef: params.sheetRef,
         accessMode: params.accessMode,
         accessToken: resolvedAccessToken,
+        worksheetName,
         result,
         cachedAt: Date.now(),
       };
 
       return result;
     },
-    [],
+    [pool],
   );
 
   const testConnection = useCallback(
@@ -239,6 +198,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
       const resolvedAccessToken = params.accessToken.trim();
       let createdViewNames: string[] = [];
       let createdSecretRef: ReturnType<typeof makeSecretId> | undefined;
+      let createdDuckDBSecretName: string | undefined;
       let iDbConnForCleanup = useAppStore.getState()._iDbConn;
 
       try {
@@ -267,6 +227,10 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
           }
 
           createdSecretRef = makeSecretId();
+          createdDuckDBSecretName = buildGSheetHttpSecretName(
+            workbook.spreadsheetId,
+            String(createdSecretRef),
+          );
           await putSecret(_iDbConn, createdSecretRef, {
             label: `${GSHEET_SECRET_LABEL_PREFIX} ${workbook.resolvedName}`,
             data: { accessToken: resolvedAccessToken },
@@ -276,17 +240,16 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         // Compute token expiry timestamp for OAuth connections
         if (
           params.accessMode === 'oauth' &&
-          params.tokenExpiresIn != null &&
-          params.tokenExpiresIn <= 0
+          params.tokenExpiresAt != null &&
+          params.tokenExpiresAt <= Date.now()
         ) {
           throw new Error('OAuth token has already expired. Please sign in again.');
         }
         const tokenExpiresAt =
-          params.accessMode === 'oauth' && params.tokenExpiresIn
-            ? Date.now() + params.tokenExpiresIn * 1000
-            : undefined;
+          params.accessMode === 'oauth' ? params.tokenExpiresAt : undefined;
 
         for (const sheetName of workbook.sheetNames) {
+          const useFirstSheet = params.accessMode === 'public' && !params.worksheetName.trim();
           const dataSource = addGSheetSheetDataSource(
             {
               fileSourceId: sourceGroupId,
@@ -295,6 +258,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
               spreadsheetUrl: workbook.spreadsheetUrl,
               exportUrl: workbook.exportUrl,
               sheetName,
+              useFirstSheet,
               accessMode: params.accessMode,
               secretRef: createdSecretRef,
               tokenExpiresAt,
@@ -305,10 +269,11 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
           await createGSheetSheetView(
             pool,
             workbook.spreadsheetUrl,
-            sheetName,
+            useFirstSheet ? undefined : sheetName,
             dataSource.viewName,
             params.accessMode,
             resolvedAccessToken || undefined,
+            createdSecretRef ? String(createdSecretRef) : undefined,
           );
           reservedViews.add(dataSource.viewName);
           createdViewNames.push(dataSource.viewName);
@@ -326,6 +291,10 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
           newMetadata.set(PERSISTENT_DB_NAME, updatedMainMetadata.get(PERSISTENT_DB_NAME)!);
         }
 
+        if (_iDbConn) {
+          await persistPutDataSources(_iDbConn, newSources);
+        }
+
         useAppStore.setState(
           {
             dataSources: newDataSources,
@@ -334,10 +303,6 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
           false,
           'DatasourceWizard/addGoogleSheet',
         );
-
-        if (_iDbConn) {
-          await persistPutDataSources(_iDbConn, newSources);
-        }
 
         showSuccess({
           title: 'Google Sheet added',
@@ -354,6 +319,14 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
           }
         }
         createdViewNames = [];
+
+        if (createdDuckDBSecretName) {
+          try {
+            await pool.query(buildDropGSheetHttpSecretQuery(createdDuckDBSecretName));
+          } catch {
+            // Ignore secret cleanup errors and surface the original failure.
+          }
+        }
 
         if (createdSecretRef && iDbConnForCleanup) {
           try {

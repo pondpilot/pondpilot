@@ -31,7 +31,7 @@ export const useActiveSection = (options: UseActiveSectionOptions): string => {
 
         sections.forEach((sectionId) => {
           const ratio = visibleSections.get(sectionId);
-          if (ratio !== undefined && ratio > maxRatio) {
+          if (ratio !== undefined && ratio >= threshold && ratio > maxRatio) {
             maxRatio = ratio;
             mostVisibleSection = sectionId;
           }

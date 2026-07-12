@@ -42,70 +42,67 @@ test('Switch between tabs using script explorer', async ({
   await expect(await getScriptEditorContent()).toContainText('select 1');
 });
 
-test.fixme(
-  'Select items in the script explorer list using Hotkeys',
-  async ({
-    page,
-    createScriptAndSwitchToItsTab,
-    assertScriptExplorerItems,
-    clickScriptByIndex,
-    selectMultipleScriptNodes,
-    deselectAllScripts,
-    switchToTab,
-    assertScriptNodesSelection,
-  }) => {
-    const count = 3;
+test.fixme('Select items in the script explorer list using Hotkeys', async ({
+  page,
+  createScriptAndSwitchToItsTab,
+  assertScriptExplorerItems,
+  clickScriptByIndex,
+  selectMultipleScriptNodes,
+  deselectAllScripts,
+  switchToTab,
+  assertScriptNodesSelection,
+}) => {
+  const count = 3;
 
-    // Create query tabs
-    for (let i = 0; i < count; i += 1) {
-      await createScriptAndSwitchToItsTab();
-    }
+  // Create query tabs
+  for (let i = 0; i < count; i += 1) {
+    await createScriptAndSwitchToItsTab();
+  }
 
-    // Check all created
-    await assertScriptExplorerItems(['query.sql', 'query_1.sql', 'query_2.sql']);
-    await assertScriptNodesSelection([2]);
+  // Check all created
+  await assertScriptExplorerItems(['query.sql', 'query_1.sql', 'query_2.sql']);
+  await assertScriptNodesSelection([2]);
 
-    // Select second script
-    await clickScriptByIndex(1);
-    await assertScriptNodesSelection([1]);
+  // Select second script
+  await clickScriptByIndex(1);
+  await assertScriptNodesSelection([1]);
 
-    // Select all items using ControlOrMeta + A
-    await clickScriptByIndex(1);
-    await page.keyboard.press('ControlOrMeta+A');
-    await assertScriptNodesSelection([0, 1, 2]);
+  // Select all items using ControlOrMeta + A
+  await clickScriptByIndex(1);
+  await page.keyboard.press('ControlOrMeta+A');
+  await assertScriptNodesSelection([0, 1, 2]);
 
-    // Deselect all items using Escape
-    await deselectAllScripts();
+  // Deselect all items using Escape
+  await deselectAllScripts();
 
-    // Wait for UI to settle after deselection
-    // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for deselection state to settle
-    await page.waitForTimeout(500);
+  // Wait for UI to settle after deselection
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for deselection state to settle
+  await page.waitForTimeout(500);
 
-    // This would implicitly activate the first before last item
-    // (tab automatically switches) but it is not considered a selection
-    await assertScriptNodesSelection([]);
+  // This would implicitly activate the first before last item
+  // (tab automatically switches) but it is not considered a selection
+  await assertScriptNodesSelection([]);
 
-    // Reselect the first item
-    await clickScriptByIndex(0);
-    // Select specific items (first and third)
-    await selectMultipleScriptNodes([0, 2]);
-    await assertScriptNodesSelection([0, 2]);
+  // Reselect the first item
+  await clickScriptByIndex(0);
+  // Select specific items (first and third)
+  await selectMultipleScriptNodes([0, 2]);
+  await assertScriptNodesSelection([0, 2]);
 
-    // Click elsewhere. Should deselect all
-    // Use Escape to clear selection (clicking outside doesn't work reliably in tests)
-    await page.keyboard.press('Escape');
-    await assertScriptNodesSelection([]);
+  // Click elsewhere. Should deselect all
+  // Use Escape to clear selection (clicking outside doesn't work reliably in tests)
+  await page.keyboard.press('Escape');
+  await assertScriptNodesSelection([]);
 
-    // // Now try to switch to one of the selected tabs via tab pane. It maintains the selection
-    await switchToTab('query_2');
-    await assertScriptNodesSelection([2]);
+  // // Now try to switch to one of the selected tabs via tab pane. It maintains the selection
+  await switchToTab('query_2');
+  await assertScriptNodesSelection([2]);
 
-    // // Finally, switching to a tab from unselected script, should deselect all
-    // // and then select the chosen tab
-    await switchToTab('query_1');
-    await assertScriptNodesSelection([1]);
-  },
-);
+  // // Finally, switching to a tab from unselected script, should deselect all
+  // // and then select the chosen tab
+  await switchToTab('query_1');
+  await assertScriptNodesSelection([1]);
+});
 
 test('Create new script with hotkey', async ({
   createScriptAndSwitchToItsTab,

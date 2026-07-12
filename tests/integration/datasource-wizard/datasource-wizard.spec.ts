@@ -86,45 +86,45 @@ test.describe('Datasource Wizard', () => {
     await expect(disabled).toBeDisabled();
   });
 
-  test.fixme(
-    'should disable buttons during connection test',
-    async ({ page, openDatasourceWizard }) => {
-      // Navigate to remote database config
-      await openDatasourceWizard();
-      const remoteDBCard = getWizardCard(
-        page,
-        'add-remote-database-card',
-        'datasource-modal-add-remote-database-card',
-      );
-      const remoteDBURLInput = page.getByTestId('remote-database-url-input');
-      const remoteDBNameInput = page.getByTestId('remote-database-name-input');
-      const testConnectionButton = page.getByTestId('test-remote-database-connection-button');
-      const addRemoteDatabaseButton = page.getByTestId('add-remote-database-button');
-      await remoteDBCard.click();
+  test.fixme('should disable buttons during connection test', async ({
+    page,
+    openDatasourceWizard,
+  }) => {
+    // Navigate to remote database config
+    await openDatasourceWizard();
+    const remoteDBCard = getWizardCard(
+      page,
+      'add-remote-database-card',
+      'datasource-modal-add-remote-database-card',
+    );
+    const remoteDBURLInput = page.getByTestId('remote-database-url-input');
+    const remoteDBNameInput = page.getByTestId('remote-database-name-input');
+    const testConnectionButton = page.getByTestId('test-remote-database-connection-button');
+    const addRemoteDatabaseButton = page.getByTestId('add-remote-database-button');
+    await remoteDBCard.click();
 
-      // Fill in valid looking data
-      await remoteDBURLInput.fill('https://example.com/test.parquet');
-      await remoteDBNameInput.fill('test_db');
+    // Fill in valid looking data
+    await remoteDBURLInput.fill('https://example.com/test.parquet');
+    await remoteDBNameInput.fill('test_db');
 
-      // Store the promise before clicking
-      const responsePromise = page
-        .waitForResponse((response: any) => response.url().includes('example.com'), {
-          timeout: 5000,
-        })
-        .catch(() => null); // Catch timeout as connection will fail
+    // Store the promise before clicking
+    const responsePromise = page
+      .waitForResponse((response: any) => response.url().includes('example.com'), {
+        timeout: 5000,
+      })
+      .catch(() => null); // Catch timeout as connection will fail
 
-      await testConnectionButton.click();
+    await testConnectionButton.click();
 
-      // Both buttons should be disabled during test
-      await expect(testConnectionButton).toBeDisabled();
-      await expect(addRemoteDatabaseButton).toBeDisabled();
+    // Both buttons should be disabled during test
+    await expect(testConnectionButton).toBeDisabled();
+    await expect(addRemoteDatabaseButton).toBeDisabled();
 
-      // Wait for the test to complete (it will fail since the URL is fake)
-      await responsePromise;
+    // Wait for the test to complete (it will fail since the URL is fake)
+    await responsePromise;
 
-      // Buttons should be enabled again after test completes
-      await expect(testConnectionButton).toBeEnabled();
-      await expect(addRemoteDatabaseButton).toBeEnabled();
-    },
-  );
+    // Buttons should be enabled again after test completes
+    await expect(testConnectionButton).toBeEnabled();
+    await expect(addRemoteDatabaseButton).toBeEnabled();
+  });
 });

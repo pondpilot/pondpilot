@@ -1,11 +1,12 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
+import type { GSheetAccessMode } from '@models/data-source';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { ReadStatViewType, supportedFlatFileDataSourceFileExt } from '@models/file-system';
-import type { GSheetAccessMode } from '@models/data-source';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { createGSheetSheetViewQuery } from '@utils/gsheet';
+import { createGSheetSheetViewQuery, extractGSheetSpreadsheetId } from '@utils/gsheet';
+import { buildCreateGSheetSecretQuery, buildGSheetHttpSecretName } from '@utils/gsheet-auth';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
@@ -468,43 +469,37 @@ export async function createXlsxSheetView(
 export async function createGSheetSheetView(
   conn: AsyncDuckDBConnectionPool,
   spreadsheetRef: string,
-  sheetName: string,
+  sheetName: string | undefined,
   viewName: string,
   accessMode: GSheetAccessMode = 'public',
   accessToken?: string,
+  connectionKey?: string,
 ) {
   const pooled = await conn.getPooledConnection();
   try {
     const needsBearerToken = accessMode === 'authorized' || accessMode === 'oauth';
-
-    // Detect whether the gsheets extension's read_gsheet() is available
-    const readFunctionInfo = await pooled.query(`
-      SELECT function_type
-      FROM duckdb_functions()
-      WHERE function_name='read_gsheet'
-    `);
-    const readFunctionTypes = new Set(
-      readFunctionInfo
-        .toArray()
-        .map((row) => String((row as { function_type?: unknown }).function_type ?? '')),
-    );
-    const hasExtension = readFunctionTypes.has('table');
-
-    // Create a GSHEET secret so the extension can authenticate with Google.
-    // Only attempt this when the extension is loaded (it registers the type).
-    if (hasExtension && needsBearerToken && accessToken) {
-      await pooled.query(
-        `CREATE OR REPLACE SECRET __pondpilot_gsheet_token (TYPE GSHEET, TOKEN ${quote(accessToken, { single: true })})`,
-      );
+    let secretName: string | undefined;
+    if (needsBearerToken) {
+      if (!accessToken) {
+        throw new Error('A Google API bearer token is required for authenticated reads');
+      }
+      const spreadsheetId = extractGSheetSpreadsheetId(spreadsheetRef);
+      if (!spreadsheetId) {
+        throw new Error('Unable to determine Google Sheets spreadsheet ID');
+      }
+      if (!connectionKey) {
+        throw new Error('A connection key is required for authenticated reads');
+      }
+      secretName = buildGSheetHttpSecretName(spreadsheetId, connectionKey);
+      await pooled.query(buildCreateGSheetSecretQuery(secretName, accessToken));
     }
-
-    const readFunctionName = hasExtension
-      ? 'system.main.read_gsheet'
-      : needsBearerToken
-        ? 'read_gsheet_authorized'
-        : 'read_gsheet_public';
-
-    const query = createGSheetSheetViewQuery(spreadsheetRef, sheetName, viewName, readFunctionName);
+    const query = createGSheetSheetViewQuery(
+      spreadsheetRef,
+      sheetName,
+      viewName,
+      'system.main.read_gsheet',
+      secretName,
+    );
     await pooled.query(query);
   } finally {
     await pooled.close();

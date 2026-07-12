@@ -95,6 +95,8 @@ export interface GSheetSheetView extends FlatFileDataSource {
   spreadsheetUrl: string;
   exportUrl: string;
   sheetName: string;
+  /** Read the spreadsheet's first worksheet instead of selecting one by name. */
+  useFirstSheet?: boolean;
   accessMode: GSheetAccessMode;
   /**
    * Optional reference to an encrypted secret that stores the per-connection
@@ -110,12 +112,7 @@ export interface GSheetSheetView extends FlatFileDataSource {
 }
 
 export type AnyFlatFileDataSource =
-  | CSVView
-  | ParquetView
-  | XlsxSheetView
-  | JSONView
-  | ReadStatView
-  | GSheetSheetView;
+  CSVView | ParquetView | XlsxSheetView | JSONView | ReadStatView | GSheetSheetView;
 
 export type IcebergAuthType = 'oauth2' | 'bearer' | 'sigv4' | 'none';
 
