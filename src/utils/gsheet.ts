@@ -50,9 +50,7 @@ export function createGSheetSheetViewQuery(
     .join('.');
 
   const sheetArgument = sheetName ? `, sheet:=${quote(sheetName, { single: true })}` : '';
-  const secretArgument = secretName
-    ? `, secret_name:=${quote(secretName, { single: true })}`
-    : '';
+  const secretArgument = secretName ? `, secret_name:=${quote(secretName, { single: true })}` : '';
   return `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${readFunctionSql}(${quote(
     spreadsheetRef,
     { single: true },

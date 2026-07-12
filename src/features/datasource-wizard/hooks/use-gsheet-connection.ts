@@ -245,8 +245,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         ) {
           throw new Error('OAuth token has already expired. Please sign in again.');
         }
-        const tokenExpiresAt =
-          params.accessMode === 'oauth' ? params.tokenExpiresAt : undefined;
+        const tokenExpiresAt = params.accessMode === 'oauth' ? params.tokenExpiresAt : undefined;
 
         for (const sheetName of workbook.sheetNames) {
           const useFirstSheet = params.accessMode === 'public' && !params.worksheetName.trim();
