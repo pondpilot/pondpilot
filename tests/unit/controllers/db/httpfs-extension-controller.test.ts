@@ -57,6 +57,24 @@ describe('configureConnectionForHttpfs', () => {
     expect(warnSpy).toHaveBeenCalled();
   });
 
+  it('continues to gsheets bootstrap when iceberg is unavailable', async () => {
+    const conn = createMockConn();
+    conn.query.mockImplementation(async (statement: string) => {
+      if (statement === 'LOAD iceberg') {
+        throw new Error('Catalog Error: Extension not found');
+      }
+      return undefined;
+    });
+
+    await configureConnectionForHttpfs(conn as any, {
+      gsheetsExtensionUrl: 'https://example.com/gsheets.duckdb_extension.wasm',
+    });
+
+    expect(conn.query).toHaveBeenCalledWith(
+      "LOAD 'https://example.com/gsheets.duckdb_extension.wasm'",
+    );
+  });
+
   it('throws when httpfs cannot be loaded', async () => {
     const conn = createMockConn();
     conn.query.mockImplementation(async (statement: string) => {
@@ -184,5 +202,46 @@ describe('configureConnectionForHttpfs', () => {
       `LOAD '${extensionUrl}'`,
     ]);
     expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it('falls back to the community repository when the configured URL fails', async () => {
+    const conn = createMockConn();
+    const extensionUrl = 'https://example.com/gsheets.duckdb_extension.wasm';
+    conn.query.mockImplementation(async (statement: string) => {
+      if (statement === `LOAD '${extensionUrl}'`) {
+        throw new Error('dynamic lib load failed');
+      }
+      return undefined;
+    });
+
+    await configureConnectionForHttpfs(conn as any, {
+      enableGsheetsCommunity: true,
+      gsheetsExtensionUrl: extensionUrl,
+    });
+
+    expect(conn.query.mock.calls.map((call) => call[0])).toEqual([
+      ...BASE_BOOTSTRAP_STATEMENTS,
+      `LOAD '${extensionUrl}'`,
+      'INSTALL gsheets FROM community',
+      'LOAD gsheets',
+    ]);
+  });
+
+  it('propagates a configured URL failure when bundle fallback is requested', async () => {
+    const conn = createMockConn();
+    const extensionUrl = 'https://example.com/gsheets.duckdb_extension.wasm';
+    conn.query.mockImplementation(async (statement: string) => {
+      if (statement === `LOAD '${extensionUrl}'`) {
+        throw new Error('shared memory import mismatch');
+      }
+      return undefined;
+    });
+
+    await expect(
+      configureConnectionForHttpfs(conn as any, {
+        failOnGsheetsLoadError: true,
+        gsheetsExtensionUrl: extensionUrl,
+      }),
+    ).rejects.toThrow('shared memory import mismatch');
   });
 });

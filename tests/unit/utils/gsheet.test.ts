@@ -1,8 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import {
+  buildDropGSheetSheetViewQuery,
+  buildGSheetCsvExportUrl,
   buildGSheetSpreadsheetUrl,
   buildGSheetXlsxExportUrl,
   createGSheetSheetViewQuery,
+  createPublicGSheetViewQuery,
   extractGSheetSpreadsheetId,
 } from '@utils/gsheet';
 
@@ -35,6 +38,12 @@ describe('gsheet utils', () => {
     );
   });
 
+  it('builds a public CSV URL with an encoded worksheet name', () => {
+    expect(buildGSheetCsvExportUrl('abc123', 'Quarter 1 & Sales')).toBe(
+      'https://docs.google.com/spreadsheets/d/abc123/export?format=csv&sheet=Quarter%201%20%26%20Sales',
+    );
+  });
+
   it('builds view SQL for reading a specific worksheet via read_gsheet', () => {
     const sql = createGSheetSheetViewQuery(
       'https://docs.google.com/spreadsheets/d/sheet123/edit',
@@ -43,7 +52,7 @@ describe('gsheet utils', () => {
     );
 
     expect(sql).toBe(
-      "CREATE OR REPLACE VIEW student_roster AS SELECT * FROM read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Roster O''Reilly');",
+      "CREATE OR REPLACE VIEW pondpilot.main.student_roster AS SELECT * FROM read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Roster O''Reilly');",
     );
   });
 
@@ -56,7 +65,7 @@ describe('gsheet utils', () => {
     );
 
     expect(sql).toBe(
-      "CREATE OR REPLACE VIEW student_roster AS SELECT * FROM read_gsheet_public('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Sheet1');",
+      "CREATE OR REPLACE VIEW pondpilot.main.student_roster AS SELECT * FROM read_gsheet_public('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Sheet1');",
     );
   });
 
@@ -69,7 +78,7 @@ describe('gsheet utils', () => {
     );
 
     expect(sql).toBe(
-      "CREATE OR REPLACE VIEW student_roster AS SELECT * FROM \"system\".main.read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Sheet1');",
+      "CREATE OR REPLACE VIEW pondpilot.main.student_roster AS SELECT * FROM \"system\".main.read_gsheet('https://docs.google.com/spreadsheets/d/sheet123/edit', sheet:='Sheet1');",
     );
   });
 
@@ -77,7 +86,7 @@ describe('gsheet utils', () => {
     const sql = createGSheetSheetViewQuery('sheet123', undefined, 'first_sheet');
 
     expect(sql).toBe(
-      "CREATE OR REPLACE VIEW first_sheet AS SELECT * FROM read_gsheet('sheet123');",
+      "CREATE OR REPLACE VIEW pondpilot.main.first_sheet AS SELECT * FROM read_gsheet('sheet123');",
     );
   });
 
@@ -91,7 +100,19 @@ describe('gsheet utils', () => {
     );
 
     expect(sql).toBe(
-      "CREATE OR REPLACE VIEW private_sheet AS SELECT * FROM \"system\".main.read_gsheet('sheet123', sheet:='Private', secret_name:='pondpilot_gsheet_http_sheet123');",
+      "CREATE OR REPLACE VIEW pondpilot.main.private_sheet AS SELECT * FROM \"system\".main.read_gsheet('sheet123', sheet:='Private', secret_name:='pondpilot_gsheet_http_sheet123');",
+    );
+  });
+
+  it('fully qualifies managed view cleanup in the persistent catalog', () => {
+    expect(buildDropGSheetSheetViewQuery('private sheet')).toBe(
+      'DROP VIEW IF EXISTS pondpilot.main."private sheet"',
+    );
+  });
+
+  it('builds a public view that cannot inherit an ambient GSHEET secret', () => {
+    expect(createPublicGSheetViewQuery('abc123', 'Employees', 'payroll')).toBe(
+      "CREATE OR REPLACE VIEW pondpilot.main.payroll AS SELECT * FROM read_csv('https://docs.google.com/spreadsheets/d/abc123/export?format=csv&sheet=Employees', header=true);",
     );
   });
 });

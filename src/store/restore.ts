@@ -4,10 +4,11 @@ import {
   registerFileHandle,
   registerFileSourceAndCreateView,
   createXlsxSheetView,
+  createGSheetSecret,
   createGSheetSheetView,
   dropViewAndUnregisterFile,
 } from '@controllers/db/data-source';
-import { hasDatabaseObjects } from '@controllers/db/duckdb-meta';
+import { getViewDefinitions, hasDatabaseObjects } from '@controllers/db/duckdb-meta';
 import { persistAddLocalEntry } from '@controllers/file-system/persist';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
@@ -25,6 +26,7 @@ import {
   SYSTEM_DATABASE_FILE_SOURCE_ID,
 } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import {
   ignoredFolders,
   LocalEntry,
@@ -80,6 +82,7 @@ import { buildGSheetSpreadsheetUrl, GSHEET_SECRET_LABEL_PREFIX } from '@utils/gs
 import { resolveGSheetAccessToken } from '@utils/gsheet-auth';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { shouldResetRestoredScriptQuery } from '@utils/script-query-persistence';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
@@ -1088,6 +1091,7 @@ export const restoreAppDataFromIDB = async (
   );
   const cachedGSheetTokens = new Map<string, string | null>();
   const warnedMissingGSheetTokens = new Set<string>();
+  const restoredGSheetSecrets = new Set<string>();
   for (const dataSource of gsheetDataSources) {
     _reservedViews.add(dataSource.viewName);
 
@@ -1111,6 +1115,21 @@ export const restoreAppDataFromIDB = async (
           `Google Sheet ${dataSource.spreadsheetName} is missing its saved token. Reconnect it in the wizard.`,
         );
         warnedMissingGSheetTokens.add(cacheKey);
+      } else if (accessToken && !restoredGSheetSecrets.has(cacheKey)) {
+        const spreadsheetRef =
+          dataSource.spreadsheetUrl || buildGSheetSpreadsheetUrl(dataSource.spreadsheetId);
+        try {
+          await createGSheetSecret(conn, spreadsheetRef, accessToken, cacheKey);
+          restoredGSheetSecrets.add(cacheKey);
+        } catch (error) {
+          warnings.push(
+            `Credentials for Google Sheet ${dataSource.spreadsheetName} could not be restored.`,
+          );
+          console.warn(
+            'Failed to restore Google Sheet credentials:',
+            sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+          );
+        }
       }
     }
 
@@ -1126,8 +1145,24 @@ export const restoreAppDataFromIDB = async (
     }
   }
 
-  // Pass 2 (sequential): secret and view creation both mutate the DuckDB catalog.
+  // Views persist in the OPFS database. Avoid re-binding an existing view on
+  // every startup because gsheets performs a network fetch while binding.
+  const existingGSheetViews =
+    (await getViewDefinitions(conn, PERSISTENT_DB_NAME, 'main')) ?? new Map();
+
+  // Pass 2 (sequential): create only missing views; catalog mutations are not
+  // run concurrently.
   for (const dataSource of gsheetDataSources) {
+    const existingDefinition = existingGSheetViews.get(dataSource.viewName);
+    const isCurrentPublicDefinition =
+      dataSource.accessMode !== 'public' ||
+      (existingDefinition?.includes('read_csv') &&
+        existingDefinition.includes('/export?format=csv'));
+    if (existingDefinition && isCurrentPublicDefinition) {
+      validDataSources.add(dataSource.id);
+      continue;
+    }
+
     try {
       const spreadsheetRef =
         dataSource.spreadsheetUrl || buildGSheetSpreadsheetUrl(dataSource.spreadsheetId);
@@ -1143,13 +1178,17 @@ export const restoreAppDataFromIDB = async (
         accessToken,
         dataSource.secretRef ? String(dataSource.secretRef) : undefined,
       );
+      existingGSheetViews.set(dataSource.viewName, 'restored');
     } catch (error) {
       // Keep persisted Google Sheets data sources on transient restore failures
       // (offline/expired token/API hiccups) so users can reconnect later.
       warnings.push(
         `Google Sheet ${dataSource.spreadsheetName}::${dataSource.sheetName} could not be restored. It will remain saved and can be retried later.`,
       );
-      console.warn('Failed to restore Google Sheet view:', error);
+      console.warn(
+        'Failed to restore Google Sheet view:',
+        sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+      );
     }
     validDataSources.add(dataSource.id);
   }

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { constants as fsConstants, promises as fs } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,11 +8,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 
 const artifactName = 'gsheets.duckdb_extension.wasm';
+const bundledArtifactSha256 =
+  'a0ec6833c7768c139e947a2118778853a84e2c3b1661a1d1f8713f70036f507d';
 const sourceFromEnv = process.env.GSHEETS_WASM_SOURCE;
 const sourceRepo = path.resolve(
   process.env.GSHEETS_EXTENSION_REPO ?? path.join(projectRoot, '..', 'duckdb_gsheets'),
 );
 const forceRebuild = (process.env.GSHEETS_WASM_FORCE_REBUILD ?? '').toLowerCase() === 'true';
+const autoBuild = (process.env.GSHEETS_WASM_AUTO_BUILD ?? '').toLowerCase() === 'true';
 
 const destination = path.join(projectRoot, 'public', 'duckdb-extensions', 'gsheets', artifactName);
 const preferredBuildArtifact = path.join(
@@ -35,6 +38,12 @@ async function pathExists(filePath) {
   } catch {
     return false;
   }
+}
+
+async function sha256(filePath) {
+  const hash = createHash('sha256');
+  hash.update(await fs.readFile(filePath));
+  return hash.digest('hex');
 }
 
 async function getLatestMtime(targetPath) {
@@ -137,11 +146,7 @@ function runCommand(command, args, cwd) {
 }
 
 async function resolveEmsdkEnvScript() {
-  const emsdkCandidates = [
-    process.env.EMSDK,
-    path.join(os.homedir(), 'Developer', 'emsdk'),
-    path.resolve(projectRoot, '..', '..', '..', 'emsdk'),
-  ].filter(Boolean);
+  const emsdkCandidates = [process.env.EMSDK].filter(Boolean);
 
   for (const candidate of emsdkCandidates) {
     const scriptPath = path.join(candidate, 'emsdk_env.sh');
@@ -157,7 +162,7 @@ async function buildWasm(repoPath) {
 
   const customBuildCommand = process.env.GSHEETS_WASM_BUILD_COMMAND?.trim();
   if (customBuildCommand) {
-    await runCommand('bash', ['-lc', customBuildCommand], repoPath);
+    await runCommand('bash', ['--noprofile', '--norc', '-c', customBuildCommand], repoPath);
     return;
   }
 
@@ -165,7 +170,7 @@ async function buildWasm(repoPath) {
   if (emsdkEnvScript) {
     await runCommand(
       'bash',
-      ['-lc', `source ${shellQuote(emsdkEnvScript)} && make wasm_eh`],
+      ['--noprofile', '--norc', '-c', `source ${shellQuote(emsdkEnvScript)} && make wasm_eh`],
       repoPath,
     );
     return;
@@ -207,6 +212,24 @@ async function main() {
     }
     await copyIfNeeded(sourceFromEnv, destination);
     return;
+  }
+
+  if (!autoBuild && !forceRebuild) {
+    if (await pathExists(destination)) {
+      const actualSha256 = await sha256(destination);
+      if (actualSha256 !== bundledArtifactSha256) {
+        throw new Error(
+          `Bundled ${artifactName} checksum mismatch: expected ${bundledArtifactSha256}, ` +
+            `received ${actualSha256}. Set GSHEETS_WASM_SOURCE to an explicitly reviewed artifact.`,
+        );
+      }
+      console.log(`Using checked-in gsheets wasm: ${destination}`);
+      return;
+    }
+    throw new Error(
+      `Bundled ${artifactName} is missing. Set GSHEETS_WASM_SOURCE to a reviewed artifact or ` +
+        'GSHEETS_WASM_AUTO_BUILD=true to build from the configured local fork.',
+    );
   }
 
   if (!(await pathExists(sourceRepo))) {

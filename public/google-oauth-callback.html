@@ -18,8 +18,29 @@
       var hash = window.location.hash.substring(1);
       var hashParams = new URLSearchParams(hash);
       var accessToken = hashParams.get('access_token');
+      if (hash) {
+        // Remove credentials/errors from browser history as soon as they have
+        // been parsed. OAuth fragment values are never sent to the server.
+        window.history.replaceState(null, document.title, window.location.pathname);
+      }
 
       if (accessToken) {
+        var expiresIn = Number(hashParams.get('expires_in'));
+        var scope = hashParams.get('scope') || '';
+        var requiredScope = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+        if (!Number.isFinite(expiresIn) || expiresIn <= 0 || scope.split(/\s+/).indexOf(requiredScope) === -1) {
+          statusEl.textContent = 'Sign-in returned an invalid authorization response.';
+          var invalidBc = new BroadcastChannel(CHANNEL_NAME);
+          invalidBc.postMessage({
+            type: 'google-oauth-error',
+            state: hashParams.get('state') || '',
+            error: 'invalid_response',
+          });
+          invalidBc.close();
+          setTimeout(function () { window.close(); }, 250);
+          return;
+        }
+
         // Callback from Google — send token to opener via BroadcastChannel
         statusEl.textContent = 'Sign-in complete. This window will close.';
         var bc = new BroadcastChannel(CHANNEL_NAME);
@@ -27,11 +48,11 @@
           type: 'google-oauth-result',
           state: hashParams.get('state') || '',
           accessToken: accessToken,
-          expiresIn: parseInt(hashParams.get('expires_in') || '3600', 10),
-          scope: hashParams.get('scope') || '',
+          expiresIn: expiresIn,
+          scope: scope,
         });
         bc.close();
-        window.close();
+        setTimeout(function () { window.close(); }, 250);
         return;
       }
 

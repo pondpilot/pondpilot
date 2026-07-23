@@ -1,22 +1,23 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { createGSheetSheetView } from '@controllers/db/data-source';
-import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
 import type { GSheetAccessMode } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { deleteSecret, makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { addGSheetSheetDataSource, isFlatFileDataSource } from '@utils/data-source';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { makeLocalEntryId } from '@utils/file-system';
 import {
+  buildDropGSheetSheetViewQuery,
+  buildGSheetCsvExportUrl,
   buildGSheetSpreadsheetUrl,
   buildGSheetXlsxExportUrl,
   extractGSheetSpreadsheetId,
   GSHEET_SECRET_LABEL_PREFIX,
 } from '@utils/gsheet';
-import { buildDropGSheetHttpSecretQuery, buildGSheetHttpSecretName } from '@utils/gsheet-auth';
+import { buildDropGSheetSecretQuery, buildGSheetSecretName } from '@utils/gsheet-auth';
 import { quote } from '@utils/helpers';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { useState, useCallback, useRef } from 'react';
@@ -42,6 +43,7 @@ export interface GSheetConnectionParams {
 type CachedDiscovery = {
   /** Inputs that produced this result (for staleness check) */
   sheetRef: string;
+  connectionName: string;
   accessMode: GSheetAccessMode;
   accessToken: string;
   worksheetName: string;
@@ -75,6 +77,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
     async (params: GSheetConnectionParams): Promise<GSheetDiscoverResult> => {
       const resolvedAccessToken = params.accessToken.trim();
       const worksheetName = params.worksheetName.trim();
+      const connectionName = params.connectionName.trim();
       const spreadsheetId = extractGSheetSpreadsheetId(params.sheetRef);
       if (!spreadsheetId) {
         throw new Error('Enter a valid Google Sheets URL or spreadsheet ID');
@@ -90,6 +93,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
       if (
         cached &&
         cached.sheetRef === params.sheetRef &&
+        cached.connectionName === connectionName &&
         cached.accessMode === params.accessMode &&
         cached.accessToken === resolvedAccessToken &&
         cached.worksheetName === worksheetName &&
@@ -100,7 +104,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
 
       const exportUrl = buildGSheetXlsxExportUrl(spreadsheetId);
       const spreadsheetUrl = buildGSheetSpreadsheetUrl(spreadsheetId);
-      const resolvedName = params.connectionName.trim() || `gsheet_${spreadsheetId.slice(0, 8)}`;
+      const resolvedName = connectionName || `gsheet_${spreadsheetId.slice(0, 8)}`;
 
       if (!pool) {
         throw new Error('DuckDB is not ready. Please try again.');
@@ -109,25 +113,35 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
       let sheetNames: string[];
 
       if (needsBearerToken) {
-        const result = await pool.query(`
-          SELECT sheet_name
-          FROM get_gsheet_sheets(
-            ${quote(spreadsheetUrl, { single: true })},
-            access_token := ${quote(resolvedAccessToken, { single: true })}
-          )
-          WHERE sheet_type = 'GRID'
-          ORDER BY sheet_index
-        `);
-        sheetNames = result
-          .toArray()
-          .map((row) => String((row as { sheet_name?: unknown }).sheet_name ?? ''))
-          .filter(Boolean);
+        // Bind the token as a prepared-statement parameter so it never appears
+        // in query text, DuckDB diagnostics, or optional query logging.
+        const conn = await pool.getBackgroundConnection();
+        try {
+          const statement = await conn.prepare(`
+            SELECT sheet_name
+            FROM get_gsheet_sheets(
+              ${quote(spreadsheetUrl, { single: true })},
+              access_token := ?
+            )
+            WHERE sheet_type = 'GRID'
+            ORDER BY sheet_index
+          `);
+          try {
+            const result = await statement.query([resolvedAccessToken]);
+            sheetNames = result
+              .toArray()
+              .map((row) => String((row as { sheet_name?: unknown }).sheet_name ?? ''))
+              .filter(Boolean);
+          } finally {
+            await statement.close();
+          }
+        } finally {
+          await conn.close();
+        }
       } else {
-        const sheetArgument = worksheetName
-          ? `, sheet := ${quote(worksheetName, { single: true })}`
-          : '';
+        const publicExportUrl = buildGSheetCsvExportUrl(spreadsheetId, worksheetName || undefined);
         await pool.query(
-          `SELECT * FROM system.main.read_gsheet(${quote(spreadsheetUrl, { single: true })}${sheetArgument}) LIMIT 1`,
+          `SELECT * FROM read_csv(${quote(publicExportUrl, { single: true })}, header=true) LIMIT 1`,
         );
         sheetNames = [worksheetName || 'First worksheet'];
       }
@@ -146,6 +160,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
 
       cachedDiscoveryRef.current = {
         sheetRef: params.sheetRef,
+        connectionName,
         accessMode: params.accessMode,
         accessToken: resolvedAccessToken,
         worksheetName,
@@ -206,11 +221,13 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
         const sourceGroupId = makeLocalEntryId();
         const { dataSources, databaseMetadata, _iDbConn } = useAppStore.getState();
         iDbConnForCleanup = _iDbConn;
-        const reservedViews = new Set(
-          Array.from(dataSources.values())
+        const catalogViews = (await getViews(pool, PERSISTENT_DB_NAME, 'main')) ?? [];
+        const reservedViews = new Set([
+          ...catalogViews,
+          ...Array.from(dataSources.values())
             .filter(isFlatFileDataSource)
             .map((source) => source.viewName),
-        );
+        ]);
 
         const newSources = [];
 
@@ -227,7 +244,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
           }
 
           createdSecretRef = makeSecretId();
-          createdDuckDBSecretName = buildGSheetHttpSecretName(
+          createdDuckDBSecretName = buildGSheetSecretName(
             workbook.spreadsheetId,
             String(createdSecretRef),
           );
@@ -312,7 +329,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
       } catch (error) {
         for (const viewName of createdViewNames) {
           try {
-            await pool?.query(`DROP VIEW IF EXISTS ${toDuckDBIdentifier(viewName)}`);
+            await pool?.query(buildDropGSheetSheetViewQuery(viewName));
           } catch {
             // Ignore cleanup errors and show the original failure
           }
@@ -321,7 +338,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
 
         if (createdDuckDBSecretName) {
           try {
-            await pool.query(buildDropGSheetHttpSecretQuery(createdDuckDBSecretName));
+            await pool.query(buildDropGSheetSecretQuery(createdDuckDBSecretName));
           } catch {
             // Ignore secret cleanup errors and surface the original failure.
           }

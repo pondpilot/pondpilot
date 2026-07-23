@@ -1,12 +1,14 @@
 import { showError, showWarningWithAction } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
-import { createGSheetSheetView } from '@controllers/db/data-source';
+import { createGSheetSecret } from '@controllers/db/data-source';
 import type { GSheetSheetView, PersistentDataSourceId } from '@models/data-source';
+import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { requestGoogleAccessToken } from '@services/google-identity-services';
 import { putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { getGoogleOAuthClientId } from '@utils/google-oauth-config';
 import { buildGSheetSpreadsheetUrl, GSHEET_SECRET_LABEL_PREFIX } from '@utils/gsheet';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 
 /**
  * Trigger a re-authorization flow for an OAuth Google Sheet connection.
@@ -18,7 +20,7 @@ import { buildGSheetSpreadsheetUrl, GSHEET_SECRET_LABEL_PREFIX } from '@utils/gs
  * @param dataSource - Any GSheetSheetView from the connection group
  */
 export async function reauthGSheetOAuth(
-  pool: { query: (sql: string) => Promise<unknown> },
+  pool: AsyncDuckDBConnectionPool,
   dataSource: GSheetSheetView,
 ): Promise<boolean> {
   const clientId = getGoogleOAuthClientId();
@@ -41,6 +43,18 @@ export async function reauthGSheetOAuth(
     if (!dataSource.secretRef) {
       throw new Error('Saved Google Sheet credentials are missing. Reconnect this data source.');
     }
+
+    // Update DuckDB first so application state is not marked authorized when
+    // the active database could not accept the replacement credential.
+    const spreadsheetRef =
+      dataSource.spreadsheetUrl || buildGSheetSpreadsheetUrl(dataSource.spreadsheetId);
+    await createGSheetSecret(
+      pool,
+      spreadsheetRef,
+      result.accessToken,
+      String(dataSource.secretRef),
+    );
+
     await putSecret(_iDbConn, dataSource.secretRef, {
       label: `${GSHEET_SECRET_LABEL_PREFIX} ${dataSource.spreadsheetName}`,
       data: { accessToken: result.accessToken },
@@ -79,30 +93,13 @@ export async function reauthGSheetOAuth(
       await persistPutDataSources(_iDbConn, updatedSources);
     }
 
-    // Recreate views after updating their named DuckDB secret.
-    for (const source of updatedSources) {
-      try {
-        const spreadsheetRef =
-          source.spreadsheetUrl || buildGSheetSpreadsheetUrl(source.spreadsheetId);
-        await createGSheetSheetView(
-          pool as Parameters<typeof createGSheetSheetView>[0],
-          spreadsheetRef,
-          source.useFirstSheet ? undefined : source.sheetName,
-          source.viewName,
-          source.accessMode,
-          result.accessToken,
-          source.secretRef ? String(source.secretRef) : undefined,
-        );
-      } catch (viewError) {
-        console.warn(`Failed to recreate view ${source.viewName} after re-auth:`, viewError);
-      }
-    }
-
+    // Existing views reference one named DuckDB secret. Replacing it updates
+    // the whole connection without re-binding and re-fetching every worksheet.
     return true;
   } catch (error) {
     showError({
       title: 'Re-authorization failed',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: sanitizeErrorMessage(error instanceof Error ? error.message : 'Unknown error'),
     });
     return false;
   }
@@ -113,10 +110,11 @@ export async function reauthGSheetOAuth(
  * Called during restore or when a query returns 401.
  */
 export function notifyGSheetTokenExpired(
-  pool: { query: (sql: string) => Promise<unknown> },
+  pool: AsyncDuckDBConnectionPool,
   dataSource: GSheetSheetView,
 ): void {
   showWarningWithAction({
+    autoClose: false,
     title: 'Google session expired',
     message: `Token for "${dataSource.spreadsheetName}" has expired. Re-authorize to continue querying.`,
     action: {

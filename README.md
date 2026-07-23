@@ -129,7 +129,8 @@ Visit `http://localhost:5173` in your browser to access the app.
 
 ### Google Sheets support (`gsheets`)
 
-PondPilot uses a patched build of the DuckDB `gsheets` extension for all Google Sheets network access.
+PondPilot uses a patched DuckDB `gsheets` extension for authenticated Sheets
+API access. Public connections use Google's CSV export endpoint directly.
 
 As of **July 12, 2026**, upstream `duckdb_gsheets` v0.0.9 still documents DuckDB-WASM as unsupported. PondPilot bundles a WASM-compatible fork artifact.
 
@@ -145,27 +146,32 @@ VITE_DUCKDB_ENABLE_GSHEETS_EXTENSION=true
 VITE_GSHEETS_EXTENSION_URL=/duckdb-extensions/gsheets/gsheets.duckdb_extension.wasm
 ```
 
-3. If community WASM artifacts are unavailable, PondPilot can auto-build from a local fork checkout at `../duckdb_gsheets` (sibling to this repo):
+3. The checked-in binary is used by default. To deliberately rebuild it from a
+   reviewed local fork checkout at `../duckdb_gsheets` (sibling to this repo):
 
 ```bash
 # one-time: place the fork as a sibling checkout
 # /home/.../github.com/pondpilot/pondpilot
 # /home/.../github.com/pondpilot/duckdb_gsheets
 
-# then just run pondpilot normally
-yarn dev
+# opt in to executing the sibling checkout's build
+GSHEETS_WASM_AUTO_BUILD=true yarn ensure:gsheets:wasm
 ```
 
-`yarn dev` and `yarn build` run `ensure:gsheets:wasm`, which builds `duckdb_gsheets` (`make wasm_eh`) when source files changed and copies the artifact into `public/duckdb-extensions/gsheets/`.
+`yarn dev` and `yarn build` run `ensure:gsheets:wasm`, but they do not execute a
+nearby source checkout unless `GSHEETS_WASM_AUTO_BUILD=true` is explicitly set.
+The source revision and checksum for the bundled artifact are recorded in
+`public/duckdb-extensions/gsheets/README.md`.
 
 Optional overrides:
 
 ```bash
 # Use a custom fork path
-GSHEETS_EXTENSION_REPO=/path/to/duckdb_gsheets yarn dev
+GSHEETS_WASM_AUTO_BUILD=true GSHEETS_EXTENSION_REPO=/path/to/duckdb_gsheets yarn ensure:gsheets:wasm
 
 # Use a prebuilt artifact directly
-GSHEETS_WASM_SOURCE=/path/to/gsheets.duckdb_extension.wasm yarn dev
+GSHEETS_WASM_SOURCE=/path/to/gsheets.duckdb_extension.wasm \
+GSHEETS_WASM_SHA256=<reviewed-sha256> yarn gsheets:install
 ```
 
 And set:
@@ -175,11 +181,13 @@ VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS=true
 VITE_GSHEETS_EXTENSION_URL=/duckdb-extensions/gsheets/gsheets.duckdb_extension.wasm
 ```
 
-Public sheets can be read through the extension:
+Public connections use Google's CORS-enabled CSV export endpoint so they never
+inherit credentials from an unrelated GSHEET secret:
 
 ```sql
-SELECT * FROM read_gsheet(
-  'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit?gid=<gid>#gid=<gid>'
+SELECT * FROM read_csv(
+  'https://docs.google.com/spreadsheets/d/<spreadsheet_id>/export?format=csv',
+  header = true
 );
 ```
 
@@ -199,6 +207,21 @@ PondPilot creates the extension secret as:
 ```sql
 CREATE OR REPLACE SECRET "<name>" (TYPE gsheet, PROVIDER access_token, ACCESS_TOKEN '<google_access_token>')
 ```
+
+For private sheets with Google Sign-In, configure a Web application OAuth
+Client ID in Settings → Google Sheets. In the Google Cloud project:
+
+1. Enable the Google Sheets API.
+2. Configure the OAuth consent screen and add test users when applicable.
+3. Add the PondPilot origin as an authorized JavaScript origin.
+4. Add the callback URL shown in PondPilot Settings as an authorized redirect URI.
+
+The app intentionally remains browser-only. Its same-origin callback relays a
+short-lived token over a state-bound `BroadcastChannel`; the token is then kept
+in the browser's encrypted secret store. This uses Google's direct
+implicit-token endpoint as a compatibility exception because PondPilot's COOP
+isolation prevents the opener communication used by the recommended GIS popup.
+No refresh token is issued, so expired sessions require re-authorization.
 
 ## ⌨️ Keyboard Shortcuts
 

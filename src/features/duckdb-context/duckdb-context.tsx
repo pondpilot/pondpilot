@@ -13,6 +13,7 @@ import {
   CatalogSchemaSelection,
 } from '@utils/duckdb/identifier';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
+import { resolvePublicAssetUrl } from '@utils/public-asset-url';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { v4 } from 'uuid';
 
@@ -145,7 +146,7 @@ export const DuckDBConnectionPoolProvider = ({
     const raw = import.meta.env.VITE_READ_STAT_EXTENSION_URL ?? '';
     if (!raw) return '';
     try {
-      return new URL(raw, window.location.href).toString();
+      return resolvePublicAssetUrl(raw, import.meta.env.BASE_URL, window.location.origin);
     } catch (error) {
       console.warn('Invalid read_stat extension URL:', raw, error);
       return '';
@@ -155,7 +156,7 @@ export const DuckDBConnectionPoolProvider = ({
     const raw = import.meta.env.VITE_GSHEETS_EXTENSION_URL ?? '';
     if (!raw) return '';
     try {
-      return new URL(raw, window.location.href).toString();
+      return resolvePublicAssetUrl(raw, import.meta.env.BASE_URL, window.location.origin);
     } catch (error) {
       console.warn('Invalid gsheets extension URL:', raw, error);
       return '';
@@ -593,6 +594,9 @@ export const DuckDBConnectionPoolProvider = ({
               async (conn) => {
                 await configureConnectionForHttpfs(conn, {
                   enableGsheetsCommunity: ENABLE_GSHEETS_COMMUNITY_EXTENSION,
+                  failOnGsheetsLoadError: Boolean(
+                    bootBundle.pthreadWorker && GSHEETS_EXTENSION_URL,
+                  ),
                   gsheetsExtensionUrl: GSHEETS_EXTENSION_URL,
                 });
                 try {

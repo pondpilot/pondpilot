@@ -280,16 +280,17 @@ export function useAppInitialization({
 
   const conn = useDuckDBConnectionPool();
   const connectDuckDb = useDuckDBInitializer();
+  const dataSources = useAppStore((state) => state.dataSources);
   const initializationRunRef = useRef<Promise<void> | null>(null);
   const initializationGenerationRef = useRef(0);
+  const notifiedGSheetExpiriesRef = useRef(new Set<string>());
 
   const initAppData = async (
     resolvedConn: AsyncDuckDBConnectionPool,
     coreSnapshot: CoreAppDataSnapshot,
     generation: number,
   ) => {
-    // Install CORS + Google Sheets helper macros before restore so persisted
-    // authorized Google Sheet views can be recreated immediately.
+    // Install CORS proxy macros before restoring persisted application data.
     try {
       await installCorsProxyMacros(resolvedConn);
     } catch (error) {
@@ -312,22 +313,6 @@ export function useAppInitialization({
       );
 
       if (generation !== initializationGenerationRef.current) return;
-
-      // Notify once per workbook when a restored OAuth token has expired.
-      const now = Date.now();
-      const notifiedConnections = new Set<string>();
-      for (const ds of useAppStore.getState().dataSources.values()) {
-        if (ds.type !== 'gsheet-sheet' || ds.accessMode !== 'oauth') continue;
-        const gsheetDs = ds as GSheetSheetView;
-        const expiresAt = gsheetDs.tokenExpiresAt;
-        if (expiresAt && expiresAt < now) {
-          const groupKey = String(gsheetDs.fileSourceId);
-          if (!notifiedConnections.has(groupKey)) {
-            notifiedConnections.add(groupKey);
-            notifyGSheetTokenExpired(resolvedConn, gsheetDs);
-          }
-        }
-      }
 
       // Report we're ready for user interactions now.
       setAppLoadState('ready');
@@ -426,6 +411,47 @@ export function useAppInitialization({
       setAppLoadState('error');
     }
   };
+
+  useEffect(() => {
+    if (!conn) return undefined;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const checkExpiries = () => {
+      const now = Date.now();
+      let nextExpiry = Number.POSITIVE_INFINITY;
+      const checkedGroups = new Set<string>();
+
+      for (const ds of dataSources.values()) {
+        if (ds.type !== 'gsheet-sheet' || ds.accessMode !== 'oauth' || !ds.tokenExpiresAt) {
+          continue;
+        }
+
+        const groupKey = String(ds.fileSourceId);
+        if (checkedGroups.has(groupKey)) continue;
+        checkedGroups.add(groupKey);
+
+        if (ds.tokenExpiresAt <= now) {
+          const notificationKey = `${groupKey}:${ds.tokenExpiresAt}`;
+          if (!notifiedGSheetExpiriesRef.current.has(notificationKey)) {
+            notifiedGSheetExpiriesRef.current.add(notificationKey);
+            notifyGSheetTokenExpired(conn, ds as GSheetSheetView);
+          }
+        } else {
+          nextExpiry = Math.min(nextExpiry, ds.tokenExpiresAt);
+        }
+      }
+
+      if (Number.isFinite(nextExpiry)) {
+        const delay = Math.min(Math.max(nextExpiry - now + 100, 100), 2_147_483_647);
+        timer = setTimeout(checkExpiries, delay);
+      }
+    };
+
+    checkExpiries();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [conn, dataSources]);
 
   useEffect(() => {
     // Don't initialize DuckDB if this tab is blocked by another active tab

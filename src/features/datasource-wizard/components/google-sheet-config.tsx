@@ -74,7 +74,6 @@ export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConf
     setIsAuthenticating(true);
     try {
       const result = await requestGoogleAccessToken(clientId);
-      setAccessToken(result.accessToken);
       useAppStore.setState(
         {
           googleOAuthToken: {
@@ -93,7 +92,7 @@ export function GoogleSheetConfig({ pool, onClose, onNavigate }: GoogleSheetConf
     } finally {
       setIsAuthenticating(false);
     }
-  }, [clientId, setAccessToken]);
+  }, [clientId]);
 
   const handleOpenSettings = useCallback(() => {
     if (onNavigate) {

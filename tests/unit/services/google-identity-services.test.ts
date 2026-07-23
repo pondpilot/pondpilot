@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { requestGoogleAccessToken } from '@services/google-identity-services';
+import {
+  __resetGoogleOAuthForTests,
+  requestGoogleAccessToken,
+} from '@services/google-identity-services';
 
 let mockPopup: { closed: boolean; close: jest.Mock };
 let originalWindowOpen: typeof window.open;
 let originalCrypto: typeof globalThis.crypto;
-let originalAddEventListener: typeof window.addEventListener;
-let originalRemoveEventListener: typeof window.removeEventListener;
 let broadcastChannelInstances: Array<{
   name: string;
   onmessage: ((event: MessageEvent) => void) | null;
@@ -15,16 +16,13 @@ let broadcastChannelInstances: Array<{
 
 beforeEach(() => {
   jest.useFakeTimers();
+  __resetGoogleOAuthForTests();
 
   mockPopup = { closed: false, close: jest.fn() };
   originalWindowOpen = window.open;
   originalCrypto = globalThis.crypto;
-  originalAddEventListener = window.addEventListener;
-  originalRemoveEventListener = window.removeEventListener;
 
   window.open = jest.fn(() => mockPopup as unknown as Window) as unknown as typeof window.open;
-  window.addEventListener = jest.fn() as unknown as typeof window.addEventListener;
-  window.removeEventListener = jest.fn() as unknown as typeof window.removeEventListener;
 
   // Mock crypto.randomUUID
   (globalThis as unknown as Record<string, unknown>).crypto = {
@@ -51,8 +49,6 @@ beforeEach(() => {
 afterEach(() => {
   jest.useRealTimers();
   window.open = originalWindowOpen;
-  window.addEventListener = originalAddEventListener;
-  window.removeEventListener = originalRemoveEventListener;
   (globalThis as unknown as Record<string, unknown>).crypto = originalCrypto;
   jest.restoreAllMocks();
 });
@@ -146,7 +142,7 @@ describe('requestGoogleAccessToken', () => {
           state: 'test-state-uuid',
           accessToken: 'ya29.correct',
           expiresIn: 7200,
-          scope: '',
+          scope: 'openid https://www.googleapis.com/auth/spreadsheets.readonly',
         },
       }),
     );
@@ -170,6 +166,75 @@ describe('requestGoogleAccessToken', () => {
     );
 
     await expect(promise).rejects.toThrow('Google auth error: access_denied');
+  });
+
+  it('should reject a token without the required scope', async () => {
+    const promise = requestGoogleAccessToken('test-client-id');
+    const bc = broadcastChannelInstances[0];
+
+    bc.onmessage!(
+      new MessageEvent('message', {
+        data: {
+          type: 'google-oauth-result',
+          state: 'test-state-uuid',
+          accessToken: 'ya29.wrong-scope',
+          expiresIn: 3600,
+          scope: 'openid profile',
+        },
+      }),
+    );
+
+    await expect(promise).rejects.toThrow('invalid or incomplete authorization');
+  });
+
+  it('should reject a token with an invalid expiry', async () => {
+    const promise = requestGoogleAccessToken('test-client-id');
+    const bc = broadcastChannelInstances[0];
+
+    bc.onmessage!(
+      new MessageEvent('message', {
+        data: {
+          type: 'google-oauth-result',
+          state: 'test-state-uuid',
+          accessToken: 'ya29.invalid-expiry',
+          expiresIn: Number.NaN,
+          scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        },
+      }),
+    );
+
+    await expect(promise).rejects.toThrow('invalid or incomplete authorization');
+  });
+
+  it('should reject promptly when the popup is closed', async () => {
+    const promise = requestGoogleAccessToken('test-client-id');
+    mockPopup.closed = true;
+
+    jest.advanceTimersByTime(250);
+
+    await expect(promise).rejects.toThrow('Google sign-in was cancelled');
+  });
+
+  it('should reject a concurrent sign-in instead of hijacking the active popup', async () => {
+    const firstPromise = requestGoogleAccessToken('test-client-id');
+
+    await expect(requestGoogleAccessToken('test-client-id')).rejects.toThrow('already in progress');
+    expect(window.open).toHaveBeenCalledTimes(1);
+
+    broadcastChannelInstances[0].onmessage!(
+      new MessageEvent('message', {
+        data: {
+          type: 'google-oauth-result',
+          state: 'test-state-uuid',
+          accessToken: 'ya29.first',
+          expiresIn: 3600,
+          scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        },
+      }),
+    );
+    await expect(firstPromise).resolves.toEqual(
+      expect.objectContaining({ accessToken: 'ya29.first' }),
+    );
   });
 
   it('should reject on timeout', async () => {

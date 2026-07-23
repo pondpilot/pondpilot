@@ -2,11 +2,24 @@
 
 ## Overview
 
-Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Google Identity Services (GIS). Users bring their own Google OAuth Client ID (configured once in Settings), then authenticate via a popup — no manual bearer token pasting required.
+Add a "Google Sign-In" access mode to the Google Sheets wizard. Users bring
+their own Google OAuth Client ID (configured once in Settings), then
+authenticate via a same-origin popup relay — no manual bearer token pasting
+required.
 
 **Problem**: The current "Authorized" mode requires users to manually obtain and paste short-lived (~1h) bearer tokens from the Google OAuth Playground. This is tedious, error-prone, and requires re-pasting when tokens expire.
 
-**Solution**: A browser-native OAuth popup flow using GIS's `initTokenClient`, where the user's own Google Cloud OAuth Client ID drives the consent flow. The existing encrypted secret store and DuckDB HTTP secret mechanism are reused — only the token acquisition path changes.
+**Solution**: A browser-only OAuth implicit-token flow where a same-origin
+callback page redirects to Google and returns the result through a
+state-matched `BroadcastChannel`. The existing encrypted secret store and
+DuckDB GSHEET secret mechanism are reused.
+
+**Compatibility decision**: Google recommends GIS for browser token flows, but
+GIS popup communication is incompatible with the app's `COOP: same-origin`
+isolation (required for SharedArrayBuffer/MotherDuck). This implementation
+keeps isolation and avoids adding a token-exchange backend. The direct
+short-lived-token endpoint is therefore an explicit browser-only compatibility
+exception, not an accidental divergence.
 
 **Key constraint**: Google does not issue refresh tokens for SPA clients. Tokens last ~1 hour. When expired, a banner prompts the user to re-authorize with a single click (Google auto-approves if prior consent exists).
 
@@ -17,10 +30,10 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 - **Connection hook**: `src/features/datasource-wizard/hooks/use-gsheet-connection.ts` — handles discovery, token storage, DuckDB secret creation
 - **Data model**: `src/models/data-source.ts` — `GSheetSheetView` with `accessMode: 'public' | 'authorized'` and optional `secretRef`
 - **Secret store**: `src/services/secret-store.ts` — AES-GCM encrypted IndexedDB storage (reused as-is)
-- **Auth utilities**: `src/utils/gsheet-auth.ts` — DuckDB HTTP secret builders
+- **Auth utilities**: `src/utils/gsheet-auth.ts` — DuckDB GSHEET secret builders
 - **Restore flow**: `src/store/restore.ts` — two-pass restore (secrets → views), orphan cleanup
 - **localStorage keys**: `src/models/local-storage.ts` — pattern for app-level config storage
-- **No existing Google/GIS script loading** in the app
+- **OAuth callback**: `public/google-oauth-callback.html`
 
 ## Development Approach
 
@@ -36,8 +49,9 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 ## Testing Strategy
 
 - **Unit tests**: Required for every task — new services, hooks, utilities
-- **Integration tests**: GIS script loader (mock `document.createElement`), token flow state machine
-- **Note**: GIS popup itself cannot be tested in unit tests (browser API); test everything around it
+- **Integration tests**: popup relay/token state machine with browser APIs mocked
+- **Note**: Real Google consent cannot be automated without a configured client
+  and account; test validation and lifecycle behavior around it
 
 ## Progress Tracking
 
@@ -74,18 +88,17 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 - [x] Core logic tested via google-oauth-config unit tests; component rendering not tested (project has no jsdom/React test setup)
 - [x] TypeScript compiles cleanly
 
-### Task 3: GIS script loader service
+### Task 3: Same-origin OAuth relay service
 
 **Files:**
 - Create: `src/services/google-identity-services.ts`
-- Create: `src/types/google-identity-services.d.ts`
 - Create: `tests/unit/services/google-identity-services.test.ts`
 
-- [x] Create TypeScript declaration file `src/types/google-identity-services.d.ts` for the GIS `google.accounts.oauth2` API (minimal: `initTokenClient`, `TokenClient`, `TokenResponse`, `requestAccessToken`, `hasGrantedAllScopes`)
-- [x] Create `src/services/google-identity-services.ts` with:
-  - `loadGISScript()`: dynamically creates `<script src="https://accounts.google.com/gsi/client">`, returns a Promise that resolves when loaded. Deduplicates — if already loaded, resolves immediately
-  - `requestGoogleAccessToken(clientId: string): Promise<GoogleAccessTokenResult>`: loads GIS if needed, calls `initTokenClient` + `requestAccessToken`, wraps callback in a Promise. Rejects on error/denial
-- [x] Write tests: script load deduplication, token request success/error paths (mock `google.accounts.oauth2`)
+- [x] Create `public/google-oauth-callback.html` as the same-origin relay
+- [x] Create `requestGoogleAccessToken(clientId)` using a state-bound
+  `BroadcastChannel`, popup cancellation polling, and a five-minute timeout
+- [x] Validate the returned token, positive finite expiry, and required scope
+- [x] Write tests for success, denial, invalid messages, cancellation, and timeout
 - [x] Run tests — must pass before next task
 
 ### Task 4: Extend data model for `oauth` access mode
@@ -95,7 +108,7 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 - Modify: `src/utils/gsheet-auth.ts`
 
 - [x] Extend `GSheetAccessMode` type: `'public' | 'authorized' | 'oauth'`
-- [x] Add optional `tokenExpiresAt?: number` field to `GSheetSheetView` (epoch ms, set to `Date.now() + expiresIn * 1000` from GIS response)
+- [x] Add optional `tokenExpiresAt?: number` field to `GSheetSheetView` (epoch ms)
 - [x] `resolveGSheetAccessToken` already handles `oauth` identically to `authorized` (same secret payload format, no changes needed)
 - [x] Existing tests for `resolveGSheetAccessToken` cover the shared behavior
 - [x] Run tests — must pass before next task
@@ -108,10 +121,11 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 - [x] Add `'oauth'` as a third radio option: `Google Sign-In` (between Public and Bearer Token)
 - [x] When `oauth` is selected and no Client ID is configured, show warning with link to Settings (per agreed UX)
 - [x] When `oauth` is selected and Client ID exists, show a "Sign in with Google" button that calls `requestGoogleAccessToken()` from Task 3
-- [x] On successful auth, store the access token in component state (same `accessToken` field) and show a success indicator (checkmark + "Authenticated")
+- [x] On successful auth, store the token only in the dedicated short-lived
+  app cache and show a success indicator
 - [x] Pass `accessMode: 'oauth'` and the obtained token to `useGSheetConnection` params
 - [x] Component rendering not tested (project has no jsdom/React test setup); logic tested via unit tests
-- [x] Run tests — all 1001 tests pass
+- [x] Run focused tests before the next task
 
 ### Task 6: Update connection hook for OAuth mode
 
@@ -124,14 +138,16 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 - [x] In `addGoogleSheet`: for `oauth` mode, store token with same encrypted secret flow as `authorized`, plus compute `tokenExpiresAt` on the data source
 - [x] In `addGoogleSheet`: set `accessMode: 'oauth'` on created `GSheetSheetView` data sources
 - [x] Updated `addGSheetSheetDataSource` in `data-source.ts` to accept and pass through `tokenExpiresAt`
-- [x] All 1001 tests pass
+- [x] Focused and full unit suites pass
 
 ### Task 7: Update DuckDB view creation for OAuth mode
 
 **Files:**
 - Modify: `src/controllers/db/data-source.ts`
 
-- [x] In `createGSheetSheetView`: accept `GSheetAccessMode` type, treat `oauth` same as `authorized` (use `read_gsheet_authorized` macro — same bearer token mechanism)
+- [x] In `createGSheetSheetView`: accept `GSheetAccessMode`, treat `oauth`
+  like `authorized`, and use `system.main.read_gsheet` with a named GSHEET
+  secret
 - [x] Updated together with Task 4 since the type change required the controller update
 - [x] Run tests — must pass before next task
 
@@ -140,10 +156,13 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 **Files:**
 - Modify: `src/store/restore.ts`
 
-- [x] In gsheet restore Pass 1: treat `oauth` access mode same as `authorized` for secret resolution and DuckDB HTTP secret creation
+- [x] In gsheet restore Pass 1: treat `oauth` like `authorized` for secret
+  resolution and DuckDB GSHEET secret creation
+- [x] Skip re-binding views already persisted in the OPFS database so startup
+  does not re-fetch every worksheet
 - [x] In gsheet restore Pass 2: `oauth` access mode flows through to `createGSheetSheetView` (already handled by Task 7 type change)
 - [x] Add token expiry detection: if `tokenExpiresAt` is set and in the past, log a warning
-- [x] All 1001 tests pass
+- [x] Focused and full unit suites pass
 
 ### Task 9: Token expiry banner with re-auth
 
@@ -152,9 +171,11 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 - Modify: `src/utils/sanitize-error.ts` (if needed for new error patterns)
 
 - [x] Created `src/utils/gsheet-reauth.ts` with `reauthGSheetOAuth()` and `notifyGSheetTokenExpired()` using `showWarningWithAction` (Mantine notification with "Re-authorize" button — simpler than a custom banner component)
-- [x] Re-auth updates encrypted secret store, DuckDB HTTP secret (CREATE OR REPLACE), and `tokenExpiresAt` on all related data sources
+- [x] Re-auth updates the encrypted secret store, replaces the one named DuckDB
+  GSHEET secret without re-fetching every worksheet, and updates
+  `tokenExpiresAt` on related data sources
 - [x] Integrated into `use-init-application.tsx`: after restore, checks all OAuth gsheet data sources for expired tokens and shows one notification per connection
-- [x] All 1001 tests pass
+- [x] Focused and full unit suites pass
 
 ### Task 10: Verify acceptance criteria
 
@@ -164,8 +185,8 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 - [ ] Verify OAuth popup flow obtains token and discovery works (requires manual testing with real Client ID)
 - [ ] Verify token expiry notification appears and re-auth works (requires manual testing)
 - [x] Verify backward compatibility: existing `authorized` data sources restore correctly — restore flow updated to handle both `authorized` and `oauth`
-- [x] Run full test suite: `npx jest` — 55 suites, 1001 tests, all pass
-- [x] Verify no bearer tokens leak in error messages — existing `sanitize-error.ts` handles this
+- [x] Run full test suite (latest branch validation is recorded in the review handoff)
+- [x] Verify bearer-token SQL errors are sanitized, including DuckDB's `:=` syntax
 
 ### Task 11: [Final] Update documentation
 
@@ -174,20 +195,16 @@ Add a "Google Sign-In" access mode to the Google Sheets wizard, powered by Googl
 
 ## Technical Details
 
-### GIS Token Flow
+### Browser-only token flow
 
 ```
 User clicks "Sign in with Google"
-  → loadGISScript() (idempotent, loads accounts.google.com/gsi/client)
-  → google.accounts.oauth2.initTokenClient({
-      client_id: <from localStorage>,
-      scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
-      callback: (response) => { ... }
-    })
-  → tokenClient.requestAccessToken()
-  → Google popup → user consents
-  → callback fires with { access_token, expires_in, scope, ... }
-  → token stored in component state → used for discovery + secret storage
+  → open same-origin google-oauth-callback.html with random state
+  → callback page redirects to accounts.google.com/o/oauth2/v2/auth
+  → Google redirects back with a short-lived token in the URL fragment
+  → callback validates the response and posts it through BroadcastChannel
+  → opener matches state, scope, token, and expiry
+  → token is used for discovery and encrypted secret storage
 ```
 
 ### Secret Payload (unchanged)
@@ -218,9 +235,9 @@ GOOGLE_OAUTH_CLIENT_ID: 'GOOGLE_OAUTH_CLIENT_ID'  // string, the raw client ID
 
 `https://www.googleapis.com/auth/spreadsheets.readonly`
 
-### GIS Script URL
+### Google endpoint
 
-`https://accounts.google.com/gsi/client` — loaded dynamically, once, on demand.
+`https://accounts.google.com/o/oauth2/v2/auth` with `response_type=token`.
 
 ## Post-Completion
 

@@ -1,5 +1,6 @@
 import { Alert, Anchor, Button, Group, Stack, Text, TextInput } from '@mantine/core';
 import { getGoogleOAuthCallbackUrl } from '@services/google-identity-services';
+import { useAppStore } from '@store/app-store';
 import { IconInfoCircle, IconShieldCheck } from '@tabler/icons-react';
 import { getGoogleOAuthClientId, saveGoogleOAuthClientId } from '@utils/google-oauth-config';
 import { useCallback, useState } from 'react';
@@ -14,7 +15,15 @@ export const GoogleIntegrationSettings = () => {
   }, []);
 
   const handleSave = useCallback(() => {
+    const previousClientId = getGoogleOAuthClientId();
     saveGoogleOAuthClientId(clientId);
+    if (previousClientId !== clientId.trim()) {
+      useAppStore.setState(
+        { googleOAuthToken: null },
+        false,
+        'GoogleIntegrationSettings/clientChanged',
+      );
+    }
     setIsEditing(false);
   }, [clientId]);
 
@@ -62,6 +71,27 @@ export const GoogleIntegrationSettings = () => {
               <Anchor href="https://console.cloud.google.com/" target="_blank" c="blue">
                 Google Cloud Console
               </Anchor>
+            </li>
+            <li>
+              Enable the{' '}
+              <Anchor
+                href="https://console.cloud.google.com/apis/library/sheets.googleapis.com"
+                target="_blank"
+                c="blue"
+              >
+                Google Sheets API
+              </Anchor>
+            </li>
+            <li>
+              Configure the{' '}
+              <Anchor
+                href="https://console.cloud.google.com/auth/overview"
+                target="_blank"
+                c="blue"
+              >
+                OAuth consent screen
+              </Anchor>
+              , including test users when the app is in testing
             </li>
             <li>
               Go to{' '}

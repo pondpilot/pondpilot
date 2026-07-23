@@ -15,7 +15,8 @@ import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connecti
 import type { SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { getDatabaseIdentifier, isDatabaseDataSource, isMotherDuckDbKey } from '@utils/data-source';
-import { buildDropGSheetHttpSecretQuery, buildGSheetHttpSecretName } from '@utils/gsheet-auth';
+import { buildDropGSheetSheetViewQuery } from '@utils/gsheet';
+import { buildDropGSheetSecretQuery, buildGSheetSecretName } from '@utils/gsheet-auth';
 import { parseTableAccessKey } from '@utils/table-access';
 
 import { persistDeleteDataSource } from './persist';
@@ -103,12 +104,15 @@ export const deleteDataSources = async (
     );
     if (!isStillReferenced) {
       gsheetSecretRefsToCleanup.add(dataSource.secretRef);
-    }
-
-    if (!isStillReferenced) {
-      gsheetHttpSecretsToCleanup.add(
-        buildGSheetHttpSecretName(dataSource.spreadsheetId, String(dataSource.secretRef)),
-      );
+      try {
+        gsheetHttpSecretsToCleanup.add(
+          buildGSheetSecretName(dataSource.spreadsheetId, String(dataSource.secretRef)),
+        );
+      } catch (error) {
+        // A malformed legacy record must not prevent the source/view itself
+        // from being deleted. There is no safely derivable DuckDB secret name.
+        console.warn('Skipping malformed Google Sheets secret during deletion:', error);
+      }
     }
   }
 
@@ -285,7 +289,7 @@ export const deleteDataSources = async (
       }
 
       if (dataSource.type === 'gsheet-sheet') {
-        await dropViewAndUnregisterFile(conn, dataSource.viewName, undefined);
+        await conn.query(buildDropGSheetSheetViewQuery(dataSource.viewName));
         continue;
       }
 
@@ -342,7 +346,7 @@ export const deleteDataSources = async (
   if (gsheetHttpSecretsToCleanup.size > 0) {
     for (const duckdbSecretName of gsheetHttpSecretsToCleanup) {
       try {
-        await conn.query(buildDropGSheetHttpSecretQuery(duckdbSecretName));
+        await conn.query(buildDropGSheetSecretQuery(duckdbSecretName));
       } catch (error) {
         console.warn('Failed to drop Google Sheets HTTP secret during deletion:', error);
       }

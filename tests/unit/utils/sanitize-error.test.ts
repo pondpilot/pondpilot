@@ -55,6 +55,16 @@ describe('sanitizeErrorMessage', () => {
     expect(result).toContain('ACCESS_TOKEN [REDACTED]');
   });
 
+  it('should redact named SQL parameters that use := or = separators', () => {
+    const msg =
+      "Binder error near get_gsheet_sheets('sheet', access_token := 'ya29.secret-value') and TOKEN='other-secret'";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('ya29.secret-value');
+    expect(result).not.toContain('other-secret');
+    expect(result).toContain('access_token [REDACTED]');
+    expect(result).toContain('TOKEN [REDACTED]');
+  });
+
   it('should redact REFRESH_TOKEN values', () => {
     const msg = "Error refreshing: REFRESH_TOKEN 'rt-secret-value' invalid";
     const result = sanitizeErrorMessage(msg);

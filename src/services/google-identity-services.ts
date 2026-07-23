@@ -11,11 +11,17 @@
 const GOOGLE_SHEETS_READONLY_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
 const CHANNEL_NAME = 'pondpilot-google-oauth';
 const POPUP_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const POPUP_POLL_INTERVAL_MS = 250;
+let oauthRequestInFlight = false;
 
 export interface GoogleAccessTokenResult {
   accessToken: string;
   expiresIn: number;
   scope: string;
+}
+
+export function __resetGoogleOAuthForTests(): void {
+  oauthRequestInFlight = false;
 }
 
 export function getGoogleOAuthCallbackUrl(): string {
@@ -27,6 +33,11 @@ export function getGoogleOAuthCallbackUrl(): string {
 /**
  * Request a Google access token via a same-origin popup relay.
  *
+ * This deliberately uses Google's browser implicit-token endpoint instead of
+ * GIS: the app's COOP isolation prevents the cross-origin opener communication
+ * required by the GIS popup. The callback stays same-origin and returns the
+ * short-lived token over a state-bound BroadcastChannel. No backend is used.
+ *
  * Must be called from a user gesture (click handler) to avoid popup blockers.
  */
 export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccessTokenResult> {
@@ -34,6 +45,9 @@ export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccess
     return Promise.reject(
       new Error('Google OAuth Client ID is required. Configure it in Settings.'),
     );
+  }
+  if (oauthRequestInFlight) {
+    return Promise.reject(new Error('Google sign-in is already in progress.'));
   }
 
   const state = crypto.randomUUID();
@@ -46,6 +60,7 @@ export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccess
       new Error('Popup blocked. Please allow popups for this site and try again.'),
     );
   }
+  oauthRequestInFlight = true;
 
   return new Promise<GoogleAccessTokenResult>((resolve, reject) => {
     const bc = new BroadcastChannel(CHANNEL_NAME);
@@ -54,58 +69,56 @@ export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccess
     const cleanup = () => {
       if (settled) return;
       settled = true;
+      oauthRequestInFlight = false;
       bc.close();
       clearTimeout(timeoutTimer);
-      if (focusTimer) clearTimeout(focusTimer);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
+      clearInterval(popupPollTimer);
     };
 
     bc.onmessage = (event: MessageEvent) => {
-      const { data } = event;
-      if (data?.state !== state) return;
+      const data: unknown = event.data;
+      if (typeof data !== 'object' || data === null || !('state' in data)) return;
+      if (data.state !== state || !('type' in data)) return;
 
-      if (data.type === 'google-oauth-result' && data.accessToken) {
+      if (data.type === 'google-oauth-result') {
+        const accessToken = 'accessToken' in data ? data.accessToken : null;
+        const expiresIn = 'expiresIn' in data ? data.expiresIn : null;
+        const scope = 'scope' in data ? data.scope : null;
+        const grantedScopes = typeof scope === 'string' ? scope.split(/\s+/) : [];
+
+        if (
+          typeof accessToken !== 'string' ||
+          accessToken.length === 0 ||
+          typeof expiresIn !== 'number' ||
+          !Number.isFinite(expiresIn) ||
+          expiresIn <= 0 ||
+          typeof scope !== 'string' ||
+          !grantedScopes.includes(GOOGLE_SHEETS_READONLY_SCOPE)
+        ) {
+          cleanup();
+          reject(new Error('Google sign-in returned an invalid or incomplete authorization.'));
+          return;
+        }
+
         cleanup();
         resolve({
-          accessToken: data.accessToken,
-          expiresIn: data.expiresIn,
-          scope: data.scope,
+          accessToken,
+          expiresIn,
+          scope,
         });
       } else if (data.type === 'google-oauth-error') {
+        const error = 'error' in data && typeof data.error === 'string' ? data.error : 'unknown';
         cleanup();
-        reject(new Error(`Google auth error: ${data.error || 'unknown'}`));
+        reject(new Error(`Google auth error: ${error}`));
       }
     };
 
-    // Detect popup closure: when the main window regains focus and keeps it
-    // for a few seconds without receiving a token, assume the popup was closed.
-    let focusTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const handleFocus = () => {
-      if (settled) return;
-      focusTimer = setTimeout(() => {
-        if (!settled && popup.closed) {
-          cleanup();
-          reject(new Error('Google sign-in was cancelled'));
-        }
-      }, 3000);
-    };
-
-    const handleBlur = () => {
-      if (focusTimer) {
-        clearTimeout(focusTimer);
-        focusTimer = null;
+    const popupPollTimer = setInterval(() => {
+      if (!settled && popup.closed) {
+        cleanup();
+        reject(new Error('Google sign-in was cancelled'));
       }
-    };
-
-    // Delay monitoring focus so the initial popup opening doesn't trigger it
-    setTimeout(() => {
-      if (!settled) {
-        window.addEventListener('focus', handleFocus);
-        window.addEventListener('blur', handleBlur);
-      }
-    }, 2000);
+    }, POPUP_POLL_INTERVAL_MS);
 
     // Hard timeout fallback
     const timeoutTimer = setTimeout(() => {

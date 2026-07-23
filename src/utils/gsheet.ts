@@ -1,3 +1,5 @@
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+
 import { toDuckDBIdentifier } from './duckdb/identifier';
 import { quote } from './helpers';
 
@@ -32,6 +34,11 @@ export function buildGSheetXlsxExportUrl(spreadsheetId: string): string {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=xlsx`;
 }
 
+export function buildGSheetCsvExportUrl(spreadsheetId: string, sheetName?: string): string {
+  const baseUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv`;
+  return sheetName ? `${baseUrl}&sheet=${encodeURIComponent(sheetName)}` : baseUrl;
+}
+
 /**
  * Creates a DuckDB view query for a specific Google Sheet worksheet.
  *
@@ -51,8 +58,38 @@ export function createGSheetSheetViewQuery(
 
   const sheetArgument = sheetName ? `, sheet:=${quote(sheetName, { single: true })}` : '';
   const secretArgument = secretName ? `, secret_name:=${quote(secretName, { single: true })}` : '';
-  return `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${readFunctionSql}(${quote(
+  const qualifiedViewName = [PERSISTENT_DB_NAME, 'main', viewName]
+    .map(toDuckDBIdentifier)
+    .join('.');
+  return `CREATE OR REPLACE VIEW ${qualifiedViewName} AS SELECT * FROM ${readFunctionSql}(${quote(
     spreadsheetRef,
     { single: true },
   )}${sheetArgument}${secretArgument});`;
+}
+
+export function buildDropGSheetSheetViewQuery(viewName: string): string {
+  const qualifiedViewName = [PERSISTENT_DB_NAME, 'main', viewName]
+    .map(toDuckDBIdentifier)
+    .join('.');
+  return `DROP VIEW IF EXISTS ${qualifiedViewName}`;
+}
+
+/**
+ * Public reads deliberately use the CSV export endpoint instead of
+ * read_gsheet(). The extension auto-selects any ambient GSHEET secret when no
+ * secret name is provided, which could accidentally couple a public source to
+ * an unrelated authenticated connection.
+ */
+export function createPublicGSheetViewQuery(
+  spreadsheetId: string,
+  sheetName: string | undefined,
+  viewName: string,
+): string {
+  const qualifiedViewName = [PERSISTENT_DB_NAME, 'main', viewName]
+    .map(toDuckDBIdentifier)
+    .join('.');
+  const exportUrl = buildGSheetCsvExportUrl(spreadsheetId, sheetName);
+  return `CREATE OR REPLACE VIEW ${qualifiedViewName} AS SELECT * FROM read_csv(${quote(exportUrl, {
+    single: true,
+  })}, header=true);`;
 }

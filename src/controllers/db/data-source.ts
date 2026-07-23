@@ -5,9 +5,14 @@ import { ReadStatViewType, supportedFlatFileDataSourceFileExt } from '@models/fi
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { createGSheetSheetViewQuery, extractGSheetSpreadsheetId } from '@utils/gsheet';
-import { buildCreateGSheetSecretQuery, buildGSheetHttpSecretName } from '@utils/gsheet-auth';
+import {
+  createGSheetSheetViewQuery,
+  createPublicGSheetViewQuery,
+  extractGSheetSpreadsheetId,
+} from '@utils/gsheet';
+import { buildCreateGSheetSecretQuery, buildGSheetSecretName } from '@utils/gsheet-auth';
 import { quote } from '@utils/helpers';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
 
@@ -457,9 +462,9 @@ export async function createXlsxSheetView(
 /**
  * Create a view for a Google Sheets worksheet.
  *
- * When the gsheets extension is loaded, uses `read_gsheet()` directly.
- * For authenticated access, creates a `TYPE GSHEET` DuckDB secret so the
- * extension can pass the token to Google's API natively.
+ * Public access uses the CORS-enabled CSV export endpoint so ambient DuckDB
+ * secrets cannot affect it. Authenticated access creates a `TYPE GSHEET`
+ * secret and uses the extension's `read_gsheet()` function.
  *
  * @param conn - DuckDB connection pool
  * @param spreadsheetRef - Google Sheets URL or spreadsheet ID
@@ -478,20 +483,30 @@ export async function createGSheetSheetView(
   const pooled = await conn.getPooledConnection();
   try {
     const needsBearerToken = accessMode === 'authorized' || accessMode === 'oauth';
-    let secretName: string | undefined;
-    if (needsBearerToken) {
-      if (!accessToken) {
-        throw new Error('A Google API bearer token is required for authenticated reads');
-      }
-      const spreadsheetId = extractGSheetSpreadsheetId(spreadsheetRef);
-      if (!spreadsheetId) {
-        throw new Error('Unable to determine Google Sheets spreadsheet ID');
-      }
-      if (!connectionKey) {
-        throw new Error('A connection key is required for authenticated reads');
-      }
-      secretName = buildGSheetHttpSecretName(spreadsheetId, connectionKey);
+    const spreadsheetId = extractGSheetSpreadsheetId(spreadsheetRef);
+    if (!spreadsheetId) {
+      throw new Error('Unable to determine Google Sheets spreadsheet ID');
+    }
+
+    if (!needsBearerToken) {
+      await pooled.query(createPublicGSheetViewQuery(spreadsheetId, sheetName, viewName));
+      return;
+    }
+
+    if (!accessToken) {
+      throw new Error('A Google API bearer token is required for authenticated reads');
+    }
+    if (!connectionKey) {
+      throw new Error('A connection key is required for authenticated reads');
+    }
+    const secretName = buildGSheetSecretName(spreadsheetId, connectionKey);
+    try {
       await pooled.query(buildCreateGSheetSecretQuery(secretName, accessToken));
+    } catch (error) {
+      throw new Error(
+        `Failed to update Google Sheets credentials: ${sanitizeErrorMessage(errorMessage(error))}`,
+        { cause: error },
+      );
     }
     const query = createGSheetSheetViewQuery(
       spreadsheetRef,
@@ -501,6 +516,43 @@ export async function createGSheetSheetView(
       secretName,
     );
     await pooled.query(query);
+  } finally {
+    await pooled.close();
+  }
+}
+
+/**
+ * Create or replace the named DuckDB secret used by all views in a Google
+ * Sheets connection. Updating this secret is sufficient to re-authorize
+ * existing persisted views and does not re-fetch every worksheet.
+ */
+export async function createGSheetSecret(
+  conn: AsyncDuckDBConnectionPool,
+  spreadsheetRef: string,
+  accessToken: string,
+  connectionKey: string,
+): Promise<string> {
+  const spreadsheetId = extractGSheetSpreadsheetId(spreadsheetRef);
+  if (!spreadsheetId) {
+    throw new Error('Unable to determine Google Sheets spreadsheet ID');
+  }
+  if (!accessToken) {
+    throw new Error('A Google API bearer token is required for authenticated reads');
+  }
+  if (!connectionKey) {
+    throw new Error('A connection key is required for authenticated reads');
+  }
+
+  const secretName = buildGSheetSecretName(spreadsheetId, connectionKey);
+  const pooled = await conn.getPooledConnection();
+  try {
+    await pooled.query(buildCreateGSheetSecretQuery(secretName, accessToken));
+    return secretName;
+  } catch (error) {
+    throw new Error(
+      `Failed to update Google Sheets credentials: ${sanitizeErrorMessage(errorMessage(error))}`,
+      { cause: error },
+    );
   } finally {
     await pooled.close();
   }

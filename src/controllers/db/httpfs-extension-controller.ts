@@ -37,9 +37,15 @@ export interface ExtensionBootstrapOptions {
    * When provided, this takes precedence over community INSTALL/LOAD.
    */
   gsheetsExtensionUrl?: string;
+  /**
+   * Throw when an explicit gsheets binary cannot load. Used while booting the
+   * threaded COI bundle so the caller can retry with the EH runtime that the
+   * checked-in extension targets.
+   */
+  failOnGsheetsLoadError?: boolean;
 }
 
-let attemptedGsheetsInstallByInstance: WeakSet<object> = new WeakSet();
+let attemptedGsheetsInstallByInstance = new WeakSet<object>();
 let warnedMissingBindings = false;
 
 /**
@@ -87,12 +93,16 @@ export async function configureConnectionForHttpfs(
       // Iceberg load failure is non-fatal — the extension may not be available
       if (statement === 'LOAD iceberg') {
         console.warn('Iceberg extension not available, skipping.');
-        return;
+        continue;
       }
     }
   }
 
-  const { enableGsheetsCommunity = false, gsheetsExtensionUrl = '' } = options;
+  const {
+    enableGsheetsCommunity = false,
+    failOnGsheetsLoadError = false,
+    gsheetsExtensionUrl = '',
+  } = options;
 
   // bindings is shared across connections from the same DuckDB-WASM instance.
   // We use it as the WeakSet key so INSTALL runs once per DB, but LOAD runs per connection.
@@ -111,19 +121,31 @@ export async function configureConnectionForHttpfs(
 
   if (gsheetsExtensionUrl) {
     const escapedUrl = escapeSqlLiteral(gsheetsExtensionUrl);
+    let configuredUrlLoaded = false;
     try {
       await conn.query(`LOAD '${escapedUrl}'`);
+      configuredUrlLoaded = true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!/already loaded/i.test(message)) {
         console.warn(
-          'Failed to load gsheets extension from configured URL. ' +
-            'Google Sheets connections will be unavailable.',
+          `Failed to load gsheets extension from configured URL. ${
+            enableGsheetsCommunity
+              ? 'Falling back to the community repository.'
+              : 'Google Sheets connections will be unavailable.'
+          }`,
           message,
         );
+        if (failOnGsheetsLoadError && !enableGsheetsCommunity) {
+          throw error instanceof Error ? error : new Error(message);
+        }
+      } else {
+        configuredUrlLoaded = true;
       }
     }
-    return;
+    if (configuredUrlLoaded || !enableGsheetsCommunity) {
+      return;
+    }
   }
 
   if (!enableGsheetsCommunity) {
