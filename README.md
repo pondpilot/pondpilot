@@ -174,6 +174,10 @@ GSHEETS_WASM_SOURCE=/path/to/gsheets.duckdb_extension.wasm \
 GSHEETS_WASM_SHA256=<reviewed-sha256> yarn gsheets:install
 ```
 
+The installer records the verified checksum in the git-ignored
+`.gsheets-wasm.local.sha256` file so subsequent `yarn dev` and `yarn build`
+commands continue to accept the custom artifact.
+
 And set:
 
 ```bash

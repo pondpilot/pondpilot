@@ -8,8 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 
 const artifactName = 'gsheets.duckdb_extension.wasm';
-const bundledArtifactSha256 =
-  'a0ec6833c7768c139e947a2118778853a84e2c3b1661a1d1f8713f70036f507d';
+const bundledArtifactSha256 = 'a0ec6833c7768c139e947a2118778853a84e2c3b1661a1d1f8713f70036f507d';
+const reviewedArtifactSha256Path = path.join(projectRoot, '.gsheets-wasm.local.sha256');
 const sourceFromEnv = process.env.GSHEETS_WASM_SOURCE;
 const sourceRepo = path.resolve(
   process.env.GSHEETS_EXTENSION_REPO ?? path.join(projectRoot, '..', 'duckdb_gsheets'),
@@ -44,6 +44,20 @@ async function sha256(filePath) {
   const hash = createHash('sha256');
   hash.update(await fs.readFile(filePath));
   return hash.digest('hex');
+}
+
+async function getReviewedArtifactSha256() {
+  if (!(await pathExists(reviewedArtifactSha256Path))) {
+    return null;
+  }
+
+  const reviewedSha256 = (await fs.readFile(reviewedArtifactSha256Path, 'utf8'))
+    .trim()
+    .toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(reviewedSha256)) {
+    throw new Error(`Invalid checksum in ${reviewedArtifactSha256Path}`);
+  }
+  return reviewedSha256;
 }
 
 async function getLatestMtime(targetPath) {
@@ -217,9 +231,15 @@ async function main() {
     if (await pathExists(destination)) {
       const actualSha256 = await sha256(destination);
       if (actualSha256 !== bundledArtifactSha256) {
+        const reviewedArtifactSha256 = await getReviewedArtifactSha256();
+        if (actualSha256 === reviewedArtifactSha256) {
+          console.log(`Using reviewed custom gsheets wasm: ${destination}`);
+          return;
+        }
         throw new Error(
           `Bundled ${artifactName} checksum mismatch: expected ${bundledArtifactSha256}, ` +
-            `received ${actualSha256}. Set GSHEETS_WASM_SOURCE to an explicitly reviewed artifact.`,
+            `received ${actualSha256}. Reinstall the artifact with GSHEETS_WASM_SHA256 set ` +
+            'to its reviewed checksum.',
         );
       }
       console.log(`Using checked-in gsheets wasm: ${destination}`);

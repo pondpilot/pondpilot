@@ -8,6 +8,7 @@ const projectRoot = path.resolve(__dirname, '..');
 const source = process.env.GSHEETS_WASM_SOURCE;
 const destDir = path.join(projectRoot, 'public', 'duckdb-extensions', 'gsheets');
 const destPath = path.join(destDir, 'gsheets.duckdb_extension.wasm');
+const reviewedSha256Path = path.join(projectRoot, '.gsheets-wasm.local.sha256');
 const expectedSha256 = process.env.GSHEETS_WASM_SHA256?.toLowerCase();
 
 async function sha256(filePath) {
@@ -20,8 +21,13 @@ async function main() {
   if (!source) {
     console.error('GSHEETS_WASM_SOURCE is not set.');
     console.error(
-      'Usage: GSHEETS_WASM_SOURCE=/path/to/gsheets.duckdb_extension.wasm node scripts/install-gsheets-wasm.mjs',
+      'Usage: GSHEETS_WASM_SOURCE=/path/to/gsheets.duckdb_extension.wasm ' +
+        'GSHEETS_WASM_SHA256=<reviewed-sha256> node scripts/install-gsheets-wasm.mjs',
     );
+    process.exit(1);
+  }
+  if (!expectedSha256) {
+    console.error('GSHEETS_WASM_SHA256 is not set.');
     process.exit(1);
   }
 
@@ -41,6 +47,7 @@ async function main() {
 
   await fs.mkdir(destDir, { recursive: true });
   await fs.copyFile(source, destPath);
+  await fs.writeFile(reviewedSha256Path, `${expectedSha256}\n`);
   console.log(`Copied gsheets wasm to ${destPath} (sha256: ${actualSha256})`);
 }
 
