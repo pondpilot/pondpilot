@@ -73,10 +73,10 @@
       }
 
       // Initial load — redirect to Google OAuth
-      var query = new URLSearchParams(window.location.search);
-      var clientId = query.get('client_id');
-      var scope = query.get('scope');
-      var state = query.get('state');
+      var initialQuery = new URLSearchParams(window.location.search);
+      var clientId = initialQuery.get('client_id');
+      var scope = initialQuery.get('scope');
+      var state = initialQuery.get('state');
 
       if (!clientId || !scope || !state) {
         statusEl.textContent = 'Missing OAuth parameters.';
@@ -92,7 +92,38 @@
         + '&state=' + encodeURIComponent(state)
         + '&include_granted_scopes=true';
 
-      window.location.href = authUrl;
+      // Tell the opener before leaving the same-origin browsing context. With
+      // COOP: same-origin, the opener's WindowProxy can look closed as soon as
+      // this page reaches Google even though the popup remains open.
+      var redirectBc = new BroadcastChannel(CHANNEL_NAME);
+      var redirectStarted = false;
+      var redirectFallbackTimer;
+      var redirectToGoogle = function () {
+        if (redirectStarted) return;
+        redirectStarted = true;
+        clearTimeout(redirectFallbackTimer);
+        redirectBc.close();
+        window.location.replace(authUrl);
+      };
+
+      redirectBc.onmessage = function (event) {
+        var data = event.data;
+        if (
+          data &&
+          data.type === 'google-oauth-redirect-approved' &&
+          data.state === state
+        ) {
+          redirectToGoogle();
+        }
+      };
+      redirectBc.postMessage({
+        type: 'google-oauth-redirecting',
+        state: state,
+      });
+
+      // The opener normally acknowledges immediately. Avoid leaving a stranded
+      // relay page if the channel is unavailable for an unexpected reason.
+      redirectFallbackTimer = setTimeout(redirectToGoogle, 1000);
     })();
   </script>
 </body>

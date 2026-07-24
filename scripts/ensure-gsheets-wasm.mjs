@@ -182,12 +182,11 @@ async function buildWasm(repoPath) {
 async function copyIfNeeded(sourcePath, destinationPath) {
   let shouldCopy = true;
   if (await pathExists(destinationPath)) {
-    const [sourceStats, destinationStats] = await Promise.all([
-      fs.stat(sourcePath),
-      fs.stat(destinationPath),
+    const [sourceSha256, destinationSha256] = await Promise.all([
+      sha256(sourcePath),
+      sha256(destinationPath),
     ]);
-    shouldCopy =
-      destinationStats.mtimeMs < sourceStats.mtimeMs || destinationStats.size !== sourceStats.size;
+    shouldCopy = sourceSha256 !== destinationSha256;
   }
 
   if (!shouldCopy) {

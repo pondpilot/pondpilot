@@ -127,7 +127,7 @@ export function useGSheetConnection(pool: AsyncDuckDBConnectionPool | null) {
             ORDER BY sheet_index
           `);
           try {
-            const result = await statement.query([resolvedAccessToken]);
+            const result = await statement.query(resolvedAccessToken);
             sheetNames = result
               .toArray()
               .map((row) => String((row as { sheet_name?: unknown }).sheet_name ?? ''))

@@ -10,7 +10,7 @@ let originalCrypto: typeof globalThis.crypto;
 let broadcastChannelInstances: Array<{
   name: string;
   onmessage: ((event: MessageEvent) => void) | null;
-  postMessage: (data: unknown) => void;
+  postMessage: jest.Mock;
   close: jest.Mock;
 }>;
 
@@ -34,14 +34,11 @@ beforeEach(() => {
     name: string;
     onmessage: ((event: MessageEvent) => void) | null = null;
     close = jest.fn();
+    postMessage = jest.fn();
 
     constructor(name: string) {
       this.name = name;
       broadcastChannelInstances.push(this as unknown as (typeof broadcastChannelInstances)[number]);
-    }
-
-    postMessage(_data: unknown) {
-      // Not used by the service (only by the callback page)
     }
   };
 });
@@ -213,6 +210,48 @@ describe('requestGoogleAccessToken', () => {
     jest.advanceTimersByTime(250);
 
     await expect(promise).rejects.toThrow('Google sign-in was cancelled');
+  });
+
+  it('should not treat the COOP-severed popup handle as cancellation after redirect', async () => {
+    const promise = requestGoogleAccessToken('test-client-id');
+    const bc = broadcastChannelInstances[0];
+    const rejected = jest.fn();
+    void promise.catch(rejected);
+
+    bc.onmessage!(
+      new MessageEvent('message', {
+        data: {
+          type: 'google-oauth-redirecting',
+          state: 'test-state-uuid',
+        },
+      }),
+    );
+
+    expect(bc.postMessage).toHaveBeenCalledWith({
+      type: 'google-oauth-redirect-approved',
+      state: 'test-state-uuid',
+    });
+
+    mockPopup.closed = true;
+    jest.advanceTimersByTime(1000);
+    await Promise.resolve();
+    expect(rejected).not.toHaveBeenCalled();
+
+    bc.onmessage!(
+      new MessageEvent('message', {
+        data: {
+          type: 'google-oauth-result',
+          state: 'test-state-uuid',
+          accessToken: 'ya29.coop-safe',
+          expiresIn: 3600,
+          scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        },
+      }),
+    );
+
+    await expect(promise).resolves.toEqual(
+      expect.objectContaining({ accessToken: 'ya29.coop-safe' }),
+    );
   });
 
   it('should reject a concurrent sign-in instead of hijacking the active popup', async () => {

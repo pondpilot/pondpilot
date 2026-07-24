@@ -65,6 +65,7 @@ export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccess
   return new Promise<GoogleAccessTokenResult>((resolve, reject) => {
     const bc = new BroadcastChannel(CHANNEL_NAME);
     let settled = false;
+    let redirectingToGoogle = false;
 
     const cleanup = () => {
       if (settled) return;
@@ -80,7 +81,17 @@ export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccess
       if (typeof data !== 'object' || data === null || !('state' in data)) return;
       if (data.state !== state || !('type' in data)) return;
 
-      if (data.type === 'google-oauth-result') {
+      if (data.type === 'google-oauth-redirecting') {
+        // Once the relay leaves our origin, COOP severs its WindowProxy and
+        // browsers may report `popup.closed === true` even though Google is
+        // still open. Acknowledge the relay before it navigates and stop using
+        // the popup handle as a cancellation signal from this point onward.
+        redirectingToGoogle = true;
+        bc.postMessage({
+          type: 'google-oauth-redirect-approved',
+          state,
+        });
+      } else if (data.type === 'google-oauth-result') {
         const accessToken = 'accessToken' in data ? data.accessToken : null;
         const expiresIn = 'expiresIn' in data ? data.expiresIn : null;
         const scope = 'scope' in data ? data.scope : null;
@@ -114,7 +125,7 @@ export function requestGoogleAccessToken(clientId: string): Promise<GoogleAccess
     };
 
     const popupPollTimer = setInterval(() => {
-      if (!settled && popup.closed) {
+      if (!settled && !redirectingToGoogle && popup.closed) {
         cleanup();
         reject(new Error('Google sign-in was cancelled'));
       }

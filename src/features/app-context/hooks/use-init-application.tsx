@@ -2,6 +2,7 @@ import { showError, showWarning } from '@components/app-notifications';
 import { installCorsProxyMacros } from '@controllers/db/cors-proxy-macros-controller';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { reportRestoreIssues } from '@features/app-context/restore-issues';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
 import {
   useDuckDBConnectionPool,
@@ -356,50 +357,7 @@ export function useAppInitialization({
         console.error('Unexpected error during background app initialization:', error);
       });
 
-      // TODO: more detailed/better message
-      if (discardedEntries.length) {
-        const { totalErrors, totalDenied, totalRemoved } = discardedEntries.reduce(
-          (acc, entry) => {
-            const what = entry.entry.kind === 'file' ? 'File' : 'Directory';
-            switch (entry.type) {
-              case 'removed':
-                console.warn(`${what} '${entry.entry.name}' was removed from disk.`);
-                acc.totalRemoved += 1;
-                break;
-              case 'error':
-                console.error(
-                  `${what} '${entry.entry.name}' handle couldn't be read: ${entry.reason}.`,
-                );
-                acc.totalErrors += 1;
-                break;
-              case 'denied':
-              default:
-                console.warn(`${what} '${entry.entry.name}' handle permission was denied by user.`);
-                acc.totalDenied += 1;
-                break;
-            }
-            return acc;
-          },
-          { totalErrors: 0, totalDenied: 0, totalRemoved: 0 },
-        );
-
-        // Show warnings if any
-        if (warnings.length) {
-          showWarning({
-            title: 'Initialization Warnings',
-            message: warnings.map((w) => w).join('\n'),
-          });
-        }
-
-        const totalDiscarded = totalErrors + totalDenied + totalRemoved;
-
-        showWarning({
-          title: 'Some files unavailable',
-          message: `A total of ${totalDiscarded} file handles were discarded.
-          ${totalErrors} couldn't be read, ${totalDenied} were denied by user, and
-          ${totalRemoved} were removed from disk.`,
-        });
-      }
+      reportRestoreIssues(discardedEntries, warnings);
     } catch (error) {
       if (generation !== initializationGenerationRef.current) return;
       const message = error instanceof Error ? error.message : String(error);
