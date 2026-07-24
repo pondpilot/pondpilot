@@ -164,12 +164,14 @@ export const selectMultipleNodes = async (
   // First, clear any existing selection to start fresh
   // This ensures we're selecting exactly the nodes specified
   await page.keyboard.press('Escape');
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for selection state to update
   await page.waitForTimeout(100);
 
   // Select the first node normally (without Ctrl/Cmd)
   if (indices.length > 0) {
     const firstNode = await clickNodeByIndex(page, dataTestIdPrefix, indices[0]);
     selectedNodes.push(firstNode);
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for selection state to update
     await page.waitForTimeout(100);
   }
 
@@ -181,6 +183,7 @@ export const selectMultipleNodes = async (
       const node = await clickNodeByIndex(page, dataTestIdPrefix, indices[i]);
       selectedNodes.push(node);
       // Add a small delay between clicks to ensure they register
+      // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause between multi-select clicks
       await page.waitForTimeout(100);
     }
 
@@ -188,6 +191,7 @@ export const selectMultipleNodes = async (
   }
 
   // Wait a moment for selection to settle
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for selection state to settle
   await page.waitForTimeout(200);
 
   return selectedNodes;
@@ -243,12 +247,14 @@ export const renameExplorerItem = async (
 
   // First, ensure the node is selected
   await oldNode.click();
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for selection state to update
   await page.waitForTimeout(100);
 
   // Double-click to initiate rename
   await oldNode.dblclick();
 
   // Wait a moment for the rename input to appear
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for rename input to render
   await page.waitForTimeout(500);
 
   // Find and fill the rename input
@@ -261,6 +267,7 @@ export const renameExplorerItem = async (
   if (!isVisible) {
     // Try context menu approach
     await oldNode.click({ button: 'right' });
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for context menu to render
     await page.waitForTimeout(300);
 
     const renameMenuItem = page.getByRole('menuitem', { name: 'Rename' });
@@ -271,6 +278,7 @@ export const renameExplorerItem = async (
     }
 
     await renameMenuItem.click();
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for rename input to render
     await page.waitForTimeout(500);
   }
 

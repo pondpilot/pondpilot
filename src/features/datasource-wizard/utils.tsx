@@ -2,12 +2,14 @@ import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { modals } from '@mantine/modals';
 import { cn } from '@utils/ui/styles';
+import { useNavigate } from 'react-router';
 
 import { DatasourceWizardModal, WizardStep } from './datasource-wizard-modal';
 
 export const useOpenDataWizardModal = () => {
   const pool = useDuckDBConnectionPool();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
+  const navigate = useNavigate();
 
   return {
     openDataWizardModal: (step: WizardStep) => {
@@ -26,6 +28,10 @@ export const useOpenDataWizardModal = () => {
           <DatasourceWizardModal
             pool={pool}
             onClose={() => modals.close(modalId)}
+            onNavigate={(path) => {
+              modals.close(modalId);
+              navigate(path);
+            }}
             initialStep={step}
             handleAddFile={handleAddFile}
             handleAddFolder={handleAddFolder}

@@ -18,8 +18,8 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "yarn ensure:gsheets:wasm && vite",
+    "build": "yarn ensure:gsheets:wasm && tsc && vite build",
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "build:test": "yarn build --mode int-test-build",
     "test": "yarn build:test && playwright test",
@@ -38,7 +38,9 @@
     "lint:stylelint:fix": "stylelint '**/*.css' --cache --fix",
     "prettier": "prettier --check \"**/*.{ts,tsx}\"",
     "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
-    "readstat:install": "node scripts/install-readstat-wasm.mjs"
+    "ensure:gsheets:wasm": "node scripts/ensure-gsheets-wasm.mjs",
+    "readstat:install": "node scripts/install-readstat-wasm.mjs",
+    "gsheets:install": "node scripts/install-gsheets-wasm.mjs"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.0.0",

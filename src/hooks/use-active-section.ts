@@ -24,14 +24,14 @@ export const useActiveSection = (options: UseActiveSectionOptions): string => {
           }
         });
 
-        // Find section with highest intersection ratio
-        // Section must be visible at least at the given threshold to become active
+        // Pick the first visible section (document order) with the highest ratio.
+        // When ratios are equal, the earlier section wins (topmost on screen).
         let maxRatio = 0;
         let mostVisibleSection = '';
 
         sections.forEach((sectionId) => {
           const ratio = visibleSections.get(sectionId);
-          if (ratio !== undefined && ratio >= threshold && ratio >= maxRatio) {
+          if (ratio !== undefined && ratio >= threshold && ratio > maxRatio) {
             maxRatio = ratio;
             mostVisibleSection = sectionId;
           }

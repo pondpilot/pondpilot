@@ -17,7 +17,10 @@ const CREATE_SECRET_BLANKET =
 
 /** Keyword: individual credential key-value pairs. */
 const CREDENTIAL_KEY_PATTERNS =
-  /\b(CLIENT_SECRET|TOKEN|SECRET|KEY_ID|CLIENT_ID|PASSWORD|API_KEY|ACCESS_TOKEN|REFRESH_TOKEN)\s+['"][^'"]*['"]/gi;
+  /\b(CLIENT_SECRET|TOKEN|SECRET|KEY_ID|CLIENT_ID|PASSWORD|API_KEY|ACCESS_TOKEN|REFRESH_TOKEN)\s*(?::=|=)?\s*(['"])[^'"]*\2/gi;
+
+/** Bearer tokens in HTTP Authorization headers that may leak into error messages. */
+const BEARER_TOKEN_PATTERN = /\bBearer\s+[A-Za-z0-9._\-/+=~]+/gi;
 
 export function sanitizeErrorMessage(message: string): string {
   let sanitized = message;
@@ -27,12 +30,15 @@ export function sanitizeErrorMessage(message: string): string {
 
   // Layer 2: catch stray credential values outside CREATE SECRET blocks
   sanitized = sanitized.replace(CREDENTIAL_KEY_PATTERNS, (match) => {
-    const keyMatch = match.match(/^(\w+)\s+/);
+    const keyMatch = match.match(/^(\w+)/);
     if (keyMatch) {
       return `${keyMatch[1]} [REDACTED]`;
     }
     return '[REDACTED]';
   });
+
+  // Layer 3: redact Bearer tokens from HTTP Authorization headers
+  sanitized = sanitized.replace(BEARER_TOKEN_PATTERN, 'Bearer [REDACTED]');
 
   return sanitized;
 }

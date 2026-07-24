@@ -13,6 +13,7 @@ import {
   CatalogSchemaSelection,
 } from '@utils/duckdb/identifier';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
+import { resolvePublicAssetUrl } from '@utils/public-asset-url';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { v4 } from 'uuid';
 
@@ -139,17 +140,28 @@ export const DuckDBConnectionPoolProvider = ({
   const isCleaningUpRef = useRef(false);
   const ALLOW_UNSIGNED_EXTENSIONS =
     import.meta.env.VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS === 'true';
+  const ENABLE_GSHEETS_COMMUNITY_EXTENSION =
+    import.meta.env.VITE_DUCKDB_ENABLE_GSHEETS_EXTENSION === 'true';
   const READ_STAT_EXTENSION_URL = (() => {
     const raw = import.meta.env.VITE_READ_STAT_EXTENSION_URL ?? '';
     if (!raw) return '';
     try {
-      return new URL(raw, window.location.href).toString();
+      return resolvePublicAssetUrl(raw, import.meta.env.BASE_URL, window.location.origin);
     } catch (error) {
       console.warn('Invalid read_stat extension URL:', raw, error);
       return '';
     }
   })();
-
+  const GSHEETS_EXTENSION_URL = (() => {
+    const raw = import.meta.env.VITE_GSHEETS_EXTENSION_URL ?? '';
+    if (!raw) return '';
+    try {
+      return resolvePublicAssetUrl(raw, import.meta.env.BASE_URL, window.location.origin);
+    } catch (error) {
+      console.warn('Invalid gsheets extension URL:', raw, error);
+      return '';
+    }
+  })();
   const cleanupWorkerResources = useCallback(() => {
     if (worker.current != null) {
       worker.current.terminate();
@@ -580,7 +592,13 @@ export const DuckDBConnectionPoolProvider = ({
                 checkpointDatabase: PERSISTENT_DB_NAME,
               },
               async (conn) => {
-                await configureConnectionForHttpfs(conn);
+                await configureConnectionForHttpfs(conn, {
+                  enableGsheetsCommunity: ENABLE_GSHEETS_COMMUNITY_EXTENSION,
+                  failOnGsheetsLoadError: Boolean(
+                    bootBundle.pthreadWorker && GSHEETS_EXTENSION_URL,
+                  ),
+                  gsheetsExtensionUrl: GSHEETS_EXTENSION_URL,
+                });
                 try {
                   await conn.query("ATTACH IF NOT EXISTS ':memory:' AS memory;");
                 } catch (error) {
@@ -849,6 +867,10 @@ export const DuckDBConnectionPoolProvider = ({
     });
 
     return connectionPromise;
+    // JSDELIVR_BUNDLES, logger, and env-derived constants are created in the
+    // render body but are effectively stable. Including them would cause
+    // unnecessary re-creation of the connection callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     persistenceState.dbPath,
     updatePersistenceState,

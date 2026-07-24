@@ -1,4 +1,6 @@
 import {
+  createGSheetSecret,
+  createGSheetSheetView,
   detachAndUnregisterDatabase,
   dropViewAndUnregisterFile,
   reAttachDatabase,
@@ -202,6 +204,64 @@ describe('data-source DDL error handling', () => {
       'Failed to drop view "people"',
     );
     expect(bindings.dropFile).not.toHaveBeenCalled();
+  });
+
+  it('creates a qualified authenticated Google Sheets view', async () => {
+    const { connection, pool } = trackedPool();
+
+    await createGSheetSheetView(
+      pool,
+      'https://docs.google.com/spreadsheets/d/abcdefghijklmnopqrstuvwxyz/edit',
+      'Employees',
+      'payroll_employees',
+      'authorized',
+      'ya29.secret',
+      'credential-1',
+    );
+
+    expect(connection.calls).toEqual([
+      'CREATE OR REPLACE SECRET "pondpilot_gsheet_http_abcdefghijklmnopqrstuvwxyz_credential-1" (TYPE GSHEET, PROVIDER ACCESS_TOKEN, ACCESS_TOKEN \'ya29.secret\')',
+      "CREATE OR REPLACE VIEW pondpilot.main.payroll_employees AS SELECT * FROM \"system\".main.read_gsheet('https://docs.google.com/spreadsheets/d/abcdefghijklmnopqrstuvwxyz/edit', sheet:='Employees', secret_name:='pondpilot_gsheet_http_abcdefghijklmnopqrstuvwxyz_credential-1');",
+    ]);
+  });
+
+  it('creates a public Google Sheets view without consulting GSHEET secrets', async () => {
+    const { connection, pool } = trackedPool();
+
+    await createGSheetSheetView(
+      pool,
+      'https://docs.google.com/spreadsheets/d/abcdefghijklmnopqrstuvwxyz/edit',
+      'Employees',
+      'payroll_employees',
+      'public',
+    );
+
+    expect(connection.calls).toEqual([
+      "CREATE OR REPLACE VIEW pondpilot.main.payroll_employees AS SELECT * FROM read_csv('https://docs.google.com/spreadsheets/d/abcdefghijklmnopqrstuvwxyz/export?format=csv&sheet=Employees', header=true);",
+    ]);
+  });
+
+  it('replaces a connection secret without recreating worksheet views', async () => {
+    const { connection, pool } = trackedPool();
+
+    await expect(
+      createGSheetSecret(pool, 'abcdefghijklmnopqrstuvwxyz', 'ya29.fresh', 'credential-1'),
+    ).resolves.toBe('pondpilot_gsheet_http_abcdefghijklmnopqrstuvwxyz_credential-1');
+
+    expect(connection.calls).toEqual([
+      'CREATE OR REPLACE SECRET "pondpilot_gsheet_http_abcdefghijklmnopqrstuvwxyz_credential-1" (TYPE GSHEET, PROVIDER ACCESS_TOKEN, ACCESS_TOKEN \'ya29.fresh\')',
+    ]);
+  });
+
+  it('redacts the bearer token from secret creation errors', async () => {
+    const { connection, pool } = trackedPool();
+    const query =
+      'CREATE OR REPLACE SECRET "pondpilot_gsheet_http_abcdefghijklmnopqrstuvwxyz_credential-1" (TYPE GSHEET, PROVIDER ACCESS_TOKEN, ACCESS_TOKEN \'ya29.leaked\')';
+    connection.failQueries.add(query);
+
+    await expect(
+      createGSheetSecret(pool, 'abcdefghijklmnopqrstuvwxyz', 'ya29.leaked', 'credential-1'),
+    ).rejects.not.toThrow('ya29.leaked');
   });
 
   it('supports dropping a view without a registered file', async () => {

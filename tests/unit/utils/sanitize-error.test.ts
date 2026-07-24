@@ -55,6 +55,16 @@ describe('sanitizeErrorMessage', () => {
     expect(result).toContain('ACCESS_TOKEN [REDACTED]');
   });
 
+  it('should redact named SQL parameters that use := or = separators', () => {
+    const msg =
+      "Binder error near get_gsheet_sheets('sheet', access_token := 'ya29.secret-value') and TOKEN='other-secret'";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('ya29.secret-value');
+    expect(result).not.toContain('other-secret');
+    expect(result).toContain('access_token [REDACTED]');
+    expect(result).toContain('TOKEN [REDACTED]');
+  });
+
   it('should redact REFRESH_TOKEN values', () => {
     const msg = "Error refreshing: REFRESH_TOKEN 'rt-secret-value' invalid";
     const result = sanitizeErrorMessage(msg);
@@ -94,5 +104,20 @@ describe('sanitizeErrorMessage', () => {
     expect(result).toContain('Error:');
     expect(result).toContain('failed at line 1');
     expect(result).not.toContain('leaked');
+  });
+
+  it('should redact Bearer tokens from HTTP Authorization headers', () => {
+    const msg = 'Request failed with Authorization: Bearer eyJhbGciOiJSUzI1NiJ9.payload.sig';
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('eyJhbGciOiJSUzI1NiJ9');
+    expect(result).toContain('Bearer [REDACTED]');
+  });
+
+  it('should redact multiple Bearer tokens in the same message', () => {
+    const msg = 'Bearer abc123 and also Bearer xyz789';
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('abc123');
+    expect(result).not.toContain('xyz789');
+    expect(result).toBe('Bearer [REDACTED] and also Bearer [REDACTED]');
   });
 });

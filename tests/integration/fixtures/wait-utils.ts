@@ -74,13 +74,13 @@ export const test = base.extend<WaitUtilsFixtures>({
   waitForExplorerReady: async ({ page }, use) => {
     await use(async () => {
       // Wait for the data explorer to be fully loaded
-      await page.waitForSelector('[data-testid="data-explorer"]', {
+      await page.getByTestId('data-explorer').waitFor({
         state: 'visible',
         timeout: 5000,
       });
 
       // Wait for tree structure to be rendered
-      await page.waitForSelector('[role="tree"]', {
+      await page.locator('[role="tree"]').first().waitFor({
         state: 'visible',
         timeout: 5000,
       });

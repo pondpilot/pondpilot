@@ -39,12 +39,10 @@ test('should add csv files and folders', async ({
   await addFile();
 
   // Wait for the file to appear in the explorer
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 5000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 5000 });
 
   // Verify explorer items
   await assertFileExplorerItems(['test1']);
@@ -72,6 +70,7 @@ test('should add csv files and folders', async ({
   await addFile();
 
   // Wait for the new files to appear
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- waiting for multiple files to finish processing
   await page.waitForTimeout(1000);
 
   // Verify explorer items
@@ -252,6 +251,7 @@ test('should handle duckdb files with reserved names correctly', async ({
 
   // No need to open DB explorer, it should already be visible in the unified explorer
   // Wait for the UI to stabilize
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- waiting for DB explorer to finish loading
   await page.waitForTimeout(1000);
 
   for (const name of testNames) {
@@ -270,6 +270,7 @@ test('should handle duckdb files with reserved names correctly', async ({
     await addFile();
 
     // Wait for the database to be added
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- waiting for database attachment to complete
     await page.waitForTimeout(2000);
 
     // Get the expected resulting database name. For strictly reserved names,

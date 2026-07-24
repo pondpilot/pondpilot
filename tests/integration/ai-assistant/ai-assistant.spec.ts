@@ -46,7 +46,7 @@ test.describe('AI Assistant Integration', () => {
       await expect(widget).toBeHidden();
     });
 
-    test.skip('should toggle AI assistant with repeated shortcut', async ({
+    test.fixme('should toggle AI assistant with repeated shortcut', async ({
       page,
       scriptEditorContent,
     }) => {
@@ -152,7 +152,7 @@ test.describe('AI Assistant Integration', () => {
     });
   });
 
-  test.describe.skip('Prompt history', () => {
+  test.describe.fixme('Prompt history', () => {
     test('should navigate prompt history with arrow keys', async ({
       page,
       scriptEditorContent,

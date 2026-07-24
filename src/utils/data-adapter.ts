@@ -320,7 +320,7 @@ function getGetChartAggregatedDataFromFQN(
 function getFlatFileDataAdapterQueries(
   pool: AsyncDuckDBConnectionPool,
   dataSource: AnyFlatFileDataSource,
-  sourceFile: LocalFile,
+  sourceFile?: LocalFile,
 ): DataAdapterQueries {
   const fqn = `main.${toDuckDBIdentifier(dataSource.viewName)}`;
 
@@ -333,7 +333,7 @@ function getFlatFileDataAdapterQueries(
     getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
   };
 
-  if (dataSource.type === 'parquet') {
+  if (dataSource.type === 'parquet' && sourceFile) {
     return {
       ...baseAttrs,
       getRowCount: async (abortSignal: AbortSignal) => {
@@ -508,7 +508,7 @@ export function getFileDataAdapterQueries({
       };
     }
 
-    if (!sourceFile) {
+    if (!sourceFile && dataSource.type !== 'gsheet-sheet') {
       return {
         adapter: null,
         userErrors: [],
@@ -516,7 +516,7 @@ export function getFileDataAdapterQueries({
       };
     }
 
-    if (sourceFile.kind !== 'file') {
+    if (sourceFile && sourceFile.kind !== 'file') {
       return {
         adapter: null,
         userErrors: [],
@@ -527,7 +527,11 @@ export function getFileDataAdapterQueries({
     }
 
     return {
-      adapter: getFlatFileDataAdapterQueries(pool, dataSource, sourceFile),
+      adapter: getFlatFileDataAdapterQueries(
+        pool,
+        dataSource,
+        sourceFile && sourceFile.kind === 'file' ? sourceFile : undefined,
+      ),
       userErrors: [],
       internalErrors: [],
     };
