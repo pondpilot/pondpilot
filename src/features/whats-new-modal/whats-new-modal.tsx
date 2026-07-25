@@ -1,6 +1,6 @@
 import { DotAnimation } from '@components/dots-animation';
 import { Button, Center, Group, Stack, Text } from '@mantine/core';
-import { ModalSettings } from '@mantine/modals/lib/context';
+import type { openModal } from '@mantine/modals';
 import { APP_RELEASES_URL } from '@models/app-urls';
 import { isVersionGreater } from '@utils/compare-versions';
 import { setDataTestId } from '@utils/test-id';
@@ -10,6 +10,8 @@ import { ReleaseDetail } from './release-detail';
 import { GitHubReleaseData } from './types';
 import { useReleases } from './use-releases';
 import { VersionList } from './version-list';
+
+type ModalSettings = Parameters<typeof openModal>[0];
 
 export const WHATS_NEW_MODAL_OPTIONS: ModalSettings = {
   size: 900,
