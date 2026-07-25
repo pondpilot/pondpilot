@@ -42,7 +42,7 @@ test('Switch between tabs using script explorer', async ({
   await expect(await getScriptEditorContent()).toContainText('select 1');
 });
 
-test.skip('Select items in the script explorer list using Hotkeys', async ({
+test.fixme('Select items in the script explorer list using Hotkeys', async ({
   page,
   createScriptAndSwitchToItsTab,
   assertScriptExplorerItems,
@@ -76,6 +76,7 @@ test.skip('Select items in the script explorer list using Hotkeys', async ({
   await deselectAllScripts();
 
   // Wait for UI to settle after deselection
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for deselection state to settle
   await page.waitForTimeout(500);
 
   // This would implicitly activate the first before last item
@@ -147,12 +148,10 @@ test('Script should be deselected when selecting a file', async ({
   await addFile();
 
   // Wait for the file to be processed by checking it appears
-  await page.waitForSelector(
-    '[data-testid*="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 5000,
-    },
-  );
+  await page
+    .locator('[data-testid*="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 5000 });
 
   // Verify the file was added
   await assertFileExplorerItems(['unique_selection_test']);

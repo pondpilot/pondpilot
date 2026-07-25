@@ -128,6 +128,9 @@ export const TabsPane = memo(() => {
       });
     }
     setIsUserTabChange(false);
+    // isUserTabChange is intentionally excluded: this effect should only
+    // fire when activeTabId changes, and isUserTabChange is reset inside it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTabId]);
 
   return (

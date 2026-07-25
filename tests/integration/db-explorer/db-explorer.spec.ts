@@ -36,6 +36,7 @@ test('DuckDB view should be deselected after creating script via spotlight', asy
   await openDatabaseExplorer();
 
   // Wait for the UI to stabilize
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- waiting for DB explorer to finish loading
   await page.waitForTimeout(2000);
 
   await assertDBExplorerItems(['test_selection']);
@@ -112,6 +113,7 @@ test('Databases: Should create file tree structure and verify persistence after 
   await setupFileSystem(FILE_SYSTEM_TREE);
 
   // Wait for databases to be loaded
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- waiting for DB explorer to finish loading
   await page.waitForTimeout(2000);
 
   // 2. Check the DB explorer

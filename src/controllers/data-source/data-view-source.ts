@@ -12,8 +12,11 @@ import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
+import type { SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { getDatabaseIdentifier, isDatabaseDataSource, isMotherDuckDbKey } from '@utils/data-source';
+import { buildDropGSheetSheetViewQuery } from '@utils/gsheet';
+import { buildDropGSheetSecretQuery, buildGSheetSecretName } from '@utils/gsheet-auth';
 import { parseTableAccessKey } from '@utils/table-access';
 
 import { persistDeleteDataSource } from './persist';
@@ -87,6 +90,31 @@ export const deleteDataSources = async (
   const newDataSources = new Map(
     Array.from(dataSources).filter(([id, _]) => !dataSourceIdsToDelete.has(id)),
   );
+
+  const gsheetSecretRefsToCleanup = new Set<SecretId>();
+  const gsheetHttpSecretsToCleanup = new Set<string>();
+  for (const dataSource of deletedDataSources) {
+    if (dataSource.type !== 'gsheet-sheet' || !dataSource.secretRef) {
+      continue;
+    }
+
+    const isStillReferenced = Array.from(newDataSources.values()).some(
+      (remaining) =>
+        remaining.type === 'gsheet-sheet' && remaining.secretRef === dataSource.secretRef,
+    );
+    if (!isStillReferenced) {
+      gsheetSecretRefsToCleanup.add(dataSource.secretRef);
+      try {
+        gsheetHttpSecretsToCleanup.add(
+          buildGSheetSecretName(dataSource.spreadsheetId, String(dataSource.secretRef)),
+        );
+      } catch (error) {
+        // A malformed legacy record must not prevent the source/view itself
+        // from being deleted. There is no safely derivable DuckDB secret name.
+        console.warn('Skipping malformed Google Sheets secret during deletion:', error);
+      }
+    }
+  }
 
   const newDataSourceAccessTimes = new Map(
     Array.from(dataSourceAccessTimes).filter(([id]) => !dataSourceIdsToDelete.has(id)),
@@ -260,6 +288,11 @@ export const deleteDataSources = async (
         continue;
       }
 
+      if (dataSource.type === 'gsheet-sheet') {
+        await conn.query(buildDropGSheetSheetViewQuery(dataSource.viewName));
+        continue;
+      }
+
       if (!('fileSourceId' in dataSource)) {
         continue;
       }
@@ -307,6 +340,26 @@ export const deleteDataSources = async (
 
     if (tabsToDelete.length) {
       persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
+    }
+  }
+
+  if (gsheetHttpSecretsToCleanup.size > 0) {
+    for (const duckdbSecretName of gsheetHttpSecretsToCleanup) {
+      try {
+        await conn.query(buildDropGSheetSecretQuery(duckdbSecretName));
+      } catch (error) {
+        console.warn('Failed to drop Google Sheets HTTP secret during deletion:', error);
+      }
+    }
+  }
+  if (iDbConn && gsheetSecretRefsToCleanup.size > 0) {
+    for (const secretRef of gsheetSecretRefsToCleanup) {
+      try {
+        const { deleteSecret } = await import('@services/secret-store');
+        await deleteSecret(iDbConn, secretRef);
+      } catch (error) {
+        console.warn('Failed to delete Google Sheets token from secret store:', error);
+      }
     }
   }
 

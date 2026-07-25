@@ -13,7 +13,7 @@ test.describe('Script Version History', () => {
     createScriptAndSwitchToItsTab,
     fillScript,
   }) => {
-    await page.waitForSelector('[data-testid="script-explorer"]', { state: 'visible' });
+    await page.getByTestId('script-explorer').waitFor({ state: 'visible' });
     await createScriptAndSwitchToItsTab();
 
     // Type some content first to trigger version tracking
@@ -37,7 +37,7 @@ test.describe('Script Version History', () => {
     fillScript,
     runScript,
   }) => {
-    await page.waitForSelector('[data-testid="script-explorer"]', { state: 'visible' });
+    await page.getByTestId('script-explorer').waitFor({ state: 'visible' });
     await createScriptAndSwitchToItsTab();
 
     // Manual save creates version
@@ -47,6 +47,7 @@ test.describe('Script Version History', () => {
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
 
     // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- respecting MIN_VERSION_INTERVAL_MS
     await page.waitForTimeout(1500);
 
     // Change content and run to create another version
@@ -76,7 +77,7 @@ test.describe('Script Version History', () => {
     createScriptAndSwitchToItsTab,
     fillScript,
   }) => {
-    await page.waitForSelector('[data-testid="script-explorer"]', { state: 'visible' });
+    await page.getByTestId('script-explorer').waitFor({ state: 'visible' });
     await createScriptAndSwitchToItsTab();
 
     // Create a version
@@ -86,6 +87,7 @@ test.describe('Script Version History', () => {
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
 
     // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- respecting MIN_VERSION_INTERVAL_MS
     await page.waitForTimeout(1500);
 
     // Change content to make version history button visible
@@ -124,7 +126,7 @@ test.describe('Script Version History', () => {
     createScriptAndSwitchToItsTab,
     fillScript,
   }) => {
-    await page.waitForSelector('[data-testid="script-explorer"]', { state: 'visible' });
+    await page.getByTestId('script-explorer').waitFor({ state: 'visible' });
     await createScriptAndSwitchToItsTab();
 
     // Create a version and make history button visible
@@ -133,6 +135,7 @@ test.describe('Script Version History', () => {
     await expect(page.getByText('Version saved')).toBeVisible();
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
     // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- respecting MIN_VERSION_INTERVAL_MS
     await page.waitForTimeout(1500);
     await fillScript('SELECT 2;');
 
@@ -157,7 +160,7 @@ test.describe('Script Version History', () => {
     createScriptAndSwitchToItsTab,
     fillScript,
   }) => {
-    await page.waitForSelector('[data-testid="script-explorer"]', { state: 'visible' });
+    await page.getByTestId('script-explorer').waitFor({ state: 'visible' });
     await createScriptAndSwitchToItsTab();
 
     // Create a version and make history button visible
@@ -166,6 +169,7 @@ test.describe('Script Version History', () => {
     await expect(page.getByText('Version saved')).toBeVisible();
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
     // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- respecting MIN_VERSION_INTERVAL_MS
     await page.waitForTimeout(1500);
     await fillScript('SELECT 2;');
 

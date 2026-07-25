@@ -11,6 +11,7 @@ import {
   IconX,
   IconClipboard,
   IconSnowflake,
+  IconBrandGoogle,
 } from '@tabler/icons-react';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { setDataTestId } from '@utils/test-id';
@@ -19,6 +20,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { BaseActionCard } from './components/base-action-card';
 import { ClipboardImportConfig } from './components/clipboard-import-config';
 import { DuckLakeCatalogConfig } from './components/ducklake-catalog-config';
+import { GoogleSheetConfig } from './components/google-sheet-config';
 import { IcebergCatalogConfig } from './components/iceberg-catalog-config';
 import { MotherDuckConfig } from './components/motherduck-config';
 import { QuackConfig } from './components/quack-config';
@@ -27,6 +29,7 @@ import { validateJSON, validateCSV } from './utils/clipboard-import';
 
 interface DatasourceWizardModalProps {
   onClose: () => void;
+  onNavigate?: (path: string) => void;
   pool: AsyncDuckDBConnectionPool | null;
   handleAddFolder: () => Promise<void>;
   handleAddFile: () => Promise<void>;
@@ -40,6 +43,7 @@ export type WizardStep =
   | 'ducklake-config'
   | 'motherduck-config'
   | 'quack-config'
+  | 'gsheet-config'
   | 'clipboard-csv'
   | 'clipboard-json';
 
@@ -55,6 +59,8 @@ const getStepTitle = (step: WizardStep): string => {
       return 'MOTHERDUCK';
     case 'quack-config':
       return 'QUACK SERVER';
+    case 'gsheet-config':
+      return 'GOOGLE SHEETS';
     case 'clipboard-csv':
       return 'IMPORT CSV FROM CLIPBOARD';
     case 'clipboard-json':
@@ -66,6 +72,7 @@ const getStepTitle = (step: WizardStep): string => {
 
 export function DatasourceWizardModal({
   onClose,
+  onNavigate,
   initialStep = 'selection',
   pool,
   handleAddFolder,
@@ -182,6 +189,10 @@ export function DatasourceWizardModal({
 
   const handleMotherDuckClick = () => {
     setStep('motherduck-config');
+  };
+
+  const handleGoogleSheetClick = () => {
+    setStep('gsheet-config');
   };
 
   const handleBack = () => {
@@ -425,6 +436,20 @@ export function DatasourceWizardModal({
       testId: 'add-motherduck-card',
       disabled: hasMotherDuckConnection,
     },
+    {
+      type: 'gsheet' as const,
+      onClick: handleGoogleSheetClick,
+      icon: (
+        <IconBrandGoogle
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'Google Sheets',
+      description: 'Public and authorized',
+      testId: 'add-google-sheet-card',
+    },
   ];
 
   return (
@@ -515,6 +540,10 @@ export function DatasourceWizardModal({
       )}
 
       {step === 'quack-config' && <QuackConfig onBack={handleBack} onClose={onClose} pool={pool} />}
+
+      {step === 'gsheet-config' && (
+        <GoogleSheetConfig onClose={onClose} onNavigate={onNavigate} pool={pool} />
+      )}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (
         <ClipboardImportConfig

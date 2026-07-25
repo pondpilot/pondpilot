@@ -129,6 +129,8 @@ export const ComparisonConfigScreen = ({
       contexts.push({ source: config.sourceB, label: 'Source B' });
     }
     return contexts;
+    // Only recompute when the specific config fields change, not the entire config object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config?.filterMode, config?.sourceA, config?.sourceB]);
 
   const filterAContexts = useMemo(() => {
@@ -136,6 +138,8 @@ export const ComparisonConfigScreen = ({
       return [];
     }
     return [{ source: config.sourceA, label: 'Source A' }];
+    // Only recompute when the specific config fields change, not the entire config object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config?.filterMode, config?.sourceA]);
 
   const filterBContexts = useMemo(() => {
@@ -143,6 +147,8 @@ export const ComparisonConfigScreen = ({
       return [];
     }
     return [{ source: config.sourceB, label: 'Source B' }];
+    // Only recompute when the specific config fields change, not the entire config object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config?.filterMode, config?.sourceB]);
 
   const duplicateSourceSelected = useMemo(
@@ -285,6 +291,9 @@ export const ComparisonConfigScreen = ({
     return () => {
       cancelled = true;
     };
+    // schemaComparison is read to skip re-analysis when results already exist,
+    // but adding it as a dep would re-trigger analysis whenever results arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config?.sourceA, config?.sourceB, onAnalyzeSchemas, tabId, comparisonId]);
 
   useEffect(() => {

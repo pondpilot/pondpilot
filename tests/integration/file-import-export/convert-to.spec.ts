@@ -65,10 +65,10 @@ test('Convert To: CSV file should open export modal with Parquet pre-selected', 
   await addFile();
 
   // Wait for the file to appear in the explorer
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    { timeout: 5000 },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 5000 });
   await assertFileExplorerItems(['convert_test']);
 
   // Open the file first so data is loaded
@@ -105,10 +105,10 @@ test('Convert To: CSV submenu should not include CSV as an option', async ({
   await filePicker.selectFiles(['filter_test.csv']);
   await addFile();
 
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    { timeout: 5000 },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 5000 });
   await assertFileExplorerItems(['filter_test']);
 
   // Open context menu and hover "Convert To"
@@ -121,7 +121,8 @@ test('Convert To: CSV submenu should not include CSV as an option', async ({
   await expect(convertToItem).toBeVisible();
   await convertToItem.hover();
 
-  // Wait for submenu
+  // Wait for submenu animation
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- brief pause for submenu to render
   await page.waitForTimeout(300);
 
   // CSV should NOT be in the submenu (same-format hidden)

@@ -7,7 +7,7 @@ interface SettingsBlockProps extends SettingsBlockType {}
 
 export const SettingsBlock = ({ id, title, sections }: SettingsBlockProps) => {
   return (
-    <Stack id={id} gap={32}>
+    <Stack id={id} gap={32} style={{ scrollMarginTop: 16 }}>
       <Title c="text-primary" order={2}>
         {title}
       </Title>

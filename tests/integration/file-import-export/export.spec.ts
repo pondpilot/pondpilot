@@ -46,12 +46,10 @@ test('roundtrip csv file with quotes and commas', async ({
   await addFile();
 
   // Wait for the file to appear in the explorer
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 5000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 5000 });
 
   // Verify explorer items
   await assertFileExplorerItems(['test_file']);

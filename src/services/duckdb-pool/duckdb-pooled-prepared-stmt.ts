@@ -101,7 +101,7 @@ export class AsyncDuckDBPooledPreparedStatement<
    * @throws {Error} If a streaming reader is active.
    * @throws {Error} Any underlying error from the DuckDB connection.
    */
-  public query(params: Parameters<AsyncPreparedStatement['query']>): Promise<arrow.Table<T>> {
+  public query(...params: Parameters<AsyncPreparedStatement['query']>): Promise<arrow.Table<T>> {
     // Check preconditions
     this._checkActionPreconditions();
 

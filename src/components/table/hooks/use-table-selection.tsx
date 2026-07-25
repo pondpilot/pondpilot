@@ -44,23 +44,26 @@ export const useTableSelection = ({
     setLastSelectedColumn(null);
     setLastSelectedRow('0');
     onColumnSelectChange(null);
-  }, []);
+  }, [onColumnSelectChange]);
 
-  const handleCellSelect = useCallback((cell: Cell<any, any>) => {
-    const isIndexColumn = cell.column.getIsFirstColumn();
+  const handleCellSelect = useCallback(
+    (cell: Cell<any, any>) => {
+      const isIndexColumn = cell.column.getIsFirstColumn();
 
-    if (isIndexColumn) return;
-    clearSelection();
-    onCellSelectChange();
+      if (isIndexColumn) return;
+      clearSelection();
+      onCellSelectChange();
 
-    const { type } = cell.column.columnDef.meta as ColumnMeta;
-    const value = cell.getValue();
-    const formattedValue = stringifyTypedValue({
-      type,
-      value,
-    });
-    setSelectedCell({ cellId: cell.id, rawValue: value, formattedValue });
-  }, []);
+      const { type } = cell.column.columnDef.meta as ColumnMeta;
+      const value = cell.getValue();
+      const formattedValue = stringifyTypedValue({
+        type,
+        value,
+      });
+      setSelectedCell({ cellId: cell.id, rawValue: value, formattedValue });
+    },
+    [clearSelection, onCellSelectChange],
+  );
 
   const handleCopySelectedRows = useCallback(
     (table: Table<any>) => {
@@ -136,6 +139,9 @@ export const useTableSelection = ({
         setSelectedRows(selectedRowsRange);
       }
     },
+    // selectedRows is used for shift-select range logic; JSON.stringify
+    // provides value-based comparison since the object reference changes on every update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [lastSelectedRow, JSON.stringify(selectedRows)],
   );
 
@@ -178,6 +184,9 @@ export const useTableSelection = ({
         setSelectedCols(selectedCols2);
       }
     },
+    // selectedCols is used for shift-select range logic; JSON.stringify
+    // provides value-based comparison since the object reference changes on every update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [lastSelectedColumn, schema, JSON.stringify(selectedCols)],
   );
 

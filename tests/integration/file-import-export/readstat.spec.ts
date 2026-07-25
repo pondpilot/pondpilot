@@ -31,12 +31,10 @@ test('should import Stata files (.dta)', async ({
   await filePicker.selectFiles(['sample.dta']);
   await addFile();
 
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 10000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 10000 });
   await assertFileExplorerItems(['sample']);
   await openFileFromExplorer('sample');
 
@@ -67,12 +65,10 @@ test('should import SPSS files (.sav)', async ({
   await filePicker.selectFiles(['sample_sav.sav']);
   await addFile();
 
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 10000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 10000 });
   await assertFileExplorerItems(['sample_sav']);
   await openFileFromExplorer('sample_sav');
 
@@ -101,12 +97,10 @@ test('should import SAS data files (.sas7bdat)', async ({
   await filePicker.selectFiles(['sample_sas7bdat.sas7bdat']);
   await addFile();
 
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 10000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 10000 });
   await assertFileExplorerItems(['sample_sas7bdat']);
   await openFileFromExplorer('sample_sas7bdat');
 
@@ -141,12 +135,10 @@ test('should import SPSS Portable files (.por)', async ({
   await filePicker.selectFiles(['sample_por.por']);
   await addFile();
 
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 10000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 10000 });
   await assertFileExplorerItems(['sample_por']);
   await openFileFromExplorer('sample_por');
 
@@ -175,12 +167,10 @@ test('should import SAS Transport files (.xpt)', async ({
   await filePicker.selectFiles(['sample_xpt.xpt']);
   await addFile();
 
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 10000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 10000 });
   await assertFileExplorerItems(['sample_xpt']);
   await openFileFromExplorer('sample_xpt');
 

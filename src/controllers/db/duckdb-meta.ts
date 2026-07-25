@@ -69,6 +69,30 @@ export async function getViews(
   return queryOneColumn<arrow.Utf8>(conn, sql, 'view_name');
 }
 
+export async function getViewDefinitions(
+  conn: AsyncDuckDBConnectionPool,
+  databaseName: string = PERSISTENT_DB_NAME,
+  schemaName: string = 'main',
+): Promise<Map<string, string> | null> {
+  const result = await conn.query<{ view_name: arrow.Utf8; sql: arrow.Utf8 }>(`
+    SELECT view_name, sql
+    FROM duckdb_views
+    WHERE database_name = ${quote(databaseName, { single: true })}
+      AND schema_name = ${quote(schemaName, { single: true })}
+  `);
+  const names = result.getChild('view_name');
+  const definitions = result.getChild('sql');
+  if (!names || !definitions) return null;
+
+  const views = new Map<string, string>();
+  for (let index = 0; index < result.numRows; index += 1) {
+    const name = names.get(index);
+    const definition = definitions.get(index);
+    if (name && definition) views.set(name, definition);
+  }
+  return views;
+}
+
 /**
  * Check whether a database schema contains any user tables or views without
  * loading their column metadata.

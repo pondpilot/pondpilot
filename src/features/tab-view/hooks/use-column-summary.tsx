@@ -58,6 +58,9 @@ export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
         setIsLoading(false);
       }
     },
+    // Using the specific method instead of the full dataAdapter to avoid
+    // unnecessary recreation when other adapter fields change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dataAdapter.getColumnAggregate],
   );
 

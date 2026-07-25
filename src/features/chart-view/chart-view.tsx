@@ -54,7 +54,7 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
       error,
       xAxisCandidates,
       yAxisCandidates,
-      groupByCandidates,
+      groupByCandidates: _groupByCandidates,
       suggestedConfig,
     } = chartDataResult;
 

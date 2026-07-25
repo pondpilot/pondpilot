@@ -86,7 +86,7 @@ test.describe('Datasource Wizard', () => {
     await expect(disabled).toBeDisabled();
   });
 
-  test.skip('should disable buttons during connection test', async ({
+  test.fixme('should disable buttons during connection test', async ({
     page,
     openDatasourceWizard,
   }) => {
@@ -109,7 +109,9 @@ test.describe('Datasource Wizard', () => {
 
     // Store the promise before clicking
     const responsePromise = page
-      .waitForResponse((response: any) => response.url().includes('example.com'), { timeout: 5000 })
+      .waitForResponse((response: any) => response.url().includes('example.com'), {
+        timeout: 5000,
+      })
       .catch(() => null); // Catch timeout as connection will fail
 
     await testConnectionButton.click();

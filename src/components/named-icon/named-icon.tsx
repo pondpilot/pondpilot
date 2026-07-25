@@ -20,6 +20,7 @@ import {
   IconNumber10,
   IconBrackets,
   IconScale,
+  IconBrandGoogle,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -30,6 +31,7 @@ export type IconType =
   | 'code-file'
   | 'xlsx'
   | 'db'
+  | 'gsheet'
   | 'duck' // PondPilot system database
   // Database data sources
   | 'db-schema'
@@ -46,6 +48,7 @@ export type IconType =
   | 'por'
   | 'dta'
   | 'xlsx-sheet'
+  | 'gsheet-sheet'
   // Tab types
   | 'comparison'
   // Column types
@@ -84,6 +87,8 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
       return <IconCode {...iconProps} />;
     case 'db':
       return <IconDatabase {...iconProps} />;
+    case 'gsheet':
+      return <IconBrandGoogle {...iconProps} />;
     case 'duck': {
       const { stroke: _stroke, ...duckIconProps } = iconProps;
       return (
@@ -144,6 +149,7 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
     case 'xlsx':
       return <IconFileTypeXls {...iconProps} />;
     case 'xlsx-sheet':
+    case 'gsheet-sheet':
       return <IconTable {...iconProps} />;
     case 'comparison':
       return <IconScale {...iconProps} />;

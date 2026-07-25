@@ -5,6 +5,7 @@ import { test } from '../fixtures/page';
 // Skip WebKit tests due to Playwright WebKit OPFS limitations
 // Real Safari/WebKit works fine in production, but Playwright WebKit environment
 // doesn't support OPFS which is required for DuckDB initialization
+// eslint-disable-next-line playwright/no-skipped-test -- conditional skip for unsupported Playwright WebKit OPFS
 test.skip(({ browserName }) => browserName === 'webkit', 'WebKit tests skipped');
 
 test('Browser fallback mode works', async ({ page, browserName }) => {

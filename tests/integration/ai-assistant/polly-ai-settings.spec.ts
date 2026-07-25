@@ -83,6 +83,7 @@ test.describe('Polly AI Settings Integration', () => {
 
       // Dismiss banner if visible
       const continueButton = settingsPage.getByRole('button', { name: /Continue with Polly/i });
+      // eslint-disable-next-line playwright/no-conditional-in-test -- banner may or may not be visible depending on test order
       if (await continueButton.isVisible({ timeout: 2000 }).catch(() => false)) {
         await continueButton.click();
       }
@@ -138,6 +139,7 @@ test.describe('Polly AI Settings Integration', () => {
 
       // Dismiss welcome banner if visible
       const continueButton = settingsPage.getByRole('button', { name: /Continue with Polly/i });
+      // eslint-disable-next-line playwright/no-conditional-in-test -- banner may or may not be visible depending on test order
       if (await continueButton.isVisible({ timeout: 2000 }).catch(() => false)) {
         await continueButton.click();
       }

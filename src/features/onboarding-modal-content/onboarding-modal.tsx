@@ -2,7 +2,7 @@ import duckDark from '@assets/duck-dark.svg';
 import duck from '@assets/duck.svg';
 import { useAppTheme } from '@hooks/use-app-theme';
 import { Box, Button, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
-import { ModalSettings } from '@mantine/modals/lib/context';
+import type { openModal } from '@mantine/modals';
 import {
   IconBolt,
   IconBrain,
@@ -12,6 +12,8 @@ import {
   IconRocket,
 } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
+
+type ModalSettings = Parameters<typeof openModal>[0];
 
 const features = [
   {

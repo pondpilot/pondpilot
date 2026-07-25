@@ -116,12 +116,13 @@ export const VersionHistorySidebar = ({
 
   // Cleanup effect to close any open modals when sidebar unmounts
   useEffect(() => {
+    const modalIds = openModalIdsRef.current;
     return () => {
       // Close any modals this sidebar opened that are still open
-      openModalIdsRef.current.forEach((modalId) => {
+      modalIds.forEach((modalId) => {
         modals.close(modalId);
       });
-      openModalIdsRef.current.clear();
+      modalIds.clear();
     };
   }, []);
 

@@ -5,7 +5,12 @@ import {
   getDatabaseModel,
 } from '@controllers/db';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { LocalDB, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
+import {
+  GSheetSheetView,
+  LocalDB,
+  PersistentDataSourceId,
+  XlsxSheetView,
+} from '@models/data-source';
 import { DataSourceLocalFile, LocalEntryId } from '@models/file-system';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
@@ -147,5 +152,80 @@ describe('data source deletion cleanup', () => {
       'workbook_Products',
       undefined,
     );
+  });
+
+  it('drops Google Sheets views from the persistent catalog', async () => {
+    const dataSourceId = 'gsheet-source' as PersistentDataSourceId;
+    const fileId = 'gsheet-group' as LocalEntryId;
+    const dataSource: GSheetSheetView = {
+      id: dataSourceId,
+      type: 'gsheet-sheet',
+      fileSourceId: fileId,
+      viewName: 'payroll_employees',
+      spreadsheetId: 'abcdefghijklmnopqrstuvwxyz',
+      spreadsheetName: 'payroll',
+      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/abcdefghijklmnopqrstuvwxyz/edit',
+      exportUrl:
+        'https://docs.google.com/spreadsheets/d/abcdefghijklmnopqrstuvwxyz/export?format=xlsx',
+      sheetName: 'Employees',
+      accessMode: 'public',
+    };
+    useAppStore.setState({
+      _iDbConn: null,
+      activeTabId: null,
+      previewTabId: null,
+      tabOrder: [],
+      tabs: new Map(),
+      dataSources: new Map([[dataSourceId, dataSource]]),
+      dataSourceAccessTimes: new Map(),
+      tableAccessTimes: new Map(),
+      databaseMetadata: new Map(),
+      localEntries: new Map(),
+      registeredFiles: new Map(),
+    });
+    const query = jest.fn(async (_statement: string) => undefined);
+    const conn = { query } as unknown as AsyncDuckDBConnectionPool;
+
+    await deleteDataSources(conn, [dataSourceId]);
+
+    expect(query).toHaveBeenCalledWith('DROP VIEW IF EXISTS pondpilot.main.payroll_employees');
+  });
+
+  it('still deletes a Google Sheets view when legacy secret metadata is malformed', async () => {
+    const dataSourceId = 'malformed-gsheet-source' as PersistentDataSourceId;
+    const dataSource: GSheetSheetView = {
+      id: dataSourceId,
+      type: 'gsheet-sheet',
+      fileSourceId: 'gsheet-group' as LocalEntryId,
+      viewName: 'legacy_sheet',
+      spreadsheetId: 'invalid spreadsheet/id',
+      spreadsheetName: 'legacy',
+      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/invalid/edit',
+      exportUrl: 'https://docs.google.com/spreadsheets/d/invalid/export?format=xlsx',
+      sheetName: 'Sheet1',
+      accessMode: 'authorized',
+      secretRef: 'credential-1' as GSheetSheetView['secretRef'],
+    };
+    useAppStore.setState({
+      _iDbConn: null,
+      activeTabId: null,
+      previewTabId: null,
+      tabOrder: [],
+      tabs: new Map(),
+      dataSources: new Map([[dataSourceId, dataSource]]),
+      dataSourceAccessTimes: new Map(),
+      tableAccessTimes: new Map(),
+      databaseMetadata: new Map(),
+      localEntries: new Map(),
+      registeredFiles: new Map(),
+    });
+    const query = jest.fn(async (_statement: string) => undefined);
+    const conn = { query } as unknown as AsyncDuckDBConnectionPool;
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(deleteDataSources(conn, [dataSourceId])).resolves.toBeUndefined();
+
+    expect(query).toHaveBeenCalledWith('DROP VIEW IF EXISTS pondpilot.main.legacy_sheet');
+    warnSpy.mockRestore();
   });
 });

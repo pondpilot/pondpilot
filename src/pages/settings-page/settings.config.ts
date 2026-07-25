@@ -3,6 +3,7 @@ import { DatabaseManagementSettings } from '@components/database-management/data
 import { AISettings } from './components/ai-settings';
 import { CorsProxySettings } from './components/cors-proxy-settings';
 import { EditorSettings } from './components/editor-settings';
+import { GoogleIntegrationSettings } from './components/google-integration-settings';
 import { LintSettings } from './components/lint-settings';
 import { ClearDataSection } from './components/sections/clear-data-section';
 import { ExportQueriesSection } from './components/sections/export-queries-section';
@@ -44,6 +45,18 @@ export const settingsConfig: SettingsConfig = {
           title: 'AI Assistant',
           description: 'Configure your AI assistant provider and model.',
           component: AISettings,
+        },
+      ],
+    },
+    {
+      id: 'google-sheets',
+      title: 'Google Sheets',
+      sections: [
+        {
+          id: 'google-integration',
+          title: 'Google Integration',
+          description: 'Configure Google Sign-In for accessing private Google Sheets.',
+          component: GoogleIntegrationSettings,
         },
       ],
     },

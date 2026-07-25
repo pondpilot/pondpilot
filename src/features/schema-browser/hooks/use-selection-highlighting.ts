@@ -92,6 +92,9 @@ export function useSelectionHighlighting(
         });
       });
     }
+    // nodes is read for the length check but adding it would cause an
+    // infinite loop since setNodes updates nodes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEdge, selectedTable, edges, isLoading, setNodes]);
 
   // Update edge highlighting when selection changes
@@ -124,5 +127,8 @@ export function useSelectionHighlighting(
         });
       });
     }
+    // edges is read to compute connected edge IDs but adding it would cause
+    // an infinite loop since setEdges updates edges.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEdge, selectedTable, isLoading, setEdges]);
 }

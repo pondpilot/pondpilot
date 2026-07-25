@@ -106,7 +106,7 @@ export const test = base.extend<ScriptEditorFixtures>({
 
       await runScriptButton.click();
 
-      await page.waitForSelector('text=Processing Query...', { state: 'hidden', timeout: 30000 });
+      await page.locator('text=Processing Query...').waitFor({ state: 'hidden', timeout: 30000 });
 
       const completionState = await Promise.any([
         page
@@ -198,7 +198,7 @@ export const test = base.extend<ScriptEditorFixtures>({
       if (isVisible) {
         await versionHistoryButton.click();
         // Wait for the sidebar to appear (replaced modal with sidebar in new design)
-        await page.waitForSelector('[data-testid="version-history-sidebar"]', { state: 'visible' });
+        await page.getByTestId('version-history-sidebar').waitFor({ state: 'visible' });
       }
     });
   },

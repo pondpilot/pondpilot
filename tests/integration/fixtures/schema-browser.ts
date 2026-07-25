@@ -143,6 +143,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
       // Wait for layout to stabilize
       // Using a timeout here is pragmatic as React Flow animations and layout calculations
       // can be complex and vary based on the number of nodes
+      // eslint-disable-next-line playwright/no-wait-for-timeout -- React Flow layout stabilization
       await page.waitForTimeout(2000);
     };
     await use(waitForSchemaLoaded);
@@ -199,6 +200,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
       );
 
       // Wait for React Flow to re-layout with new direction
+      // eslint-disable-next-line playwright/no-wait-for-timeout -- React Flow layout animation
       await page.waitForTimeout(1000);
     };
     await use(toggleSchemaDirection);
@@ -222,6 +224,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
       await expect(schemaRefreshButton).toBeEnabled();
 
       // Wait for React Flow to be stable
+      // eslint-disable-next-line playwright/no-wait-for-timeout -- React Flow refresh stabilization
       await page.waitForTimeout(500);
     };
     await use(refreshSchema);

@@ -13,7 +13,7 @@ test.describe('Script Version - Tab Management', () => {
     createScriptAndSwitchToItsTab,
     fillScript,
   }) => {
-    await page.waitForSelector('[data-testid="script-explorer"]', { state: 'visible' });
+    await page.getByTestId('script-explorer').waitFor({ state: 'visible' });
 
     // Create first script with content
     await createScriptAndSwitchToItsTab();
@@ -24,6 +24,7 @@ test.describe('Script Version - Tab Management', () => {
     await expect(page.getByText('Version saved')).toBeVisible();
 
     // Edit content
+    // eslint-disable-next-line playwright/no-wait-for-timeout -- respecting MIN_VERSION_INTERVAL_MS
     await page.waitForTimeout(2000);
     await fillScript('SELECT 2;');
 

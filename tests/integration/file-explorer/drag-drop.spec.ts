@@ -121,12 +121,10 @@ test('Drop CSV file via drag and drop', async ({
   await csvTransfer.dispose();
 
   // Wait for the file to be processed and appear in the explorer
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 5000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 5000 });
 
   await assertFileExplorerItems(['test-data']);
 });
@@ -172,12 +170,10 @@ test('Drop folder with files via drag and drop', async ({
   await folderTransfer.dispose();
 
   // Wait for the folder to be processed and appear in the explorer
-  await page.waitForSelector(
-    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
-    {
-      timeout: 5000,
-    },
-  );
+  await page
+    .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+    .first()
+    .waitFor({ timeout: 5000 });
 
   // Wait for folder and files to appear in file explorer
   await assertFileExplorerItems(['test-folder']);

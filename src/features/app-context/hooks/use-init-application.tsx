@@ -2,11 +2,13 @@ import { showError, showWarning } from '@components/app-notifications';
 import { installCorsProxyMacros } from '@controllers/db/cors-proxy-macros-controller';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { reportRestoreIssues } from '@features/app-context/restore-issues';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
 import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
+import type { GSheetSheetView } from '@models/data-source';
 import { AnyDataSource } from '@models/data-source';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore, setAppLoadState } from '@store/app-store';
@@ -29,6 +31,7 @@ import {
   attachAndVerifyDuckLakeCatalog,
   updateDuckLakeConnectionState,
 } from '@utils/ducklake-catalog';
+import { notifyGSheetTokenExpired } from '@utils/gsheet-reauth';
 import {
   attachAndVerifyIcebergCatalog,
   resolveIcebergCredentials,
@@ -278,14 +281,29 @@ export function useAppInitialization({
 
   const conn = useDuckDBConnectionPool();
   const connectDuckDb = useDuckDBInitializer();
+  const dataSources = useAppStore((state) => state.dataSources);
   const initializationRunRef = useRef<Promise<void> | null>(null);
   const initializationGenerationRef = useRef(0);
+  const notifiedGSheetExpiriesRef = useRef(new Set<string>());
 
   const initAppData = async (
     resolvedConn: AsyncDuckDBConnectionPool,
     coreSnapshot: CoreAppDataSnapshot,
     generation: number,
   ) => {
+    // Install CORS proxy macros before restoring persisted application data.
+    try {
+      await installCorsProxyMacros(resolvedConn);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('Failed to install CORS proxy macros:', message);
+      showWarning({
+        title: 'CORS Proxy Initialization Warning',
+        message:
+          'CORS proxy macros could not be installed. Remote databases may require manual configuration.',
+      });
+    }
+
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
     try {
@@ -323,19 +341,6 @@ export function useAppInitialization({
           });
         }
 
-        // Install CORS proxy macros
-        try {
-          await installCorsProxyMacros(resolvedConn);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.warn('Failed to install CORS proxy macros:', message);
-          showWarning({
-            title: 'CORS Proxy Initialization Warning',
-            message:
-              'CORS proxy macros could not be installed. Remote databases may require manual configuration.',
-          });
-        }
-
         // Reconnect to remote databases
         try {
           await reconnectRemoteDatabases(resolvedConn);
@@ -352,50 +357,7 @@ export function useAppInitialization({
         console.error('Unexpected error during background app initialization:', error);
       });
 
-      // TODO: more detailed/better message
-      if (discardedEntries.length) {
-        const { totalErrors, totalDenied, totalRemoved } = discardedEntries.reduce(
-          (acc, entry) => {
-            const what = entry.entry.kind === 'file' ? 'File' : 'Directory';
-            switch (entry.type) {
-              case 'removed':
-                console.warn(`${what} '${entry.entry.name}' was removed from disk.`);
-                acc.totalRemoved += 1;
-                break;
-              case 'error':
-                console.error(
-                  `${what} '${entry.entry.name}' handle couldn't be read: ${entry.reason}.`,
-                );
-                acc.totalErrors += 1;
-                break;
-              case 'denied':
-              default:
-                console.warn(`${what} '${entry.entry.name}' handle permission was denied by user.`);
-                acc.totalDenied += 1;
-                break;
-            }
-            return acc;
-          },
-          { totalErrors: 0, totalDenied: 0, totalRemoved: 0 },
-        );
-
-        // Show warnings if any
-        if (warnings.length) {
-          showWarning({
-            title: 'Initialization Warnings',
-            message: warnings.map((w) => w).join('\n'),
-          });
-        }
-
-        const totalDiscarded = totalErrors + totalDenied + totalRemoved;
-
-        showWarning({
-          title: 'Some files unavailable',
-          message: `A total of ${totalDiscarded} file handles were discarded.
-          ${totalErrors} couldn't be read, ${totalDenied} were denied by user, and
-          ${totalRemoved} were removed from disk.`,
-        });
-      }
+      reportRestoreIssues(discardedEntries, warnings);
     } catch (error) {
       if (generation !== initializationGenerationRef.current) return;
       const message = error instanceof Error ? error.message : String(error);
@@ -407,6 +369,47 @@ export function useAppInitialization({
       setAppLoadState('error');
     }
   };
+
+  useEffect(() => {
+    if (!conn) return undefined;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const checkExpiries = () => {
+      const now = Date.now();
+      let nextExpiry = Number.POSITIVE_INFINITY;
+      const checkedGroups = new Set<string>();
+
+      for (const ds of dataSources.values()) {
+        if (ds.type !== 'gsheet-sheet' || ds.accessMode !== 'oauth' || !ds.tokenExpiresAt) {
+          continue;
+        }
+
+        const groupKey = String(ds.fileSourceId);
+        if (checkedGroups.has(groupKey)) continue;
+        checkedGroups.add(groupKey);
+
+        if (ds.tokenExpiresAt <= now) {
+          const notificationKey = `${groupKey}:${ds.tokenExpiresAt}`;
+          if (!notifiedGSheetExpiriesRef.current.has(notificationKey)) {
+            notifiedGSheetExpiriesRef.current.add(notificationKey);
+            notifyGSheetTokenExpired(conn, ds as GSheetSheetView);
+          }
+        } else {
+          nextExpiry = Math.min(nextExpiry, ds.tokenExpiresAt);
+        }
+      }
+
+      if (Number.isFinite(nextExpiry)) {
+        const delay = Math.min(Math.max(nextExpiry - now + 100, 100), 2_147_483_647);
+        timer = setTimeout(checkExpiries, delay);
+      }
+    };
+
+    checkExpiries();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [conn, dataSources]);
 
   useEffect(() => {
     // Don't initialize DuckDB if this tab is blocked by another active tab

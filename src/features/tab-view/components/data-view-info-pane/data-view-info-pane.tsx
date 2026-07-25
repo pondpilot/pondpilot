@@ -117,7 +117,6 @@ export const DataViewInfoPane = ({
     dataAdapter.currentSchema.length,
     dataAdapter.isFetchingData,
     openExportOptions,
-    clearPendingConvert,
   ]);
 
   // Clear initial format after modal closes
