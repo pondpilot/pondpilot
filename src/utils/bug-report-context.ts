@@ -1,6 +1,7 @@
 import type { FeatureContextType } from '@features/feature-context';
 import type { BugReportContext } from '@models/bug-report';
 import { useAppStore } from '@store/app-store';
+import { getViteEnv } from '@utils/env';
 import { isMobileDevice } from '@utils/is-mobile-device';
 
 declare const __VERSION__: string;
@@ -30,7 +31,7 @@ export function captureBugReportContext(featureContext: FeatureContextType): Bug
       platform: navigator.platform,
       language: navigator.language,
       viewport: `${window.innerWidth}x${window.innerHeight}`,
-      isDevelopment: import.meta.env.DEV,
+      isDevelopment: getViteEnv().DEV,
       isIntegrationTest: typeof __INTEGRATION_TEST__ !== 'undefined' ? __INTEGRATION_TEST__ : false,
     },
     browserFeatures: {
@@ -54,7 +55,7 @@ export function captureBugReportContext(featureContext: FeatureContextType): Bug
     dataSources: Array.from(store.dataSources.values()).map((ds) => ({
       id: ds.id,
       type: ds.type,
-      connectionStatus: 'connectionStatus' in ds ? (ds.connectionStatus as string) : undefined,
+      connectionState: 'connectionState' in ds ? (ds.connectionState as string) : undefined,
     })),
   };
 }
@@ -80,6 +81,15 @@ export function formatContextForSlack(context: BugReportContext): string {
   lines.push(`• Data Sources: ${context.appState.totalDataSources}`);
   lines.push(`• Scripts: ${context.appState.totalScripts}`);
   lines.push('');
+
+  if (context.dataSources.length > 0) {
+    lines.push('*Data Sources:*');
+    context.dataSources.forEach((dataSource) => {
+      const state = dataSource.connectionState ? ` (${dataSource.connectionState})` : '';
+      lines.push(`• ${dataSource.type}${state}`);
+    });
+    lines.push('');
+  }
 
   if (context.errors.totalTabsWithErrors > 0) {
     lines.push('*Errors:*');
