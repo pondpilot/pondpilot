@@ -44,44 +44,40 @@ describe('quack utils', () => {
     );
   });
 
-  it('loads Quack from core nightly first', async () => {
+  it('loads the patched pinned Quack WASM artifact before repositories', async () => {
     const query = jest.fn<(sql: string) => Promise<unknown>>().mockResolvedValue({});
 
     await expect(loadQuackExtension({ query } as any)).resolves.toBeUndefined();
-    expect(query).toHaveBeenNthCalledWith(1, 'FORCE INSTALL quack FROM core_nightly');
-    expect(query).toHaveBeenLastCalledWith('LOAD quack');
-  });
-
-  it('tries community repositories when core nightly fails', async () => {
-    const query = jest
-      .fn<(sql: string) => Promise<unknown>>()
-      .mockRejectedValueOnce(new Error('core nightly failed'))
-      .mockRejectedValueOnce(new Error('core nightly failed'))
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({});
-
-    await expect(loadQuackExtension({ query } as any)).resolves.toBeUndefined();
-    expect(query).toHaveBeenNthCalledWith(3, 'FORCE INSTALL quack FROM community');
-    expect(query).toHaveBeenLastCalledWith('LOAD quack');
-  });
-
-  it('falls back to pinned Quack WASM artifacts when repository loading fails', async () => {
-    const query = jest
-      .fn<(sql: string) => Promise<unknown>>()
-      .mockRejectedValueOnce(new Error('core nightly failed'))
-      .mockRejectedValueOnce(new Error('core nightly failed'))
-      .mockRejectedValueOnce(new Error('community failed'))
-      .mockRejectedValueOnce(new Error('community failed'))
-      .mockRejectedValueOnce(new Error('explicit community failed'))
-      .mockRejectedValueOnce(new Error('explicit community failed'))
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({});
-
-    await expect(loadQuackExtension({ query } as any)).resolves.toBeUndefined();
     expect(query).toHaveBeenNthCalledWith(
-      7,
-      "LOAD 'https://extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm'",
+      1,
+      "LOAD 'https://nightly-extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm'",
     );
+    expect(query).toHaveBeenLastCalledWith('LOAD quack');
+  });
+
+  it('falls back to extension repositories when the patched artifact fails', async () => {
+    const query = jest
+      .fn<(sql: string) => Promise<unknown>>()
+      .mockRejectedValueOnce(new Error('patched artifact failed'))
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+
+    await expect(loadQuackExtension({ query } as any)).resolves.toBeUndefined();
+    expect(query).toHaveBeenNthCalledWith(2, 'FORCE INSTALL quack FROM core_nightly');
+    expect(query).toHaveBeenLastCalledWith('LOAD quack');
+  });
+
+  it('tries community repositories when the patched artifact and core nightly fail', async () => {
+    const query = jest
+      .fn<(sql: string) => Promise<unknown>>()
+      .mockRejectedValueOnce(new Error('patched artifact failed'))
+      .mockRejectedValueOnce(new Error('core nightly failed'))
+      .mockRejectedValueOnce(new Error('core nightly failed'))
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+
+    await expect(loadQuackExtension({ query } as any)).resolves.toBeUndefined();
+    expect(query).toHaveBeenNthCalledWith(4, 'FORCE INSTALL quack FROM community');
     expect(query).toHaveBeenLastCalledWith('LOAD quack');
   });
 
@@ -91,20 +87,11 @@ describe('quack utils', () => {
     } = (globalThis as any).import;
     env.VITE_QUACK_WASM_EXTENSION_URL = '/duckdb-extensions/quack.duckdb_extension.wasm';
     try {
-      const query = jest
-        .fn<(sql: string) => Promise<unknown>>()
-        .mockRejectedValueOnce(new Error('core nightly failed'))
-        .mockRejectedValueOnce(new Error('core nightly failed'))
-        .mockRejectedValueOnce(new Error('community failed'))
-        .mockRejectedValueOnce(new Error('community failed'))
-        .mockRejectedValueOnce(new Error('explicit community failed'))
-        .mockRejectedValueOnce(new Error('explicit community failed'))
-        .mockResolvedValueOnce({})
-        .mockResolvedValueOnce({});
+      const query = jest.fn<(sql: string) => Promise<unknown>>().mockResolvedValue({});
 
       await expect(loadQuackExtension({ query } as any)).resolves.toBeUndefined();
       expect(query).toHaveBeenNthCalledWith(
-        7,
+        1,
         "LOAD '/duckdb-extensions/quack.duckdb_extension.wasm'",
       );
       expect(query).toHaveBeenLastCalledWith('LOAD quack');
@@ -113,7 +100,7 @@ describe('quack utils', () => {
     }
   });
 
-  it('retries with pinned Quack WASM artifacts when repository loading lacks ATTACH storage support', async () => {
+  it('retries with the patched Quack WASM artifact when ATTACH storage support is missing', async () => {
     const pool = {
       query: jest
         .fn<(sql: string) => Promise<unknown>>()
@@ -135,7 +122,7 @@ describe('quack utils', () => {
     ).resolves.toBeUndefined();
     expect(pool.query).toHaveBeenNthCalledWith(
       4,
-      "LOAD 'https://extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm'",
+      "LOAD 'https://nightly-extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm'",
     );
   });
 
