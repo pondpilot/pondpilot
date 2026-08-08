@@ -57,3 +57,46 @@ test('Header cell width matches data cell width for special character columns', 
     expect(headerBoundingBox?.width).toBeCloseTo(dataBoundingBox?.width as number, 1);
   }
 });
+
+test('Column widths update when the result schema expands in the same tab', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  waitForDataTable,
+}) => {
+  await createScriptAndSwitchToItsTab();
+
+  await fillScript('SELECT 1 AS initial_column;');
+  await runScript();
+  await waitForDataTable();
+
+  const columnNames = ['line_id', 'run_id', 'message'];
+  await fillScript(`
+    SELECT
+      21004 + i AS line_id,
+      48262306 AS run_id,
+      CASE
+        WHEN i < 4 THEN 'ok'
+        ELSE repeat('A long error message ', 50)
+      END AS message
+    FROM range(6) AS rows(i);
+  `);
+  await runScript();
+
+  const dataTable = await waitForDataTable();
+
+  for (let columnIndex = 0; columnIndex < columnNames.length; columnIndex += 1) {
+    const columnId = getTableColumnId(columnNames[columnIndex], columnIndex);
+    const headerBoundingBox = await getHeaderCell(dataTable, columnId).boundingBox();
+
+    for (const rowIndex of [0, 4]) {
+      const dataBoundingBox = await getDataCellContainer(
+        dataTable,
+        columnId,
+        rowIndex,
+      ).boundingBox();
+
+      expect(dataBoundingBox?.width).toBeCloseTo(headerBoundingBox?.width as number, 1);
+    }
+  }
+});
