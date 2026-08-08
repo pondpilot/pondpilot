@@ -10631,7 +10631,7 @@ __metadata:
     react-icons: "npm:5.7.0"
     react-is: "npm:19.2.7"
     react-markdown: "npm:10.1.0"
-    react-router: "npm:7.18.1"
+    react-router: "npm:7.18.2"
     reactflow: "npm:11.11.4"
     recharts: "npm:3.9.2"
     sql-formatter: "npm:15.8.2"
@@ -11082,9 +11082,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-router@npm:7.18.1":
-  version: 7.18.1
-  resolution: "react-router@npm:7.18.1"
+"react-router@npm:7.18.2":
+  version: 7.18.2
+  resolution: "react-router@npm:7.18.2"
   dependencies:
     cookie: "npm:^1.0.1"
     set-cookie-parser: "npm:^2.6.0"
@@ -11094,7 +11094,7 @@ __metadata:
   peerDependenciesMeta:
     react-dom:
       optional: true
-  checksum: 10c0/1a559de58d656bad5565f2232e4f4fab7e9f5282dfaf95bc24f195a06e7e85b281077fe5c21ed3ff527e3d90d930447e0d0bb0f0713950d2a56ad0f0377a7d09
+  checksum: 10c0/513b04adf020fcf95124557418e003d16b175765045332858d5817b045e49dfe33b529c4871c57b0cddf24fa5432589ffc45d1a9a5b398b069f02adb755fab15
   languageName: node
   linkType: hard
 
