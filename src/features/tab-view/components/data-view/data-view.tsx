@@ -404,6 +404,7 @@ export const DataView = ({
           <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
             <Table
               dataSlice={dataSlice}
+              dataSourceVersion={dataAdapter.dataSourceVersion}
               schema={dataAdapter.currentSchema}
               sort={dataAdapter.sort}
               visible={!!active}
