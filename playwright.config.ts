@@ -13,7 +13,7 @@ export default defineConfig({
   workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: process.env.CI
-    ? [['junit', { outputFile: './playwright-report/results.xml' }]]
+    ? [['junit', { outputFile: './playwright-report/results.xml', includeRetries: true }]]
     : [['list', { printSteps: true }]],
   /* Configure projects for major browsers */
   projects: [
@@ -41,6 +41,9 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: 'http://localhost:6173',
     serviceWorkers: 'block',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'off',
   },
   /* Set the timeout for each test */
   timeout: Number(process.env.PLAYWRIGHT_TIMEOUT ?? 30_000),
