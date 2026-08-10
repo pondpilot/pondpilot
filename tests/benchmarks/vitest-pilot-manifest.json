@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "minimumSpeedupPercent": 30,
+  "maximumCoverageDeltaPoints": 0.1,
+  "caseIds": [
+    "component.actual-render",
+    "mock.partial-actual-export",
+    "mock.production-consumer",
+    "pure.normal-message",
+    "pure.secret-redaction",
+    "pure.token-redaction",
+    "timer.capacity",
+    "timer.fresh-entry",
+    "timer.ttl-expiry"
+  ],
+  "coverageFiles": [
+    "src/features/comparison/hooks/row-count-cache.ts",
+    "src/features/schema-browser/components/schema-loading.tsx",
+    "src/utils/duckdb/identifier.ts",
+    "src/utils/sanitize-error.ts",
+    "src/utils/sql-builder.ts"
+  ]
+}
