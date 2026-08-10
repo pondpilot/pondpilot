@@ -34,5 +34,5 @@
       "@workers/*": ["workers/*"]
     }
   },
-  "include": ["src", "tests", "playwright.config.ts"]
+  "include": ["src", "tests", "playwright.config.ts", "playwright.merge.config.ts"]
 }

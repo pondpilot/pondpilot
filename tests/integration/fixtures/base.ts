@@ -4,38 +4,35 @@ import * as path from 'path';
 import { test as base } from '@playwright/test';
 import type { Route } from '@playwright/test';
 
+import { getModuleCacheKey, moduleCacheResources, sha256 } from '../../../scripts/module-cache.mjs';
+
+const moduleCacheByUrl = new Map(moduleCacheResources.map((resource) => [resource.url, resource]));
+const verifiedModuleCacheEntries = new Set<string>();
+const defaultModuleRequestHosts = new Set([
+  ...moduleCacheResources.map((resource) => new URL(resource.url).host),
+  'community-extensions.duckdb.org',
+  'nightly-extensions.duckdb.org',
+  'cdn.sheetjs.com',
+]);
+
 export const test = base.extend<{ forEachTest: void }>({
   forEachTest: [
     async ({ context }, use, testInfo) => {
       const isDebugMode = !!process.env.PLAYWRIGHT_DEBUG_TESTS;
-      const duckDbOverrideHosts = getHostsFromUrls([
-        process.env.VITE_DUCKDB_WASM_MAIN_MODULE,
-        process.env.VITE_DUCKDB_WASM_MAIN_WORKER,
-        process.env.VITE_DUCKDB_WASM_PTHREAD_WORKER,
-        process.env.VITE_QUACK_WASM_EXTENSION_URL,
+      const moduleRequestHosts = new Set([
+        ...defaultModuleRequestHosts,
+        ...getHostsFromUrls([
+          process.env.VITE_DUCKDB_WASM_MAIN_MODULE,
+          process.env.VITE_DUCKDB_WASM_MAIN_WORKER,
+          process.env.VITE_DUCKDB_WASM_PTHREAD_WORKER,
+          process.env.VITE_QUACK_WASM_EXTENSION_URL,
+        ]),
       ]);
 
       // Catch-all route to mock any other external requests
       await context.route(/^https?:\/\/(?!localhost|127\.0\.0\.1).*/, async (route) => {
         const requestUrl = route.request().url();
-        const host = (() => {
-          try {
-            return new URL(requestUrl).host;
-          } catch {
-            return '';
-          }
-        })();
-
-        if (
-          host === 'cdn.jsdelivr.net' ||
-          host === 'extensions.duckdb.org' ||
-          host === 'community-extensions.duckdb.org' ||
-          host === 'nightly-extensions.duckdb.org' ||
-          duckDbOverrideHosts.has(host) ||
-          host === 'cdn.sheetjs.com' ||
-          host === 'fonts.gstatic.com' ||
-          host === 'fonts.googleapis.com'
-        ) {
+        if (requestUrl.startsWith('https://fonts.gstatic.com/')) {
           await route.fallback();
           return;
         }
@@ -117,89 +114,67 @@ export const test = base.extend<{ forEachTest: void }>({
         }),
       );
 
-      // Allow serving locally cached modules for offline testing.
-      // This will check if we have a pre-cached duckdb & other big modules, or cache them on the fly
+      // Serve only checksum-verified, pre-seeded DuckDB resources. Any new CDN request is a
+      // dependency change and must be added to the manifest deliberately before tests can run.
       await context.route(
-        /^https:\/\/cdn\.jsdelivr\.net\/npm\/@duckdb\/duckdb-wasm.*|^https:\/\/extensions\.duckdb\.org\/.*|https:\/\/cdn\.sheetjs\.com\/.*/,
+        (url) => moduleRequestHosts.has(url.host),
         async (route) => {
-          const url = new URL(route.request().url());
+          const requestUrl = route.request().url();
+          const url = new URL(requestUrl);
           if (isDebugMode) {
             // eslint-disable-next-line no-console
             console.debug(`🌐 [${testInfo.title}] Intercepting request: ${url.pathname}`);
           }
 
-          // Extract the path from the URL
-          const urlPath = url.pathname;
-          // Get the filename from the path for content-type inference, and use a URL-derived
-          // cache key so artifacts with the same basename from different DuckDB versions do not
-          // collide (for example v1.4.0 and v1.5.2 extension WASM files).
-          const fileName = path.basename(urlPath);
-          const cacheFileName = encodeURIComponent(`${url.host}${url.pathname}`);
+          const resource = moduleCacheByUrl.get(requestUrl);
+          if (!resource) {
+            await safeAbort(route);
+            throw new Error(
+              `Unexpected module CDN request: ${requestUrl}. ` +
+                'Add the exact URL and checksum to scripts/module-cache.mjs.',
+            );
+          }
 
-          // Check if the file exists in .module-cache
+          const fileName = path.basename(url.pathname);
+          const cacheFileName = getModuleCacheKey(url);
           const staticFilePath = path.resolve(process.cwd(), '.module-cache', cacheFileName);
 
-          if (fs.existsSync(staticFilePath)) {
-            // If the file exists locally, serve it and cache it in memory
-            if (isDebugMode) {
-              // eslint-disable-next-line no-console
-              console.debug(
-                `📁 [${testInfo.title}] Serving cached file: ${cacheFileName} from cache`,
+          let fileContent: Buffer;
+          try {
+            fileContent = await fs.promises.readFile(staticFilePath);
+          } catch (error) {
+            await safeAbort(route);
+            if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+              throw new Error(
+                `Missing pre-seeded module cache entry for ${requestUrl}. ` +
+                  'Run yarn cache:test-modules before Playwright.',
               );
             }
-            const fileContent = await fs.promises.readFile(staticFilePath);
-            // Determine content type based on file extension
-            const contentType = getContentTypeFromFileName(fileName);
-
-            await safeFulfill(route, {
-              status: 200,
-              contentType,
-              body: fileContent,
-            });
-            return;
+            throw error;
           }
 
-          // For files we don't have cached yet, intercept and save for future runs
-          try {
-            const response = await fetch(route.request().url());
-            const arrayBuffer = await response.arrayBuffer();
-            const body = Buffer.from(arrayBuffer);
-
-            const headers: Record<string, string> = {};
-            response.headers.forEach((value, key) => {
-              headers[key] = value;
-            });
-
-            // Also save to disk for future test runs if ok
-            if (response.ok) {
-              if (isDebugMode) {
-                // eslint-disable-next-line no-console
-                console.debug(
-                  `💾 [${testInfo.title}] Automatically caching ${fileName} in .module-cache`,
-                );
-              }
-
-              const cachePath = path.resolve(process.cwd(), '.module-cache');
-              if (!fs.existsSync(cachePath)) {
-                fs.mkdirSync(cachePath, { recursive: true });
-              }
-              await fs.promises.writeFile(path.join(cachePath, cacheFileName), body);
-              if (isDebugMode) {
-                // eslint-disable-next-line no-console
-                console.debug(`✅ [${testInfo.title}] Successfully cached ${fileName}`);
-              }
+          if (!verifiedModuleCacheEntries.has(staticFilePath)) {
+            const actualChecksum = sha256(fileContent);
+            if (actualChecksum !== resource.sha256) {
+              await safeAbort(route);
+              throw new Error(
+                `Checksum mismatch for ${requestUrl}: expected ${resource.sha256}, ` +
+                  `received ${actualChecksum}. Run yarn cache:test-modules to repair the cache.`,
+              );
             }
-
-            // Return the original response
-            await safeFulfill(route, {
-              status: response.status,
-              headers,
-              body,
-            });
-          } catch (error) {
-            console.error('Error fetching the route:', error);
-            await safeAbort(route);
+            verifiedModuleCacheEntries.add(staticFilePath);
           }
+
+          if (isDebugMode) {
+            // eslint-disable-next-line no-console
+            console.debug(`📁 [${testInfo.title}] Serving verified cache entry: ${cacheFileName}`);
+          }
+
+          await safeFulfill(route, {
+            status: 200,
+            contentType: getContentTypeFromFileName(fileName),
+            body: fileContent,
+          });
         },
       );
 
