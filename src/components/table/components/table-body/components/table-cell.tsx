@@ -7,7 +7,7 @@ import { copyToClipboard } from '@utils/clipboard';
 import { isNumberType, stringifyTypedValue } from '@utils/db';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { memo, useRef } from 'react';
+import { memo, useLayoutEffect, useRef, useState } from 'react';
 
 interface TableRegularCellProps {
   cell: Cell<any, unknown>;
@@ -15,6 +15,7 @@ interface TableRegularCellProps {
   isLastRow: boolean;
   isCellSelected: boolean;
   isColumnSelected: boolean;
+  layoutVersion: number;
   onSelect: (value: Cell<any, any>) => void;
 }
 
@@ -25,10 +26,12 @@ export const TableRegularCell = memo(
     isLastRow,
     isCellSelected,
     isColumnSelected,
+    layoutVersion,
     onSelect,
   }: TableRegularCellProps) => {
     // We need ref to check if the cell is truncated
     const cellRef = useRef<HTMLDivElement>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
 
     const handleCellClick = () => {
       onSelect(cell);
@@ -42,14 +45,16 @@ export const TableRegularCell = memo(
     });
     const isHighlighted = isCellSelected || isColumnSelected;
 
-    let isTruncated = false;
-    if (cellRef.current) {
-      isTruncated = cellRef.current.scrollWidth > cellRef.current.clientWidth;
-    }
+    useLayoutEffect(() => {
+      const element = cellRef.current;
+      if (!element) return;
+      setIsTruncated(element.scrollWidth > element.clientWidth);
+    }, [formattedValue, layoutVersion]);
 
     const cellElement = (
       <Box
-        // ref={boxRef}
+        data-truncated={isTruncated || undefined}
+        tabIndex={isTruncated ? 0 : undefined}
         data-testid={setDataTestId(`data-table-cell-container-${cell.column.id}-${cell.row.index}`)}
         className={cn(
           'whitespace-nowrap overflow-hidden border-transparent select-none',
@@ -88,12 +93,15 @@ export const TableRegularCell = memo(
       </Box>
     );
 
-    const defaultNode = isTruncated ? (
-      <Tooltip withinPortal label={formattedValue}>
+    const defaultNode = (
+      <Tooltip
+        withinPortal
+        disabled={!isTruncated}
+        events={{ hover: true, focus: true, touch: false }}
+        label={formattedValue}
+      >
         {cellElement}
       </Tooltip>
-    ) : (
-      cellElement
     );
 
     if (columnMeta?.cellRenderer) {

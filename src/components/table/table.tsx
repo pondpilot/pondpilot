@@ -6,7 +6,7 @@ import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema, DataRow } from '@mod
 import { useReactTable, getCoreRowModel, ColumnDef } from '@tanstack/react-table';
 import { copyToClipboard } from '@utils/clipboard';
 import { setDataTestId } from '@utils/test-id';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
@@ -69,6 +69,33 @@ export const Table = memo(
       hasRows,
       schema,
     });
+    const [truncationLayoutVersion, setTruncationLayoutVersion] = useState(0);
+
+    useLayoutEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      let animationFrame: number | null = null;
+      let disposed = false;
+      const scheduleTruncationMeasurement = () => {
+        if (animationFrame !== null) return;
+        animationFrame = window.requestAnimationFrame(() => {
+          animationFrame = null;
+          if (!disposed) setTruncationLayoutVersion((version) => version + 1);
+        });
+      };
+      const resizeObserver = new ResizeObserver(scheduleTruncationMeasurement);
+
+      resizeObserver.observe(container);
+      scheduleTruncationMeasurement();
+      void document.fonts.ready.then(scheduleTruncationMeasurement);
+
+      return () => {
+        disposed = true;
+        if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+        resizeObserver.disconnect();
+      };
+    }, [containerRef]);
 
     // We want non-reactive column sizes, that we initialize from the prop
     // and update as the table resizes (without tiggering re-renders).
@@ -259,6 +286,7 @@ export const Table = memo(
             table={table}
             selectedCellId={selectedCell.cellId}
             selectedCols={selectedCols}
+            layoutVersion={truncationLayoutVersion}
             onCellSelect={handleCellSelect}
             getRowClassName={getRowClassName}
           />
@@ -267,6 +295,7 @@ export const Table = memo(
             table={table}
             selectedCellId={selectedCell.cellId}
             selectedCols={selectedCols}
+            layoutVersion={truncationLayoutVersion}
             onCellSelect={handleCellSelect}
             getRowClassName={getRowClassName}
           />

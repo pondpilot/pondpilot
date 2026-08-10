@@ -1,7 +1,7 @@
 import { expect, mergeTests } from '@playwright/test';
 import { getTableColumnId } from '@utils/db';
 
-import { test as dataViewTest, getHeaderCell } from '../fixtures/data-view';
+import { test as dataViewTest, getDataCellValue, getHeaderCell } from '../fixtures/data-view';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
@@ -61,6 +61,7 @@ test.describe('Data Viewer Pagination', () => {
   test('should show correct pagination control for larger data (multiple pages)', async ({
     generateTestData,
     waitForPaginationControl,
+    waitForDataTable,
   }) => {
     // Generate a larger dataset that spans multiple pages
     await generateTestData(101);
@@ -84,6 +85,10 @@ test.describe('Data Viewer Pagination', () => {
     await expect(paginationControl.getByTestId('pagination-control-out-of')).toHaveText(
       '2-101 out of 101 rows',
     );
+    const dataTable = await waitForDataTable();
+    const valueColumnId = getTableColumnId('unnest', 0);
+    await expect(getDataCellValue(dataTable, valueColumnId, 0)).toHaveText('2');
+    await expect(getDataCellValue(dataTable, valueColumnId, 99)).toHaveText('101');
 
     // Click back to previous page
     await navigationButtons.nth(0).click();
@@ -92,6 +97,7 @@ test.describe('Data Viewer Pagination', () => {
     await expect(paginationControl.getByTestId('pagination-control-out-of')).toHaveText(
       '1-100 out of 101 rows',
     );
+    await expect(getDataCellValue(dataTable, valueColumnId, 0)).toHaveText('1');
   });
 
   test('should handle empty data set correctly', async ({
