@@ -155,7 +155,7 @@ export default [
   },
   {
     ...playwright.configs['flat/recommended'],
-    files: ['tests/integration/**/*.ts'],
+    files: ['tests/integration/**/*.ts', 'tests/compatibility/**/*.ts'],
     plugins: {
       ...playwright.configs['flat/recommended'].plugins,
       'local-rules': localRules,
@@ -170,6 +170,7 @@ export default [
     rules: {
       ...playwright.configs['flat/recommended'].rules,
       'local-rules/no-playwright-page-methods': 'error',
+      'playwright/no-wait-for-timeout': 'error',
       'playwright/no-standalone-expect': 'off',
       'playwright/expect-expect': [
         'error',

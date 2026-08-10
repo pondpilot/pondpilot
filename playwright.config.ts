@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -23,12 +23,6 @@ export default defineConfig({
       // on macOS. Monaco and native clipboard shortcuts must see the same OS.
       use: { viewport: { width: 1280, height: 720 } },
     },
-    // tests that use non-chromium browsers
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-      testDir: './tests/integration/webkit',
-    },
   ],
   /* Configure the web server for tests */
   webServer: {
@@ -41,6 +35,9 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: 'http://localhost:6173',
     serviceWorkers: 'block',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'off',
   },
   /* Set the timeout for each test */
   timeout: Number(process.env.PLAYWRIGHT_TIMEOUT ?? 30_000),
