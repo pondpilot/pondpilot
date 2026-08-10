@@ -8,6 +8,7 @@ import {
   ensureDuckDBBinary,
   getFreePort,
   QUACK_E2E_TOKEN,
+  QUACK_LOAD_SQL,
   QuackServerProcess,
   startQuackServer,
   stopQuackServer,
@@ -17,7 +18,7 @@ import {
 test.describe('local DuckDB Quack protocol', () => {
   test.skip(
     process.env.RUN_QUACK_E2E !== 'true',
-    'Set RUN_QUACK_E2E=true to run the local DuckDB Quack protocol smoke test',
+    'Scheduled-only Quack protocol coverage; set RUN_QUACK_E2E=true (review-by: 2026-11-10)',
   );
 
   let server: QuackServerProcess | undefined;
@@ -38,8 +39,7 @@ test.describe('local DuckDB Quack protocol', () => {
 
   test('serves and queries data through Quack with DuckDB CLI v1.5.2', () => {
     const sql = `
-INSTALL quack FROM core_nightly;
-LOAD quack;
+${QUACK_LOAD_SQL}
 ATTACH 'quack:localhost:${port}' AS quack_remote (TOKEN '${QUACK_E2E_TOKEN}', DISABLE_SSL true);
 SELECT name FROM quack_remote.main.quack_items WHERE id = 2;
 `;

@@ -15,9 +15,9 @@ module.exports = {
   setupFiles: ['<rootDir>/tests/unit/jest-setup.js'],
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts'],
   coverageProvider: 'v8',
-  coverageReporters: ['text-summary', 'lcov'],
+  coverageReporters: ['text-summary', 'lcov', 'json-summary'],
   // This is a ratchet — raise it as coverage grows, never lower it.
-  // Calibrate thresholds against CI (node 22): V8 coverage counts branches
+  // Calibrate thresholds against CI (Node 24): V8 coverage counts branches
   // differently across node versions, and local numbers read ~1pt higher.
   coverageThreshold: {
     global: {

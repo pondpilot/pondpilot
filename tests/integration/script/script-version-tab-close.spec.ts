@@ -8,7 +8,7 @@ import { test as tabTest } from '../fixtures/tab';
 const test = mergeTests(baseTest, tabTest, scriptEditorTest, scriptExplorerTest);
 
 test.describe('Script Version - Tab Management', () => {
-  test('should save version when switching tabs', async ({
+  test('should switch tabs after saving and editing a versioned script', async ({
     page,
     createScriptAndSwitchToItsTab,
     fillScript,
@@ -19,18 +19,14 @@ test.describe('Script Version - Tab Management', () => {
     await createScriptAndSwitchToItsTab();
     await fillScript('SELECT 1;');
 
-    // Save it first
     await page.keyboard.press('ControlOrMeta+s');
     await expect(page.getByText('Version saved')).toBeVisible();
 
-    // Edit content
-    await page.waitForTimeout(2000);
     await fillScript('SELECT 2;');
 
     // Create second script (this should trigger auto-save of first)
     await createScriptAndSwitchToItsTab();
 
-    // Just verify we have two tabs
     const tabs = page.locator('[data-testid^="data-tab-handle-"]');
     await expect(tabs).toHaveCount(2);
   });

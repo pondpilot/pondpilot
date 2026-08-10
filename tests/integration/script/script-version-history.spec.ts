@@ -46,9 +46,6 @@ test.describe('Script Version History', () => {
     await expect(page.getByText('Version saved')).toBeVisible();
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
 
-    // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
-    await page.waitForTimeout(1500);
-
     // Change content and run to create another version
     await fillScript('SELECT 2;');
     await runScript();
@@ -84,9 +81,6 @@ test.describe('Script Version History', () => {
     await page.keyboard.press('ControlOrMeta+s');
     await expect(page.getByText('Version saved')).toBeVisible();
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
-
-    // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
-    await page.waitForTimeout(1500);
 
     // Change content to make version history button visible
     await fillScript('SELECT 2;');
@@ -132,8 +126,6 @@ test.describe('Script Version History', () => {
     await page.keyboard.press('ControlOrMeta+s');
     await expect(page.getByText('Version saved')).toBeVisible();
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
-    // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
-    await page.waitForTimeout(1500);
     await fillScript('SELECT 2;');
 
     // Open version history sidebar (expect handles debounce wait)
@@ -165,8 +157,6 @@ test.describe('Script Version History', () => {
     await page.keyboard.press('ControlOrMeta+s');
     await expect(page.getByText('Version saved')).toBeVisible();
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
-    // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
-    await page.waitForTimeout(1500);
     await fillScript('SELECT 2;');
 
     // Open version history sidebar
