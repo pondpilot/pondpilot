@@ -10,12 +10,14 @@ export const TableBody = ({
   selectedCellId,
   onCellSelect,
   selectedCols,
+  layoutVersion,
   getRowClassName,
 }: {
   table: TableType<any>;
   selectedCellId: string | null;
   onCellSelect: (cell: Cell<any, any>) => void;
   selectedCols: Record<string, boolean>;
+  layoutVersion: number;
   getRowClassName?: GetRowClassName;
 }) => (
   <div>
@@ -66,6 +68,7 @@ export const TableBody = ({
                   isLastRow={lastRow}
                   isCellSelected={selectedCellId === cell.id}
                   isColumnSelected={selectedCols[cell.column.id]}
+                  layoutVersion={layoutVersion}
                   onSelect={onCellSelect}
                 />
               ),
@@ -80,5 +83,6 @@ export const MemoizedTableBody = memo(
   TableBody,
   (prev, next) =>
     prev.table.options.data === next.table.options.data &&
+    prev.layoutVersion === next.layoutVersion &&
     prev.getRowClassName === next.getRowClassName,
 ) as typeof TableBody;
