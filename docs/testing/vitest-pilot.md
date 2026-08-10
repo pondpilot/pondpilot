@@ -35,29 +35,34 @@ does not represent cold GitHub Actions performance for the full unit corpus. Set
 
 The generated report is written to
 `test-results/vitest-pilot/benchmark-report.json`. This directory is intentionally ignored by Git.
-The report contains the raw durations, environment, semantic case-ID comparison, and coverage
-deltas. A migration is eligible only when all of these gates pass:
+The report contains the raw durations, environment, semantic case-ID comparison, normalized
+coverage file sets, per-file coverage totals, and coverage deltas. The representative pilot passes
+only when all of these gates pass:
 
 - every expected case ID passes under both runners;
+- both runners cover exactly the manifest's source files and count the same coverage units per file;
 - the absolute delta for lines, statements, functions, and branches is at most 0.1 percentage
   points;
 - Vitest is at least 30% faster by median duration.
 
-Use `--enforce-migration-gate` when a non-zero exit is desired for any failed eligibility gate:
+Use `--enforce-migration-gate` when a non-zero exit is desired until both the representative pilot
+and the two repository-wide requirements pass:
 
 ```sh
 yarn node scripts/benchmark-vitest-pilot.mjs --enforce-migration-gate
 ```
 
-Even a passing local report is not approval to migrate the existing suites. The final decision also
-requires the same comparison on cold CI and 100% semantic parity across the entire Jest corpus.
+The local script deliberately records the repository-wide requirements as incomplete. A passing
+local pilot therefore cannot approve a migration by itself. The final decision also requires the
+same comparison on cold CI and 100% semantic parity across the entire Jest corpus.
 
 ## Recorded local result
 
-The initial three-run pilot on 2026-08-10 used Node 24.14.0 on macOS arm64. Both runners passed all
-9 case IDs, but Vitest's median was 1965.2 ms versus Jest's 2077.5 ms, a 5.4% improvement rather
-than the required 30%. The maximum reported coverage delta was 58.89 percentage points because the
-two transform/source-map pipelines counted the selected source differently.
+The reviewed three-run pilot on 2026-08-10 used Node 24.14.0, jsdom 26.1.0, and macOS arm64 for both
+runners. Both runners passed all 9 case IDs, but Vitest's median was 1991.0 ms versus Jest's
+2146.9 ms, a 7.3% improvement rather than the required 30%. The source file sets matched exactly,
+but the per-file coverage totals did not. The maximum reported coverage delta was 58.89 percentage
+points because the two transform/source-map pipelines counted the selected source differently.
 
 Verdict: **NOT ELIGIBLE**. Keep Jest for the 73 production suites and use the separate Jest jsdom
 project for component tests. A future Vitest evaluation must first establish comparable coverage

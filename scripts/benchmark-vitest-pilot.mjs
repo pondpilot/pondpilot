@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 
 const require = createRequire(import.meta.url);
@@ -20,14 +20,7 @@ if (!Number.isInteger(configuredRunCount) || configuredRunCount < 1) {
 const runnerDefinitions = {
   jest: {
     entrypoint: require.resolve('jest/bin/jest'),
-    args: [
-      '--config',
-      'jest.pilot.config.js',
-      '--runInBand',
-      '--no-cache',
-      '--coverage',
-      '--json',
-    ],
+    args: ['--config', 'jest.pilot.config.js', '--runInBand', '--no-cache', '--coverage', '--json'],
   },
   vitest: {
     entrypoint: join(dirname(require.resolve('vitest/package.json')), 'vitest.mjs'),
@@ -53,7 +46,14 @@ function extractCaseResults(json) {
   };
 
   visit(json);
-  return Object.fromEntries([...cases.entries()].sort(([left], [right]) => left.localeCompare(right)));
+  return Object.fromEntries(
+    [...cases.entries()].sort(([left], [right]) => left.localeCompare(right)),
+  );
+}
+
+function normalizeCoverageFile(file) {
+  const normalized = isAbsolute(file) ? relative(rootDir, file) : file;
+  return normalized.split(sep).join('/');
 }
 
 function runOnce(runnerName, iteration) {
@@ -63,18 +63,15 @@ function runOnce(runnerName, iteration) {
   const coverageDirectory = join(runRoot, 'coverage');
   mkdirSync(runRoot, { recursive: true });
 
-  const outputArg = runnerName === 'jest' ? `--outputFile=${resultFile}` : `--outputFile=${resultFile}`;
+  const outputArg =
+    runnerName === 'jest' ? `--outputFile=${resultFile}` : `--outputFile=${resultFile}`;
   const startedAt = performance.now();
-  const result = spawnSync(
-    process.execPath,
-    [runner.entrypoint, ...runner.args, outputArg],
-    {
-      cwd: rootDir,
-      encoding: 'utf8',
-      env: { ...process.env, PILOT_COVERAGE_DIR: coverageDirectory },
-      maxBuffer: 20 * 1024 * 1024,
-    },
-  );
+  const result = spawnSync(process.execPath, [runner.entrypoint, ...runner.args, outputArg], {
+    cwd: rootDir,
+    encoding: 'utf8',
+    env: { ...process.env, PILOT_COVERAGE_DIR: coverageDirectory },
+    maxBuffer: 20 * 1024 * 1024,
+  });
   const durationMs = performance.now() - startedAt;
 
   if (result.status !== 0) {
@@ -87,20 +84,24 @@ function runOnce(runnerName, iteration) {
   const coverageSummary = JSON.parse(
     readFileSync(join(coverageDirectory, 'coverage-summary.json'), 'utf8'),
   );
+  const coverageFiles = Object.fromEntries(
+    Object.entries(coverageSummary)
+      .filter(([file]) => file !== 'total')
+      .map(([file, metrics]) => [normalizeCoverageFile(file), metrics])
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
 
   return {
     durationMs: Number(durationMs.toFixed(1)),
     cases: extractCaseResults(testResults),
-    coverage: coverageSummary.total,
+    coverage: { total: coverageSummary.total, files: coverageFiles },
   };
 }
 
 function median(values) {
   const sorted = [...values].sort((left, right) => left - right);
   const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? (sorted[middle - 1] + sorted[middle]) / 2
-    : sorted[middle];
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
 }
 
 function compareSemanticParity(runs) {
@@ -136,15 +137,48 @@ function summarizeCoverage(runs) {
     metrics.map((metric) => [
       metric,
       Number(
-        Math.abs(lastCoverage.jest[metric].pct - lastCoverage.vitest[metric].pct).toFixed(2),
+        Math.abs(
+          lastCoverage.jest.total[metric].pct - lastCoverage.vitest.total[metric].pct,
+        ).toFixed(2),
       ),
     ]),
   );
+  const expectedFiles = [...manifest.coverageFiles].sort();
+  const fileSetFailures = [];
+  const fileTotalFailures = [];
+
+  for (const [runnerName, runnerRuns] of Object.entries(runs)) {
+    runnerRuns.forEach((run, index) => {
+      const actualFiles = Object.keys(run.coverage.files).sort();
+      if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
+        fileSetFailures.push(
+          `${runnerName} run ${index + 1} covered ${JSON.stringify(actualFiles)} instead of ${JSON.stringify(expectedFiles)}`,
+        );
+      }
+    });
+  }
+
+  for (let index = 0; index < configuredRunCount; index += 1) {
+    for (const file of expectedFiles) {
+      const jestMetrics = runs.jest[index].coverage.files[file];
+      const vitestMetrics = runs.vitest[index].coverage.files[file];
+      if (!jestMetrics || !vitestMetrics) continue;
+      for (const metric of metrics) {
+        if (jestMetrics[metric].total !== vitestMetrics[metric].total) {
+          fileTotalFailures.push(
+            `run ${index + 1} ${file} ${metric}: Jest counted ${jestMetrics[metric].total}, Vitest counted ${vitestMetrics[metric].total}`,
+          );
+        }
+      }
+    }
+  }
 
   return {
     byRunner: lastCoverage,
     absoluteDeltaPoints: deltas,
     maximumDeltaPoints: Math.max(...Object.values(deltas)),
+    fileSetParity: { passed: fileSetFailures.length === 0, failures: fileSetFailures },
+    fileTotalParity: { passed: fileTotalFailures.length === 0, failures: fileTotalFailures },
   };
 }
 
@@ -177,12 +211,20 @@ const speedupPercent = Number(
 );
 const gates = {
   semanticParity: semanticParity.passed,
-  coverageParity: coverage.maximumDeltaPoints <= manifest.maximumCoverageDeltaPoints,
-  coldSpeedup:
+  coverageParity:
+    coverage.fileSetParity.passed &&
+    coverage.fileTotalParity.passed &&
+    coverage.maximumDeltaPoints <= manifest.maximumCoverageDeltaPoints,
+  representativeLocalSpeedup:
     speedupPercent >= manifest.minimumSpeedupPercent && timing.vitest.medianMs > 0,
 };
+const pilotEligible = Object.values(gates).every(Boolean);
+const migrationRequirements = {
+  fullProductionCorpusParity: false,
+  coldCiMeasurement: false,
+};
 const report = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: new Date().toISOString(),
   environment: {
     node: process.version,
@@ -206,7 +248,9 @@ const report = {
     maximumCoverageDeltaPoints: manifest.maximumCoverageDeltaPoints,
   },
   gates,
-  migrationEligible: Object.values(gates).every(Boolean),
+  pilotEligible,
+  migrationRequirements,
+  migrationEligible: pilotEligible && Object.values(migrationRequirements).every(Boolean),
 };
 const reportPath = join(outputRoot, 'benchmark-report.json');
 writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
@@ -216,6 +260,7 @@ process.stdout.write(`Jest median: ${timing.jest.medianMs} ms\n`);
 process.stdout.write(`Vitest median: ${timing.vitest.medianMs} ms\n`);
 process.stdout.write(`Vitest speedup: ${speedupPercent}%\n`);
 process.stdout.write(`Coverage max delta: ${coverage.maximumDeltaPoints} points\n`);
+process.stdout.write(`Pilot gate: ${report.pilotEligible ? 'PASS' : 'NOT ELIGIBLE'}\n`);
 process.stdout.write(`Migration gate: ${report.migrationEligible ? 'PASS' : 'NOT ELIGIBLE'}\n`);
 
 if (!semanticParity.passed) {
