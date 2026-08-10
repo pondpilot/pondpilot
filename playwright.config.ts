@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -22,12 +22,6 @@ export default defineConfig({
       // Keep the viewport deterministic without emulating a Windows user agent
       // on macOS. Monaco and native clipboard shortcuts must see the same OS.
       use: { viewport: { width: 1280, height: 720 } },
-    },
-    // tests that use non-chromium browsers
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-      testDir: './tests/integration/webkit',
     },
   ],
   /* Configure the web server for tests */

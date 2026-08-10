@@ -77,61 +77,45 @@ export const assertExplorerItems = async (
   // Find all explorer nodes
   const allNodes = getAllExplorerTreeNodes(page, dataTestIdPrefix);
 
-  // Find root nodes by checking their test ID structure
-  // Child nodes have IDs that contain their parent's ID followed by a dot and the child name
-  const rootNodes = await allNodes.evaluateAll((nodes) => {
-    const rootNodeElements: Element[] = [];
+  await expect
+    .poll(async () => {
+      // Find root nodes by checking their test ID structure. Child nodes have IDs
+      // that contain their parent's ID followed by a dot and the child name.
+      return allNodes.evaluateAll((nodes) => {
+        const rootNodeElements: Element[] = [];
 
-    nodes.forEach((node) => {
-      const nodeTestId = node.getAttribute('data-testid') || '';
+        nodes.forEach((node) => {
+          const nodeTestId = node.getAttribute('data-testid') || '';
 
-      // Extract the ID part from the test ID (between "tree-node-" and "-container")
-      const match = nodeTestId.match(/tree-node-(.+)-container$/);
-      if (!match) return;
+          // Extract the ID part from the test ID (between "tree-node-" and "-container")
+          const match = nodeTestId.match(/tree-node-(.+)-container$/);
+          if (!match) return;
 
-      const nodeId = match[1];
+          const nodeId = match[1];
 
-      // A root node's ID should not contain a dot followed by more characters
-      // Child nodes have IDs like "parent-id.child-name"
-      // We need to check if this ID is not a sub-ID of another node in our list
-      let isChildOfAnotherNode = false;
+          // A root node's ID should not contain a dot followed by more characters.
+          let isChildOfAnotherNode = false;
 
-      // Check if this node's ID indicates it's a child
-      // Child nodes have IDs that contain a dot after the parent ID
-      // This works for both UUID-based IDs (databases) and other ID formats
-      // We look for any ID that contains a dot not at the beginning
-      if (nodeId.includes('.') && !nodeId.startsWith('.')) {
-        // Check if the part before the dot could be a valid parent ID
-        // by verifying it exists as another node's ID in our list
-        const potentialParentId = nodeId.substring(0, nodeId.indexOf('.'));
+          if (nodeId.includes('.') && !nodeId.startsWith('.')) {
+            const potentialParentId = nodeId.substring(0, nodeId.indexOf('.'));
 
-        // Check if any other node has this exact ID (without the child part)
-        for (const otherNode of nodes) {
-          const otherTestId = otherNode.getAttribute('data-testid') || '';
-          const otherMatch = otherTestId.match(/tree-node-(.+)-container$/);
-          if (otherMatch && otherMatch[1] === potentialParentId) {
-            isChildOfAnotherNode = true;
-            break;
+            for (const otherNode of nodes) {
+              const otherTestId = otherNode.getAttribute('data-testid') || '';
+              const otherMatch = otherTestId.match(/tree-node-(.+)-container$/);
+              if (otherMatch && otherMatch[1] === potentialParentId) {
+                isChildOfAnotherNode = true;
+                break;
+              }
+            }
           }
-        }
-      }
 
-      // If not a child node, it's a root node
-      if (!isChildOfAnotherNode) {
-        rootNodeElements.push(node);
-      }
-    });
+          if (!isChildOfAnotherNode) rootNodeElements.push(node);
+        });
 
-    return rootNodeElements.map((el) => el.textContent?.trim() || '');
-  });
-
-  // Check if the number of root items matches
-  expect(rootNodes).toHaveLength(expected.length);
-
-  // Check if each item matches the expected names
-  for (let i = 0; i < expected.length; i += 1) {
-    expect(rootNodes[i]).toBe(expected[i]);
-  }
+        return rootNodeElements.map((el) => el.textContent?.trim() || '');
+      });
+    })
+    .toEqual(expected);
 };
 
 export const clickNodeByIndex = async (
@@ -164,13 +148,19 @@ export const selectMultipleNodes = async (
   // First, clear any existing selection to start fresh
   // This ensures we're selecting exactly the nodes specified
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(100);
+  await expect
+    .poll(async () => {
+      return getAllExplorerTreeNodes(page, dataTestIdPrefix).evaluateAll((nodes) =>
+        nodes.some((node) => node.getAttribute('data-selected') === 'true'),
+      );
+    })
+    .toBe(false);
 
   // Select the first node normally (without Ctrl/Cmd)
   if (indices.length > 0) {
     const firstNode = await clickNodeByIndex(page, dataTestIdPrefix, indices[0]);
     selectedNodes.push(firstNode);
-    await page.waitForTimeout(100);
+    await expect(firstNode).toHaveAttribute('data-selected', 'true');
   }
 
   // Then Ctrl/Cmd+Click the remaining nodes
@@ -180,15 +170,11 @@ export const selectMultipleNodes = async (
     for (let i = 1; i < indices.length; i += 1) {
       const node = await clickNodeByIndex(page, dataTestIdPrefix, indices[i]);
       selectedNodes.push(node);
-      // Add a small delay between clicks to ensure they register
-      await page.waitForTimeout(100);
+      await expect(node).toHaveAttribute('data-selected', 'true');
     }
 
     await page.keyboard.up('ControlOrMeta');
   }
-
-  // Wait a moment for selection to settle
-  await page.waitForTimeout(200);
 
   return selectedNodes;
 };
@@ -201,33 +187,16 @@ export const assertScriptNodesSelection = async (
   // Find all explorer nodes
   const allNodes = getAllExplorerTreeNodes(page, dataTestIdPrefix);
 
-  // Check that all items are deselected
-  const actualSelection = await Promise.all(
-    (await allNodes.all()).map((node) => {
-      return isExplorerTreeNodeSelected(node);
-    }),
-  );
-
-  const expectedSelection = actualSelection.every((isSelected, index) => {
-    return isSelected
-      ? expectedSelectedIndices.includes(index)
-      : !expectedSelectedIndices.includes(index);
-  });
-
-  // Log actual vs expected for debugging
-  if (!expectedSelection) {
-    // eslint-disable-next-line no-console
-    console.log('Selection mismatch:');
-    // eslint-disable-next-line no-console
-    console.log('Expected indices:', expectedSelectedIndices);
-    // eslint-disable-next-line no-console
-    console.log(
-      'Actual selection:',
-      actualSelection.map((sel, idx) => (sel ? idx : -1)).filter((idx) => idx >= 0),
-    );
-  }
-
-  expect(expectedSelection).toBe(true);
+  await expect
+    .poll(async () => {
+      const actualSelection = await allNodes.evaluateAll((nodes) =>
+        nodes
+          .map((node, index) => (node.getAttribute('data-selected') === 'true' ? index : -1))
+          .filter((index) => index >= 0),
+      );
+      return actualSelection;
+    })
+    .toEqual(expectedSelectedIndices);
 };
 
 export const renameExplorerItem = async (
@@ -243,13 +212,9 @@ export const renameExplorerItem = async (
 
   // First, ensure the node is selected
   await oldNode.click();
-  await page.waitForTimeout(100);
 
   // Double-click to initiate rename
   await oldNode.dblclick();
-
-  // Wait a moment for the rename input to appear
-  await page.waitForTimeout(500);
 
   // Find and fill the rename input
   const renameInput = page.getByTestId(
@@ -257,13 +222,16 @@ export const renameExplorerItem = async (
   );
 
   // If double-click didn't work, try via context menu
-  const isVisible = await renameInput.isVisible().catch(() => false);
+  const isVisible = await renameInput
+    .waitFor({ state: 'visible', timeout: 1000 })
+    .then(() => true)
+    .catch(() => false);
   if (!isVisible) {
     // Try context menu approach
     await oldNode.click({ button: 'right' });
-    await page.waitForTimeout(300);
 
     const renameMenuItem = page.getByRole('menuitem', { name: 'Rename' });
+    await expect(renameMenuItem).toBeVisible();
     // Check if the rename menu item is enabled
     const isDisabled = await renameMenuItem.getAttribute('data-disabled');
     if (isDisabled === 'true') {
@@ -271,7 +239,6 @@ export const renameExplorerItem = async (
     }
 
     await renameMenuItem.click();
-    await page.waitForTimeout(500);
   }
 
   await expect(renameInput).toBeVisible({ timeout: 10000 });

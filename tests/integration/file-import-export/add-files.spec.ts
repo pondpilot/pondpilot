@@ -71,9 +71,6 @@ test('should add csv files and folders', async ({
   // Click the add file button
   await addFile();
 
-  // Wait for the new files to appear
-  await page.waitForTimeout(1000);
-
   // Verify explorer items
   await assertFileExplorerItems(['test1', 'test2', 'test3']);
   // Verify file viewer
@@ -229,7 +226,6 @@ test('should add and read Excel files with multiple sheets', async ({
 });
 
 test('should handle duckdb files with reserved names correctly', async ({
-  page,
   addFile,
   storage,
   filePicker,
@@ -250,10 +246,6 @@ test('should handle duckdb files with reserved names correctly', async ({
   // and one regular name
   testNames.push('view', 'regular');
 
-  // No need to open DB explorer, it should already be visible in the unified explorer
-  // Wait for the UI to stabilize
-  await page.waitForTimeout(1000);
-
   for (const name of testNames) {
     const testDbPath = testTmp.join(`${name}.duckdb`);
 
@@ -268,9 +260,6 @@ test('should handle duckdb files with reserved names correctly', async ({
 
     // Click the add file button
     await addFile();
-
-    // Wait for the database to be added
-    await page.waitForTimeout(2000);
 
     // Get the expected resulting database name. For strictly reserved names,
     // we expect them to be renamed with an underscore prefix.

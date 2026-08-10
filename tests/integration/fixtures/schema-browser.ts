@@ -1,5 +1,32 @@
 import { test as base, expect, Locator } from '@playwright/test';
 
+const waitForReactFlowLayout = async (page: import('@playwright/test').Page): Promise<void> => {
+  await page.evaluate(async () => {
+    let previousLayout = '';
+    let stableFrames = 0;
+
+    for (let frame = 0; frame < 180; frame += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+      const currentLayout = Array.from(document.querySelectorAll('.react-flow__node'))
+        .map((node) => {
+          const rect = node.getBoundingClientRect();
+          return [rect.x, rect.y, rect.width, rect.height]
+            .map((value) => value.toFixed(1))
+            .join(':');
+        })
+        .join('|');
+
+      stableFrames = currentLayout === previousLayout ? stableFrames + 1 : 0;
+      previousLayout = currentLayout;
+
+      if (stableFrames >= 2) return;
+    }
+
+    throw new Error('React Flow layout did not settle within 180 animation frames');
+  });
+};
+
 type SchemaBrowserFixtures = {
   /**
    * Schema browser canvas locator
@@ -140,10 +167,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
         await expect(nodeSelector).toBeVisible({ timeout: 10000 });
       }
 
-      // Wait for layout to stabilize
-      // Using a timeout here is pragmatic as React Flow animations and layout calculations
-      // can be complex and vary based on the number of nodes
-      await page.waitForTimeout(2000);
+      await waitForReactFlowLayout(page);
     };
     await use(waitForSchemaLoaded);
   },
@@ -198,8 +222,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
         { timeout: 5000 },
       );
 
-      // Wait for React Flow to re-layout with new direction
-      await page.waitForTimeout(1000);
+      await waitForReactFlowLayout(page);
     };
     await use(toggleSchemaDirection);
   },
@@ -221,8 +244,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
       // Ensure refresh button is enabled again (not in loading state)
       await expect(schemaRefreshButton).toBeEnabled();
 
-      // Wait for React Flow to be stable
-      await page.waitForTimeout(500);
+      await waitForReactFlowLayout(page);
     };
     await use(refreshSchema);
   },

@@ -42,7 +42,7 @@ test('Switch between tabs using script explorer', async ({
   await expect(await getScriptEditorContent()).toContainText('select 1');
 });
 
-test.skip('Select items in the script explorer list using Hotkeys', async ({
+test('Select items in the script explorer list using Hotkeys', async ({
   page,
   createScriptAndSwitchToItsTab,
   assertScriptExplorerItems,
@@ -52,6 +52,7 @@ test.skip('Select items in the script explorer list using Hotkeys', async ({
   switchToTab,
   assertScriptNodesSelection,
 }) => {
+  test.skip(true, 'Multi-selection behavior is not stable yet; review-by: 2026-11-10');
   const count = 3;
 
   // Create query tabs
@@ -74,9 +75,6 @@ test.skip('Select items in the script explorer list using Hotkeys', async ({
 
   // Deselect all items using Escape
   await deselectAllScripts();
-
-  // Wait for UI to settle after deselection
-  await page.waitForTimeout(500);
 
   // This would implicitly activate the first before last item
   // (tab automatically switches) but it is not considered a selection

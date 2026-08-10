@@ -1,16 +1,35 @@
 import { ChildProcessWithoutNullStreams, execFileSync, spawn } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, unlinkSync } from 'fs';
+import { createHash } from 'crypto';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'fs';
 import { createServer } from 'net';
 import { tmpdir } from 'os';
 import path from 'path';
 import { setTimeout as delay } from 'timers/promises';
+import { gunzipSync } from 'zlib';
 
 export const QUACK_E2E_TOKEN = 'pondpilot_test_token';
 
 const DUCKDB_CLI_VERSION = 'v1.5.2';
-const DUCKDB_CLI_URL = `https://github.com/duckdb/duckdb/releases/download/${DUCKDB_CLI_VERSION}/duckdb_cli-linux-amd64.zip`;
+const DUCKDB_CLI_URL = `https://install.duckdb.org/${DUCKDB_CLI_VERSION}/duckdb_cli-linux-amd64.gz`;
+const DUCKDB_CLI_GZIP_SHA256 = '7b0130422ee15c4c07f85ab75c0e3daf19b912b762258d1724c30f27964fb021';
+const DUCKDB_BINARY_SHA256 = 'e7d04a9ca6ef1b4cadb0fff5dad19b1995915e5881b91f861fc60b9d7564503b';
+const QUACK_EXTENSION_URL =
+  'https://nightly-extensions.duckdb.org/v1.5.2/linux_amd64/quack.duckdb_extension.gz';
+const QUACK_EXTENSION_GZIP_SHA256 =
+  '820011bff140fd1e00c3e3977170a9f8599ac7dceb10d8ac312d4b7683307709';
+const QUACK_EXTENSION_SHA256 = '1633c910a2d7d2779878e5c77e1ddd07091ea5c1dc6a38192e70e70395774f4a';
 
 export const DUCKDB_BINARY = process.env.DUCKDB_BINARY || path.resolve('.local-bin/duckdb');
+export const QUACK_EXTENSION = path.resolve('.local-bin/quack.duckdb_extension');
+export const QUACK_LOAD_SQL = `LOAD '${QUACK_EXTENSION.replaceAll("'", "''")}';`;
 
 export async function getFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -58,11 +77,15 @@ export function ensureDuckDBBinary(): void {
       mkdirSync(binDir, { recursive: true });
       mkdirSync(lockDir);
       try {
-        const zipPath = path.join(binDir, 'duckdb_cli-linux-amd64.zip');
-        execFileSync('curl', ['-fsSL', '-o', zipPath, DUCKDB_CLI_URL], { stdio: 'inherit' });
-        execFileSync('unzip', ['-o', zipPath, '-d', binDir], { stdio: 'inherit' });
+        const gzipPath = path.join(binDir, 'duckdb_cli-linux-amd64.gz');
+        execFileSync('curl', ['-fsSL', '-o', gzipPath, DUCKDB_CLI_URL], { stdio: 'inherit' });
+        assertFileChecksum(gzipPath, DUCKDB_CLI_GZIP_SHA256);
+        const binary = gunzipSync(readFileSync(gzipPath));
+        assertChecksum('decompressed DuckDB CLI', binary, DUCKDB_BINARY_SHA256);
+        writeFileSync(DUCKDB_BINARY, binary);
         execFileSync('chmod', ['+x', DUCKDB_BINARY]);
-        if (existsSync(zipPath)) unlinkSync(zipPath);
+        assertFileChecksum(DUCKDB_BINARY, DUCKDB_BINARY_SHA256);
+        if (existsSync(gzipPath)) unlinkSync(gzipPath);
       } finally {
         rmSync(lockDir, { recursive: true, force: true });
       }
@@ -73,11 +96,37 @@ export function ensureDuckDBBinary(): void {
   }
 
   execFileSync('chmod', ['+x', DUCKDB_BINARY]);
+  assertFileChecksum(DUCKDB_BINARY, DUCKDB_BINARY_SHA256);
   const version = execFileSync(DUCKDB_BINARY, ['--version'], { encoding: 'utf8' });
   if (!version.includes(DUCKDB_CLI_VERSION)) {
     throw new Error(`Expected DuckDB CLI ${DUCKDB_CLI_VERSION}, got: ${version.trim()}`);
   }
   process.stdout.write(version);
+  ensureQuackExtension();
+}
+
+function ensureQuackExtension(): void {
+  if (!existsSync(QUACK_EXTENSION)) {
+    const gzipPath = `${QUACK_EXTENSION}.gz`;
+    execFileSync('curl', ['-fsSL', '-o', gzipPath, QUACK_EXTENSION_URL], { stdio: 'inherit' });
+    assertFileChecksum(gzipPath, QUACK_EXTENSION_GZIP_SHA256);
+    const extension = gunzipSync(readFileSync(gzipPath));
+    assertChecksum('decompressed Quack extension', extension, QUACK_EXTENSION_SHA256);
+    writeFileSync(QUACK_EXTENSION, extension);
+    unlinkSync(gzipPath);
+  }
+  assertFileChecksum(QUACK_EXTENSION, QUACK_EXTENSION_SHA256);
+}
+
+function assertFileChecksum(filePath: string, expected: string): void {
+  assertChecksum(filePath, readFileSync(filePath), expected);
+}
+
+function assertChecksum(label: string, content: Buffer, expected: string): void {
+  const actual = createHash('sha256').update(content).digest('hex');
+  if (actual !== expected) {
+    throw new Error(`Checksum mismatch for ${label}: expected ${expected}, received ${actual}`);
+  }
 }
 
 export interface QuackServerProcess {
@@ -97,8 +146,7 @@ export function startQuackServer(port: number): QuackServerProcess {
   proc.stderr.on('data', (chunk) => stderr.push(String(chunk)));
 
   proc.stdin.write(`
-INSTALL quack FROM core_nightly;
-LOAD quack;
+${QUACK_LOAD_SQL}
 CREATE TABLE IF NOT EXISTS quack_items(id INTEGER, name VARCHAR);
 DELETE FROM quack_items;
 INSERT INTO quack_items VALUES (1, 'alpha'), (2, 'beta');
@@ -129,8 +177,7 @@ export async function waitForQuackServer(
         DUCKDB_BINARY,
         [
           '-c',
-          `INSTALL quack FROM core_nightly;
-LOAD quack;
+          `${QUACK_LOAD_SQL}
 ATTACH 'quack:localhost:${port}' AS quack_remote (TOKEN '${QUACK_E2E_TOKEN}', DISABLE_SSL true);
 SELECT name FROM quack_remote.main.quack_items WHERE id = 2;`,
         ],

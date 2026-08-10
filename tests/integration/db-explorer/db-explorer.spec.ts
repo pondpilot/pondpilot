@@ -12,7 +12,6 @@ import { FileSystemNode } from '../models';
 const test = mergeTests(baseTest, filePickerTest, dbExplorerTest, globalHotkeyTest);
 
 test('DuckDB view should be deselected after creating script via spotlight', async ({
-  page,
   addFile,
   storage,
   filePicker,
@@ -34,9 +33,6 @@ test('DuckDB view should be deselected after creating script via spotlight', asy
 
   // Switch to DB Explorer and expand the database
   await openDatabaseExplorer();
-
-  // Wait for the UI to stabilize
-  await page.waitForTimeout(2000);
 
   await assertDBExplorerItems(['test_selection']);
   await clickDBByName('test_selection');
@@ -98,7 +94,6 @@ export const FILE_SYSTEM_TREE: FileSystemNode[] = [
 
 test('Databases: Should create file tree structure and verify persistence after reload', async ({
   filePicker,
-  page,
   reloadPage,
   assertDBExplorerItems,
   renameDBInExplorer,
@@ -110,9 +105,6 @@ test('Databases: Should create file tree structure and verify persistence after 
 
   // 1. Create files and directories
   await setupFileSystem(FILE_SYSTEM_TREE);
-
-  // Wait for databases to be loaded
-  await page.waitForTimeout(2000);
 
   // 2. Check the DB explorer
   // Note: testdb is the root file (userAdded: true), testdb_1 and testdb_2 are from nested directories (userAdded: false)
