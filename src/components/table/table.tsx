@@ -15,6 +15,7 @@ import { getTableColumns } from './utils';
 
 interface TableProps {
   dataSlice: DataTableSlice;
+  dataSourceVersion: number;
   schema: DBTableOrViewSchema;
   sort: ColumnSortSpecList;
   visible: boolean;
@@ -34,6 +35,7 @@ interface TableProps {
 export const Table = memo(
   ({
     dataSlice,
+    dataSourceVersion,
     schema,
     sort,
     visible,
@@ -140,7 +142,7 @@ export const Table = memo(
 
     useDidUpdate(() => {
       clearSelection();
-    }, [JSON.stringify(schema)]);
+    }, [dataSourceVersion]);
 
     useHotkeys([
       [
