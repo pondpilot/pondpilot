@@ -3,22 +3,28 @@ import { Text } from '@mantine/core';
 import { useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { DataTableSlice } from '@models/data-adapter';
 import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema, DataRow } from '@models/db';
-import { useReactTable, getCoreRowModel, ColumnDef } from '@tanstack/react-table';
+import {
+  useReactTable,
+  getCoreRowModel,
+  ColumnDef,
+  ColumnSizingState,
+  OnChangeFn,
+} from '@tanstack/react-table';
 import { copyToClipboard } from '@utils/clipboard';
 import { setDataTestId } from '@utils/test-id';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
 import { useNoResultsPosition, useTableSelection } from './hooks';
-import { getTableColumns } from './utils';
+import { ColumnSizeCache, getTableColumns, getTableSizing, sanitizeColumnSizeCache } from './utils';
 
 interface TableProps {
   dataSlice: DataTableSlice;
   schema: DBTableOrViewSchema;
   sort: ColumnSortSpecList;
   visible: boolean;
-  initialColumnSizes?: Record<string, number>;
+  initialColumnSizes?: ColumnSizeCache;
   columns?: ColumnDef<DataRow, any>[];
   // Undefined means sorting is blocked
   onSort?: (columnId: string) => void;
@@ -27,7 +33,7 @@ interface TableProps {
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
   onColumnSelectChange: (column: DBColumn | null) => void;
-  onColumnResizeChange?: (columnSizes: Record<string, number>) => void;
+  onColumnResizeChange?: (columnSizes: ColumnSizeCache) => void;
   getRowClassName?: GetRowClassName<DataRow>;
 }
 
@@ -70,24 +76,24 @@ export const Table = memo(
       schema,
     });
 
-    // We want non-reactive column sizes, that we initialize from the prop
-    // and update as the table resizes (without tiggering re-renders).
-    // This allows us to set the default column sizes in `getTableColumns`
-    // whenever the schema is changed and otherwise keep column defs memoized.
-    const columnSizesRef = useRef<Record<string, number>>(initialColumnSizes);
-
     const tableColumns = useMemo(() => {
       if (columns) {
         return columns;
       }
       return getTableColumns({
         schema,
-        initialColumnSizes: columnSizesRef.current,
         onRowSelectionChange,
       });
-      // Note that `columnSizesRef.current` is not a dependency here intentionally!
-      // See the reasoning above.
     }, [columns, schema, onRowSelectionChange]);
+
+    const [controlledColumnSizing, setColumnSizing] = useState<ColumnSizingState>(() =>
+      sanitizeColumnSizeCache(initialColumnSizes),
+    );
+    const columnSizingWasChanged = useRef(false);
+    const handleColumnSizingChange = useCallback<OnChangeFn<ColumnSizingState>>((updater) => {
+      columnSizingWasChanged.current = true;
+      setColumnSizing(updater);
+    }, []);
 
     const table = useReactTable({
       data: dataSlice.data,
@@ -95,48 +101,30 @@ export const Table = memo(
       columns: tableColumns,
       columnResizeMode: 'onEnd',
       getCoreRowModel: getCoreRowModel(),
-      state: { rowSelection: selectedRows },
+      onColumnSizingChange: handleColumnSizingChange,
+      state: { columnSizing: controlledColumnSizing, rowSelection: selectedRows },
     });
 
     const { columnSizingInfo, columnSizing } = table.getState();
     const headers = table.getFlatHeaders();
 
-    const { columnSizeVars, colSizes } = useMemo(() => {
-      const sizes: { [key: string]: number } = {};
-      const sizeVars: { [key: string]: number } = {};
-
-      for (let i = 0; i < headers.length; i += 1) {
-        const header = headers[i]!;
-
-        sizeVars[`--header-${header.index}-size`] = header.getSize();
-        sizeVars[`--col-${header.index}-size`] = header.column.getSize();
-        sizes[header.index] = header.getSize();
-      }
-
-      const sizingKeys = Object.keys(columnSizing);
-      for (let i = 0; i < sizingKeys.length; i += 1) {
-        const key = sizingKeys[i]!;
-        if (!(key in sizeVars)) {
-          const existingSize = columnSizing[key];
-          if (typeof existingSize === 'number') {
-            sizeVars[`--col-${key}-size`] = existingSize;
-          }
-        }
-      }
+    const { columnSizeVars, persistedColumnSizes } = useMemo(() => {
+      const sizing = getTableSizing(headers);
 
       // Access resizing state so memo updates when the active resize target changes
       if (columnSizingInfo.isResizingColumn !== null) {
         // no-op
       }
 
-      columnSizesRef.current = sizes;
-      return { columnSizeVars: sizeVars, colSizes: sizes };
+      return sizing;
     }, [columnSizing, columnSizingInfo, headers]);
 
     // Notify parent of column size changes after render (not during)
     useEffect(() => {
-      onColumnResizeChange?.(colSizes);
-    }, [colSizes, onColumnResizeChange]);
+      if (!columnSizingWasChanged.current) return;
+      columnSizingWasChanged.current = false;
+      onColumnResizeChange?.(persistedColumnSizes);
+    }, [onColumnResizeChange, persistedColumnSizes]);
 
     useDidUpdate(() => {
       clearSelection();

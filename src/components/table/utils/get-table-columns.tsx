@@ -10,7 +10,6 @@ import { TableMeta } from '../model';
 
 interface GetTableColumnsProps {
   schema: DBColumn[];
-  initialColumnSizes?: Record<string, number>;
   onRowSelectionChange: (
     cell: CellContext<DataRow, any>,
     e: React.MouseEvent<Element, MouseEvent>,
@@ -19,11 +18,7 @@ interface GetTableColumnsProps {
 
 const emptyColumns = [] as any[];
 
-export const getTableColumns = ({
-  schema,
-  initialColumnSizes,
-  onRowSelectionChange,
-}: GetTableColumnsProps) => {
+export const getTableColumns = ({ schema, onRowSelectionChange }: GetTableColumnsProps) => {
   const indexColumnId = findUniqueName('__index__', (colId) =>
     schema.some((col) => col.id === colId),
   );
@@ -62,7 +57,7 @@ export const getTableColumns = ({
             header: col.name,
             meta: { type: col.sqlType, name: col.name },
             minSize: 100,
-            size: initialColumnSizes?.[col.name] || 200,
+            size: 200,
             id: col.id,
           };
         }),
