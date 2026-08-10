@@ -10,6 +10,7 @@ import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorer } from '../fixtures/script-explorer';
 import { test as tabTest } from '../fixtures/tab';
 import { test as testTmpTest } from '../fixtures/test-tmp';
+import { pressPrimaryShortcut } from '../utils/keyboard';
 
 const test = mergeTests(
   baseTest,
@@ -379,10 +380,10 @@ test('Should copy from editor when editor has focus, even if table cell is selec
   await scriptEditorContent.click();
 
   // Select all text in the editor
-  await page.keyboard.press('ControlOrMeta+a');
+  await pressPrimaryShortcut(page, 'A');
 
   // Copy from editor - should get editor content, not cell value
-  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
+  await pressPrimaryShortcut(page, 'C');
   clipboardContent = await getClipboardContent(page);
 
   // Should have copied the editor text, not the cell value

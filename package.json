@@ -15,18 +15,23 @@
   ],
   "homepage": "https://app.pondpilot.io",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=24.0.0 <25"
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "check:runtime": "node scripts/check-node-version.mjs",
+    "build": "yarn check:runtime && tsc && vite build",
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "build:test": "yarn build --mode int-test-build",
-    "test": "yarn build:test && playwright test",
-    "test:no-build": "playwright test",
+    "test": "yarn test:e2e:serial",
+    "test:no-build": "yarn test:e2e:serial:no-build",
+    "test:e2e:serial": "yarn build:test && yarn test:e2e:serial:no-build",
+    "test:e2e:serial:no-build": "yarn check:runtime && playwright test --workers=1",
+    "test:e2e:ci": "yarn build:test && CI=true playwright test --workers=1",
+    "test:e2e:shard": "yarn check:runtime && playwright test --workers=1",
     "test:docker": "./docker-playwright.sh test",
-    "test:unit": "jest",
-    "test:unit:coverage": "jest --coverage",
+    "test:unit": "yarn check:runtime && jest",
+    "test:unit:coverage": "yarn check:runtime && jest --coverage",
     "test:all": "yarn test:unit && yarn test",
     "preview": "yarn build --mode int-test-build && vite preview",
     "typecheck": "tsc --noEmit",
@@ -83,10 +88,10 @@
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
-    "@playwright/test": "1.61.1",
+    "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "4.3.2",
     "@tanstack/eslint-plugin-query": "5.101.2",
-    "@types/node": "22.20.1",
+    "@types/node": "24.13.3",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@types/react-is": "19.2.0",
@@ -128,5 +133,5 @@
     "tar": "7.5.13",
     "picomatch": "4.0.4"
   },
-  "packageManager": "yarn@4.4.0"
+  "packageManager": "yarn@4.18.0"
 }
