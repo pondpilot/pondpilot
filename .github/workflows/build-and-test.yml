@@ -103,6 +103,15 @@ jobs:
           sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
           duckdb --version
 
+      - name: Cache deterministic test modules
+        uses: actions/cache@v4
+        with:
+          path: .module-cache
+          key: ${{ runner.os }}-test-modules-${{ hashFiles('scripts/module-cache.mjs') }}-serial
+
+      - name: Pre-seed DuckDB-WASM modules
+        run: yarn cache:test-modules
+
       - name: Build for integration tests
         run: yarn build --mode int-test-build
         env:
@@ -110,16 +119,20 @@ jobs:
 
       - name: Run Playwright tests
         run: |
-          yarn playwright test
+          yarn playwright test --project=chromium
         env:
           CI: true
 
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
+      - name: Upload serial Playwright artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
+          name: playwright-serial-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Build for production
         run: yarn build
@@ -134,3 +147,159 @@ jobs:
         with:
           name: build
           path: dist
+
+  e2e-shard:
+    name: Chromium shard ${{ matrix.shard }}/3 (shadow)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+
+      - name: Cache Yarn Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Install Playwright Chromium
+        run: yarn playwright install --with-deps chromium
+
+      - name: Install DuckDB
+        run: |
+          curl https://install.duckdb.org | sh
+          sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
+          duckdb --version
+
+      - name: Cache deterministic test modules
+        uses: actions/cache@v4
+        with:
+          path: .module-cache
+          key: ${{ runner.os }}-test-modules-${{ hashFiles('scripts/module-cache.mjs') }}-shard-${{ matrix.shard }}
+
+      - name: Build for integration tests
+        run: yarn build --mode int-test-build
+        env:
+          VITE_BUG_REPORT_PROXY_URL: ${{ vars.VITE_BUG_REPORT_PROXY_URL }}
+
+      - name: Run Chromium shard
+        run: yarn test:e2e:shard --project=chromium --shard=${{ matrix.shard }}/3 --reporter=blob
+        env:
+          CI: true
+          PLAYWRIGHT_BLOB_OUTPUT_FILE: blob-report/report-${{ matrix.shard }}.zip
+
+      - name: Upload shard blob report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-blob-shard-${{ matrix.shard }}
+          path: blob-report/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload shard failure artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-failures-shard-${{ matrix.shard }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-report:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-test, e2e-shard]
+    if: ${{ always() && github.event_name == 'pull_request' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+
+      - name: Cache Yarn Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Verify local shard partition
+        run: yarn check:e2e:shards
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: playwright-blob-shard-*
+          path: all-blob-reports
+          merge-multiple: true
+
+      - name: Download serial report
+        uses: actions/download-artifact@v4
+        with:
+          name: playwright-serial-artifacts
+          path: serial-artifacts
+
+      - name: Verify all shard reports are present
+        run: test "$(find all-blob-reports -name '*.zip' -type f | wc -l | tr -d ' ')" = '3'
+
+      - name: Merge Playwright reports
+        run: yarn playwright merge-reports --config=playwright.merge.config.ts all-blob-reports
+
+      - name: Compare serial and sharded results
+        run: >-
+          yarn check:e2e:parity
+          serial-artifacts/playwright-report/results.xml
+          playwright-report/results.xml
+
+      - name: Upload merged Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-merged-report
+          path: playwright-report/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Require all shards to pass
+        if: always()
+        run: |
+          test '${{ needs.build-test.result }}' = 'success'
+          test '${{ needs.e2e-shard.result }}' = 'success'
