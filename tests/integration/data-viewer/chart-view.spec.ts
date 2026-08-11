@@ -17,7 +17,9 @@ const LARGE_SOURCE_QUERY =
   'SELECT (i % 5)::VARCHAR AS category, i AS amount FROM range(0, 500) AS t(i);';
 
 const switchViewMode = async (page: Page, mode: 'Table' | 'Chart') => {
-  await page.locator('[aria-label="Data view mode"]').getByText(mode, { exact: true }).click();
+  // Options are icon-only; the accessible name lives in VisuallyHidden text
+  // inside the label, so click the (visible) label element that contains it.
+  await page.locator('[aria-label="Data view mode"] label').filter({ hasText: mode }).click();
 };
 
 const selectChartColumn = async (page: Page, placeholder: 'X-Axis' | 'Y-Axis', column: string) => {
