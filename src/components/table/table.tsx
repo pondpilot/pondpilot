@@ -99,9 +99,9 @@ export const Table = memo(
     });
 
     const { columnSizingInfo, columnSizing } = table.getState();
+    const headers = table.getFlatHeaders();
 
     const { columnSizeVars, colSizes } = useMemo(() => {
-      const headers = table.getFlatHeaders();
       const sizes: { [key: string]: number } = {};
       const sizeVars: { [key: string]: number } = {};
 
@@ -131,7 +131,7 @@ export const Table = memo(
 
       columnSizesRef.current = sizes;
       return { columnSizeVars: sizeVars, colSizes: sizes };
-    }, [columnSizing, columnSizingInfo, table]);
+    }, [columnSizing, columnSizingInfo, headers]);
 
     // Notify parent of column size changes after render (not during)
     useEffect(() => {
