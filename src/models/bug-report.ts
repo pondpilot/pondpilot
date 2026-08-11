@@ -62,7 +62,7 @@ export interface BugReportContext {
   dataSources: Array<{
     id: string;
     type: string;
-    connectionStatus?: string;
+    connectionState?: string;
   }>;
 }
 

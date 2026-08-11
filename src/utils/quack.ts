@@ -55,6 +55,8 @@ export function buildAttachQuackQuery(
 }
 
 const QUACK_QUERY_TIMEOUT_MS = 20_000;
+const PATCHED_QUACK_WASM_EXTENSION_URL =
+  'https://nightly-extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm';
 
 async function queryQuackWithTimeout<T>(query: Promise<T>, operation: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -89,11 +91,10 @@ const getQuackWasmExtensionUrls = (): string[] => {
 
   return [
     ...(configuredUrl ? [configuredUrl] : []),
-    // The official v1.5.2 artifact contains the full Quack extension symbols.
-    // It is kept as a direct-load fallback for newer DuckDB-WASM builds and as a
-    // storage-support retry when repository-loaded artifacts only expose helper
-    // functions without registering the Quack ATTACH storage type.
-    'https://extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm',
+    // The official v1.5.2 artifact predates duckdb/duckdb-quack#143 and throws
+    // from QuackCatalog::InMemory/GetDBPath when DuckDB inspects attached
+    // databases. Use the patched v1.5.2 nightly artifact instead.
+    PATCHED_QUACK_WASM_EXTENSION_URL,
   ];
 };
 
@@ -159,9 +160,9 @@ async function tryLoadQuackFromRepositories(
 }
 
 export async function loadQuackExtension(pool: AsyncDuckDBConnectionPool): Promise<void> {
-  const repositoryResult = await tryLoadQuackFromRepositories(pool);
-  if (repositoryResult.loaded) return;
-
+  // Prefer the known-compatible artifact. A repository install may resolve to
+  // an older cached Quack build that attaches successfully but later breaks
+  // duckdb_databases() with "InMemory not implemented yet".
   const pinnedResult = await tryLoadQuackFromPinnedWasm(pool);
   if (pinnedResult.loaded) {
     try {
@@ -180,11 +181,14 @@ export async function loadQuackExtension(pool: AsyncDuckDBConnectionPool): Promi
     return;
   }
 
+  const repositoryResult = await tryLoadQuackFromRepositories(pool);
+  if (repositoryResult.loaded) return;
+
   throw new Error(
     'The current DuckDB-WASM bundle cannot load the Quack extension yet. ' +
       'Upgrade DuckDB-WASM to a build that ships Quack support. ' +
-      `Repository errors: ${repositoryResult.error}. ` +
-      `Pinned WASM extension fallbacks failed: ${pinnedResult.error}`,
+      `Patched WASM extension fallbacks failed: ${pinnedResult.error}. ` +
+      `Repository errors: ${repositoryResult.error}`,
   );
 }
 
