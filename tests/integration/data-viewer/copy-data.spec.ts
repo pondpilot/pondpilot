@@ -95,6 +95,76 @@ test('Should copy cell value', async ({
   }
 });
 
+test('Should clear cell selection when same-schema data is refreshed', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  waitForDataTable,
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await createScriptAndSwitchToItsTab();
+  await fillScript(`SELECT 'old' AS value;`);
+  await runScript();
+
+  let dataTable = await waitForDataTable();
+  const columnId = getTableColumnId('value', 0);
+  await getDataCellContainer(dataTable, columnId, 0).click();
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
+  await expect.poll(() => getClipboardContent(page)).toBe('old');
+
+  await fillScript(`SELECT 'new' AS value;`);
+  await runScript();
+  dataTable = await waitForDataTable();
+  await expect(getDataCellContainer(dataTable, columnId, 0)).toHaveText('new');
+
+  await page.evaluate(() => navigator.clipboard.writeText('selection-cleared'));
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
+  await expect.poll(() => getClipboardContent(page)).toBe('selection-cleared');
+});
+
+test('Should clear row, column, and aggregate selection after a data refresh', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  waitForDataTable,
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await createScriptAndSwitchToItsTab();
+  await fillScript(`SELECT value FROM (VALUES (1), (2)) AS source(value) ORDER BY value;`);
+  await runScript();
+
+  let dataTable = await waitForDataTable();
+  await getDataCellContainer(dataTable, '__index__', 0).click();
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
+  await expect.poll(() => getClipboardContent(page)).toBe('1');
+
+  await fillScript(`SELECT value FROM (VALUES (10), (20)) AS source(value) ORDER BY value;`);
+  await runScript();
+  dataTable = await waitForDataTable();
+  await expect(getDataCellContainer(dataTable, getTableColumnId('value', 0), 0)).toHaveText('10');
+
+  await page.evaluate(() => navigator.clipboard.writeText('row-selection-cleared'));
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
+  await expect.poll(() => getClipboardContent(page)).toBe('row-selection-cleared');
+
+  await getHeaderCell(dataTable, getTableColumnId('value', 0)).click();
+  await expect(page.getByText('SUM: 30', { exact: true })).toBeVisible();
+
+  await fillScript(`SELECT value FROM (VALUES (100), (200)) AS source(value) ORDER BY value;`);
+  await runScript();
+  dataTable = await waitForDataTable();
+  await expect(getDataCellContainer(dataTable, getTableColumnId('value', 0), 0)).toHaveText('100');
+  await expect(page.getByText('SUM: 30', { exact: true })).toBeHidden();
+
+  await page.evaluate(() => navigator.clipboard.writeText('column-selection-cleared'));
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
+  await expect.poll(() => getClipboardContent(page)).toBe('column-selection-cleared');
+});
+
 test('Should copy rows with selection modifiers', async ({
   createScriptAndSwitchToItsTab,
   fillScript,
