@@ -100,8 +100,8 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
 
     await fillScript('SELECT id, name FROM warehouse.public.customers ORDER BY id;');
     await runScript();
-    await expect(page.getByText('Ada')).toBeVisible();
-    await expect(page.getByText('Grace')).toBeVisible();
+    await expect(page.getByText('Ada', { exact: true })).toBeVisible();
+    await expect(page.getByText('Grace', { exact: true })).toBeVisible();
 
     await fillScript(`
       SELECT c.name, sum(o.amount) AS total
@@ -111,7 +111,7 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
       ORDER BY c.name;
     `);
     await runScript();
-    await expect(page.getByText('Ada')).toBeVisible();
+    await expect(page.getByText('Ada', { exact: true })).toBeVisible();
     await expect(page.getByText('49.75')).toBeVisible();
     const exportPath = testTmp.join('quackridge-join.csv');
     await exportTableToCSV(exportPath);
@@ -134,7 +134,7 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
     await expect(page.getByText('quackridge ✓')).toBeVisible({ timeout: 30_000 });
     await fillScript('SELECT id, name FROM warehouse.public.customers ORDER BY id;');
     await runScript();
-    await expect(page.getByText('Grace')).toBeVisible();
+    await expect(page.getByText('Grace', { exact: true })).toBeVisible();
 
     const deniedStatements = [
       "INSERT INTO warehouse.public.customers VALUES (3, 'Unsafe')",
