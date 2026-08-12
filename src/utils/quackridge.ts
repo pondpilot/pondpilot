@@ -187,16 +187,14 @@ export async function pairWithQuackRidge(
   if (nonce.trim().length < 16) throw new Error('Pairing nonce is invalid or incomplete.');
   let response: Response;
   try {
-    const requestInit: RequestInit & { targetAddressSpace: 'local' } = {
+    response = await fetcher(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nonce: nonce.trim() }),
       credentials: 'omit',
       cache: 'no-store',
       redirect: 'error',
-      targetAddressSpace: 'local',
-    };
-    response = await fetcher(url, requestInit);
+    });
   } catch {
     throw new Error(
       "Could not reach the local QuackRidge pairing service. Allow PondPilot's Local network (or Loopback network) site permission, make sure pairing is still running, and retry.",

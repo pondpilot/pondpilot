@@ -80,12 +80,7 @@ describe('QuackRidge protocol', () => {
     ).resolves.toMatchObject({ endpoint: pairingFixture.endpoint });
     expect(fetcher).toHaveBeenCalledWith(
       expect.any(URL),
-      expect.objectContaining({
-        credentials: 'omit',
-        cache: 'no-store',
-        redirect: 'error',
-        targetAddressSpace: 'local',
-      }),
+      expect.objectContaining({ credentials: 'omit', cache: 'no-store', redirect: 'error' }),
     );
 
     fetcher.mockResolvedValueOnce(new Response('', { status: 410 }));
