@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  PINNED_QUACKRIDGE_REF: v0.1.0
+  PINNED_QUACKRIDGE_REF: v0.1.1
 
 jobs:
   pinned:

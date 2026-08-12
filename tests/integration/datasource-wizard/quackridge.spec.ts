@@ -154,7 +154,9 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
         continue;
       }
       const rejection = await waitForNotification(undefined, { timeout: 30_000 });
-      await expect(rejection).toContainText(/rejected|read-only|not allowed|authorization/i);
+      await expect(rejection).toContainText(
+        /rejected|read-only|not allowed|authorization|not an? table/i,
+      );
     }
 
     try {
