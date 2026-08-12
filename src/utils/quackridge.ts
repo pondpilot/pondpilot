@@ -13,6 +13,7 @@ import {
   formatQuackRidgeDbKey,
   isQuackRidgeDbKey,
   makePersistentDataSourceId,
+  parseQuackRidgeDbKey,
 } from '@utils/data-source';
 import { getTableColumnId } from '@utils/db';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
@@ -21,7 +22,7 @@ import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { escapeSqlStringValue } from '@utils/sql-security';
 import { IDBPDatabase } from 'idb';
 
-import { attachQuackConnection } from './quack';
+import { attachQuackConnection, buildQuackSecretName } from './quack';
 
 export const QUACKRIDGE_PROTOCOL_VERSION = 1 as const;
 export const QUACKRIDGE_METADATA_VERSION = 1 as const;
@@ -396,19 +397,6 @@ export function buildQuackRidgeQuery(alias: string, statement: string, queryId: 
   return `SELECT * FROM ${toDuckDBIdentifier(alias)}.query('${escapeSqlStringValue(remoteSql)}')`;
 }
 
-export function findQuackRidgeLocalReference(
-  statement: string,
-  localCatalogs: readonly string[],
-): string | null {
-  for (const catalog of localCatalogs) {
-    const escaped = catalog.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const bare = new RegExp(`(?:^|[^A-Za-z0-9_])${escaped}\\s*\\.`, 'i');
-    const quoted = new RegExp(`"${escaped.replace(/"/g, '""')}"\\s*\\.`, 'i');
-    if (bare.test(statement) || quoted.test(statement)) return catalog;
-  }
-  return null;
-}
-
 const QUACKRIDGE_ERROR_MESSAGES: Record<string, string> = {
   QR_AUTHENTICATION: 'QuackRidge authentication failed. Pair again or update the stored token.',
   QR_PROTOCOL_MISMATCH: 'QuackRidge is not compatible with this PondPilot version.',
@@ -557,11 +545,117 @@ ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
   return metadata;
 }
 
+export function buildQuackRidgeProxyCatalogSetup(
+  connection: Pick<QuackRidgeConnection, 'alias' | 'endpoint'>,
+  token: string,
+  model: DataBaseModel,
+): { attachSql: string; setupSql: string[]; postAttachSql: string[] } {
+  const secretName = buildQuackSecretName(`${connection.alias}_bridge`);
+  const setupSql = [
+    `CREATE OR REPLACE TEMPORARY SECRET ${toDuckDBIdentifier(secretName)} (
+      TYPE quack,
+      TOKEN '${escapeSqlStringValue(token)}',
+      SCOPE '${escapeSqlStringValue(connection.endpoint)}'
+    )`,
+  ];
+  const postAttachSql: string[] = [];
+  for (const schema of model.schemas) {
+    const localSchema = `${toDuckDBIdentifier(model.name)}.${toDuckDBIdentifier(schema.name)}`;
+    postAttachSql.push(`CREATE SCHEMA IF NOT EXISTS ${localSchema}`);
+    for (const object of schema.objects) {
+      const remoteFqn = `${toDuckDBIdentifier(model.name)}.${toDuckDBIdentifier(schema.name)}.${toDuckDBIdentifier(object.name)}`;
+      postAttachSql.push(
+        `CREATE OR REPLACE VIEW ${localSchema}.${toDuckDBIdentifier(object.name)} AS ` +
+          `SELECT * FROM quack_query('${escapeSqlStringValue(connection.endpoint)}', ` +
+          `'${escapeSqlStringValue(`SELECT * FROM ${remoteFqn}`)}', disable_ssl => true)`,
+      );
+    }
+  }
+  return {
+    attachSql: `ATTACH ':memory:' AS ${toDuckDBIdentifier(model.name)}`,
+    setupSql,
+    postAttachSql,
+  };
+}
+
 export async function refreshQuackRidgeMetadata(
   pool: AsyncDuckDBConnectionPool,
-  connection: Pick<QuackRidgeConnection, 'alias'>,
+  connection: QuackRidgeConnection,
+  token?: string,
 ): Promise<void> {
   const metadata = await getQuackRidgeDatabaseModel(pool, connection.alias);
+  const currentToken =
+    token ??
+    (useAppStore.getState()._iDbConn
+      ? await resolveQuackRidgeToken(useAppStore.getState()._iDbConn!, connection)
+      : null);
+  if (!currentToken) throw new Error('QuackRidge credentials are unavailable. Pair again.');
+
+  const previousCatalogs = new Set(
+    Array.from(useAppStore.getState().databaseMetadata.keys())
+      .map((key) => parseQuackRidgeDbKey(key))
+      .filter(
+        (parsed): parsed is NonNullable<typeof parsed> =>
+          parsed !== null && parsed.connectionAlias === connection.alias,
+      )
+      .map((parsed) => parsed.dbName),
+  );
+  const attachedResult = await pool.query(
+    'SELECT database_name FROM duckdb_databases() WHERE NOT internal',
+  );
+  const attachedCatalogs = new Set(
+    (attachedResult.toArray() as { database_name: string }[]).map((row) => row.database_name),
+  );
+  for (const catalog of previousCatalogs) {
+    if (attachedCatalogs.has(catalog)) {
+      pool.registerGlobalDetach(catalog);
+      await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(catalog)}`);
+      attachedCatalogs.delete(catalog);
+    }
+  }
+
+  const newlyAttachedCatalogs: string[] = [];
+  try {
+    for (const model of metadata.values()) {
+      if (model.sourceHealth !== 'ready') continue;
+      if (model.name === connection.alias) {
+        throw new Error(
+          `QuackRidge source '${model.name}' conflicts with the bridge alias. Rename one of them.`,
+        );
+      }
+      if (attachedCatalogs.has(model.name)) {
+        throw new Error(
+          `QuackRidge source '${model.name}' conflicts with an attached browser catalog.`,
+        );
+      }
+
+      const proxyCatalog = buildQuackRidgeProxyCatalogSetup(connection, currentToken, model);
+
+      // The visible database is a local catalog of proxy views. Each view uses
+      // stateless quack_query(), giving every remote scan an independent Quack
+      // connection. Browser DuckDB can therefore join any number of remote
+      // tables with local files without Quack's single-stream-per-ATTACH limit.
+      pool.registerGlobalAttach(model.name, proxyCatalog.attachSql, proxyCatalog.setupSql, {
+        postAttachSql: proxyCatalog.postAttachSql,
+      });
+      newlyAttachedCatalogs.push(model.name);
+      attachedCatalogs.add(model.name);
+
+      // Force one pool connection to replay the proxy catalog setup now,
+      // so pairing fails immediately on an alias or protocol incompatibility.
+      // Every other connection receives the same replay before its next query.
+      await pool.query('SELECT 1');
+    }
+  } catch (error) {
+    for (const catalog of newlyAttachedCatalogs.reverse()) {
+      pool.registerGlobalDetach(catalog);
+      await pool
+        .query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(catalog)}`)
+        .catch(() => undefined);
+    }
+    throw error;
+  }
+
   const next = new Map(useAppStore.getState().databaseMetadata);
   for (const name of next.keys()) {
     if (isQuackRidgeDbKey(name, connection.alias)) next.delete(name);
@@ -656,7 +750,7 @@ export async function reconnectQuackRidgeConnection(
       alias: connection.alias,
       token,
     });
-    await refreshQuackRidgeMetadata(pool, connection);
+    await refreshQuackRidgeMetadata(pool, connection, token);
     updateQuackRidgeConnectionState(connection.id, 'connected');
   } catch (error) {
     const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
@@ -669,6 +763,16 @@ export async function disconnectQuackRidgeConnection(
   pool: AsyncDuckDBConnectionPool,
   connection: QuackRidgeConnection,
 ): Promise<void> {
+  const sourceCatalogs = Array.from(useAppStore.getState().databaseMetadata.keys())
+    .map((key) => parseQuackRidgeDbKey(key))
+    .filter(
+      (parsed): parsed is NonNullable<typeof parsed> =>
+        parsed !== null && parsed.connectionAlias === connection.alias,
+    )
+    .map((parsed) => parsed.dbName);
+  for (const catalog of sourceCatalogs) {
+    await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(catalog)}`);
+  }
   await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(connection.alias)}`);
   const metadata = new Map(useAppStore.getState().databaseMetadata);
   for (const name of metadata.keys()) {

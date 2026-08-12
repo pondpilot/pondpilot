@@ -19,13 +19,14 @@ const connection: QuackRidgeConnection = {
 };
 
 describe('QuackRidge data adapter', () => {
-  it('routes previews, sorting, counts, and aggregates as complete server queries', async () => {
-    const send = jest.fn<(sql: string, stream?: boolean) => Promise<any>>().mockResolvedValue({});
-    const query = jest.fn<(sql: string) => Promise<any>>().mockResolvedValue({
-      getChildAt: () => ({ get: () => 42n }),
+  it('uses an ordinary catalog scan so browser DuckDB remains the coordinator', async () => {
+    const sendAbortable = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
+    const queryAbortable = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
+      value: { getChildAt: () => ({ get: () => 42n }) },
+      aborted: false,
     });
     const { adapter, userErrors } = getFileDataAdapterQueries({
-      pool: { send, query } as any,
+      pool: { sendAbortable, queryAbortable } as any,
       dataSource: connection,
       sourceFile: undefined,
       tab: {
@@ -41,27 +42,25 @@ describe('QuackRidge data adapter', () => {
     });
 
     expect(userErrors).toEqual([]);
-    expect(adapter?.sourceQuery).toContain("ridge.query('");
-    expect(adapter?.sourceQuery).toContain('warehouse.sales.orders');
+    expect(adapter?.sourceQuery).toBe('SELECT * FROM warehouse.sales.orders');
+    expect(adapter?.sourceQuery).not.toContain('.query(');
 
     await adapter?.getSortableReader?.(
       [{ column: 'created_at', order: 'desc' }],
       new AbortController().signal,
     );
-    expect(send).toHaveBeenCalledWith(expect.stringContaining('ORDER BY created_at desc'), true);
+    expect(sendAbortable).toHaveBeenCalledWith(
+      'SELECT * FROM warehouse.sales.orders ORDER BY created_at desc',
+      expect.any(AbortSignal),
+      true,
+    );
 
-    await expect(adapter?.getRowCount?.(new AbortController().signal)).resolves.toEqual({
-      value: 42,
-      aborted: false,
-    });
     await expect(
       adapter?.getColumnAggregate?.('amount', 'sum', new AbortController().signal),
     ).resolves.toEqual({ value: 42n, aborted: false });
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining('SELECT count(*) FROM warehouse.sales.orders'),
-    );
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining('SELECT sum(amount) FROM warehouse.sales.orders'),
+    expect(queryAbortable).toHaveBeenCalledWith(
+      'SELECT sum(amount) FROM warehouse.sales.orders',
+      expect.any(AbortSignal),
     );
   });
 

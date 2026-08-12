@@ -52,11 +52,13 @@ type ConnectionClaimMode = 'background' | 'pinnable' | 'any';
 type RegisteredAttach = {
   sql: string;
   setupSql: string[];
+  postAttachSql: string[];
   version: number;
 };
 type RegisterGlobalCatalogMutationOptions = {
   appliedConnection?: AsyncDuckDBConnection;
   appliedTabId?: TabId;
+  postAttachSql?: string[];
 };
 
 export type DuckDBConnectionPoolOptions = {
@@ -425,6 +427,17 @@ export class AsyncDuckDBConnectionPool {
 
       if (!(await this._databaseExists(conn, dbName))) {
         await conn.query(attach.sql);
+      }
+
+      for (const postAttachSql of attach.postAttachSql) {
+        try {
+          await conn.query(postAttachSql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.toLowerCase().includes('already exists')) {
+            throw error;
+          }
+        }
       }
     }
 
@@ -1253,6 +1266,10 @@ export class AsyncDuckDBConnectionPool {
       this._registeredAttaches.set(dbName, {
         ...existing,
         setupSql: setupSql.length > 0 ? setupSql : existing.setupSql,
+        postAttachSql:
+          options.postAttachSql && options.postAttachSql.length > 0
+            ? options.postAttachSql
+            : existing.postAttachSql,
       });
       this._registeredDetaches.delete(dbName);
       this._markCatalogVersionApplied(options, existing.version);
@@ -1264,6 +1281,7 @@ export class AsyncDuckDBConnectionPool {
     this._registeredAttaches.set(dbName, {
       sql,
       setupSql,
+      postAttachSql: options.postAttachSql ?? [],
       version,
     });
     this._registeredDetaches.delete(dbName);

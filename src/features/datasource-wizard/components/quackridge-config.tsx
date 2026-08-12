@@ -20,6 +20,7 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import {
   attachAndIdentifyQuackRidge,
   detectQuackRidgePlatform,
+  disconnectQuackRidgeConnection,
   fetchQuackRidgeReleaseManifest,
   makeQuackRidgeConnection,
   pairWithQuackRidge,
@@ -113,13 +114,14 @@ export function QuackRidgeConfig({ pool, onBack, onClose }: QuackRidgeConfigProp
     const secretRef = makeSecretId();
     let secretStored = false;
     let connectionId: ReturnType<typeof makeQuackRidgeConnection>['id'] | null = null;
+    let connection: ReturnType<typeof makeQuackRidgeConnection> | null = null;
     try {
       await putSecret(_iDbConn, secretRef, {
         label: `QuackRidge: ${alias.trim()}`,
         data: { token: pairedToken },
       });
       secretStored = true;
-      const connection = makeQuackRidgeConnection({
+      connection = makeQuackRidgeConnection({
         endpoint: pairedEndpoint,
         alias: alias.trim(),
         identity,
@@ -129,12 +131,16 @@ export function QuackRidgeConfig({ pool, onBack, onClose }: QuackRidgeConfigProp
       const next = new Map(useAppStore.getState().dataSources);
       next.set(connection.id, connection);
       useAppStore.setState({ dataSources: next }, false, 'QuackRidge/addConnection');
-      await refreshQuackRidgeMetadata(pool, connection);
+      await refreshQuackRidgeMetadata(pool, connection, pairedToken);
       await persistQuackRidgeConnection(connection);
     } catch (error) {
-      await pool
-        .query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(alias.trim())}`)
-        .catch(() => undefined);
+      if (connection) {
+        await disconnectQuackRidgeConnection(pool, connection).catch(() => undefined);
+      } else {
+        await pool
+          .query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(alias.trim())}`)
+          .catch(() => undefined);
+      }
       if (secretStored) await deleteSecret(_iDbConn, secretRef).catch(() => undefined);
       if (connectionId) {
         const next = new Map(useAppStore.getState().dataSources);

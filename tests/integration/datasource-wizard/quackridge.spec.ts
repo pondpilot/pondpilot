@@ -57,7 +57,7 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
     harness = undefined;
   });
 
-  test('pairs, discovers metadata, executes a server-side join, reconnects, and denies writes', async ({
+  test('pairs, exposes source catalogs, federates locally, reconnects, and denies remote writes', async ({
     page,
     openDatasourceWizard,
     waitForNotification,
@@ -96,11 +96,7 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
     await previewTab.getByRole('button').click();
 
     await createScriptAndSwitchToItsTab();
-    await page.getByTestId('script-execution-target').click();
-    await page.getByRole('option', { name: 'QuackRidge · quackridge' }).click();
-    await expect(
-      page.getByText('Server-side · read-only · cancellation unavailable'),
-    ).toBeVisible();
+    await expect(page.getByTestId('script-execution-target')).toHaveCount(0);
 
     await fillScript('SELECT id, name FROM warehouse.public.customers ORDER BY id;');
     await runScript();
@@ -121,26 +117,31 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
     await exportTableToCSV(exportPath);
     expect(readFileSync(exportPath, 'utf8')).toMatch(/Ada,49\.75/);
 
+    await fillScript(`
+      CREATE TEMP TABLE local_labels(id INTEGER, label VARCHAR);
+      INSERT INTO local_labels VALUES (1, 'local Ada'), (2, 'local Grace');
+      SELECT l.label, c.name
+      FROM local_labels l
+      JOIN warehouse.public.customers c USING (id)
+      ORDER BY id;
+    `);
+    await runScript();
+    await expect(page.getByText('local Ada')).toBeVisible();
+    await expect(page.getByText('local Grace')).toBeVisible();
+
     await reloadPage();
     await expect(page.getByText('quackridge ⟳')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('quackridge ✓')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId('script-execution-target')).toHaveValue(
-      'QuackRidge · quackridge',
-    );
+    await fillScript('SELECT id, name FROM warehouse.public.customers ORDER BY id;');
     await runScript();
     await expect(page.getByText('Grace')).toBeVisible();
 
     const deniedStatements = [
       { sql: "INSERT INTO warehouse.public.customers VALUES (3, 'Unsafe')" },
-      { sql: 'CREATE TABLE unsafe(id INTEGER)' },
-      { sql: "ATTACH '/tmp/unsafe.duckdb' AS unsafe" },
-      { sql: 'INSTALL httpfs' },
-      { sql: "SELECT * FROM read_csv_auto('/etc/passwd')", resultError: true },
       {
-        sql: "SELECT * FROM postgres_query('warehouse', 'DROP TABLE customers')",
+        sql: "SELECT * FROM quackridge.query('SELECT * FROM read_csv_auto(''/etc/passwd'')')",
         resultError: true,
       },
-      { sql: 'SET threads = 1' },
     ];
     for (const statement of deniedStatements) {
       await dismissNotifications(page);

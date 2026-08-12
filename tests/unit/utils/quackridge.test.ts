@@ -1,9 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import {
   detectQuackRidgePlatform,
+  buildQuackRidgeProxyCatalogSetup,
   buildQuackRidgeQuery,
   fetchQuackRidgeReleaseManifest,
-  findQuackRidgeLocalReference,
   getQuackRidgeDatabaseModel,
   identifyQuackRidge,
   makeQuackRidgeConnection,
@@ -220,13 +220,41 @@ describe('QuackRidge protocol', () => {
     expect(buildQuackRidgeQuery('ridge', 'SELECT 1;', 'with-semicolon')).not.toContain("1;')");
   });
 
-  it('rejects explicit browser-local cross-engine references', () => {
-    expect(findQuackRidgeLocalReference('SELECT * FROM pondpilot.main.orders', ['pondpilot'])).toBe(
-      'pondpilot',
+  it('builds browser-side proxy catalogs with one stateless scan per remote relation', () => {
+    const proxy = buildQuackRidgeProxyCatalogSetup(
+      { alias: 'ridge', endpoint: 'quack:127.0.0.1:9494' },
+      'secret-token',
+      {
+        name: 'commerce',
+        schemas: [
+          {
+            name: 'sales',
+            objects: [
+              { name: 'customers', label: 'customers', type: 'table', columns: [] },
+              { name: 'orders', label: 'orders', type: 'table', columns: [] },
+            ],
+          },
+        ],
+      },
     );
-    expect(
-      findQuackRidgeLocalReference('SELECT * FROM warehouse.orders', ['pondpilot']),
-    ).toBeNull();
+
+    expect(proxy.attachSql).toBe("ATTACH ':memory:' AS commerce");
+    expect(proxy.postAttachSql).toEqual(
+      expect.arrayContaining([
+        'CREATE SCHEMA IF NOT EXISTS commerce.sales',
+        expect.stringContaining(
+          "quack_query('quack:127.0.0.1:9494', 'SELECT * FROM commerce.sales.customers'",
+        ),
+        expect.stringContaining(
+          "quack_query('quack:127.0.0.1:9494', 'SELECT * FROM commerce.sales.orders'",
+        ),
+      ]),
+    );
+    const viewSql = proxy.postAttachSql
+      .filter((sql) => sql.includes('CREATE OR REPLACE VIEW'))
+      .join('\n');
+    expect(viewSql).not.toContain('secret-token');
+    expect(proxy.setupSql[0]).toContain('TEMPORARY SECRET');
   });
 
   it('maps stable server errors without retaining secret-bearing context', () => {

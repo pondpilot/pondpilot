@@ -293,6 +293,22 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
     expect(queryIndex).toBeGreaterThan(attachIndex);
   });
 
+  it('replays registered post-attach setup after the ATTACH and before the query', async () => {
+    const { pool, connections } = makePool(4, 1);
+    const attachSql = "ATTACH ':memory:' AS remote_db";
+    const postAttachSql = 'CREATE SCHEMA remote_db.sales';
+
+    pool.registerGlobalAttach('remote_db', attachSql, [], { postAttachSql: [postAttachSql] });
+    await pool.query('SELECT * FROM remote_db.sales.orders');
+
+    const attachIndex = connections[0].calls.indexOf(attachSql);
+    const setupIndex = connections[0].calls.indexOf(postAttachSql);
+    const queryIndex = connections[0].calls.indexOf('SELECT * FROM remote_db.sales.orders');
+    expect(attachIndex).toBeGreaterThanOrEqual(0);
+    expect(setupIndex).toBeGreaterThan(attachIndex);
+    expect(queryIndex).toBeGreaterThan(setupIndex);
+  });
+
   it('updates registered ATTACH setup without replaying on the already-applied connection', async () => {
     const { pool, connections } = makePool(4, 1);
     const setupSql = "CREATE SECRET s (TYPE ICEBERG, TOKEN 'token')";

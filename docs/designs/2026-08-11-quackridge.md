@@ -1,7 +1,6 @@
 # QuackRidge
 
-Status: Approved on 2026-08-11 — implementation not started
-Branch: `design/quackridge`
+Status: Implemented; federation model revised on 2026-08-12
 
 ## 1. Product and process boundary
 
@@ -49,9 +48,9 @@ flowchart LR
   WASM -- "Quack data plane: SQL and Arrow" --> Engine
 ```
 
-At startup, the engine loads fixed-version DuckDB extensions, retrieves credentials through the secret abstraction, and attaches every enabled source read-only under a validated alias. QuackRidge exposes a stable catalog containing metadata views; it does not expect users to create projection views manually. PondPilot attaches that catalog through Quack for discovery and lightweight single-relation access.
+At startup, the engine loads fixed-version DuckDB extensions, retrieves credentials through the secret abstraction, and attaches every enabled source read-only under a validated alias. QuackRidge exposes a stable catalog containing metadata views; it does not expect users to create projection views manually. PondPilot keeps one hidden Quack attachment for identity, metadata, and explicit whole-query execution.
 
-Each complete SQL statement selected for a QuackRidge source is executed server-side, rather than as independent Quack table scans. This avoids Quack's current multiple-streaming-scan limitation and lets native DuckDB plan joins across PostgreSQL relations. PondPilot remains responsible for editing, statement validation, result presentation, and cancellation UI. QuackRidge owns native execution, query cancellation, source availability, and result streaming.
+For normal querying, PondPilot creates an in-memory Browser DuckDB catalog for every QuackRidge source and mirrors its schemas as proxy views. Each proxy view uses stateless `quack_query`, so every relation scan has an independent Quack connection and does not hit Quack's single-stream-per-attachment restriction. Browser DuckDB remains the coordinator and can transparently join local files, local databases, and any number of QuackRidge relations. Users can still call the hidden attachment's `query(...)` macro explicitly when a large remote-only subquery should be planned and executed beside PostgreSQL.
 
 The control API is not an Internet listener. The CLI and future GUI use authenticated local IPC to modify configuration and inspect health. Quack is a separate loopback-only data plane with a generated token. These boundaries allow the UI, IPC implementation, and source adapters to evolve without coupling them to command parsing or macOS frameworks.
 
@@ -75,13 +74,13 @@ The initial CLI surface is deliberately small:
 
 ## 4. PondPilot integration and query contract
 
-QuackRidge publishes a protocol version and capabilities through `quack_identify`. PondPilot detects this identity after attaching Quack and creates a QuackRidge execution target. DuckDB and Quack versions are pinned and tested together; an unsupported protocol or missing capability produces a compatibility error instead of falling back to remote-table scans.
+QuackRidge publishes a protocol version and capabilities through `quack_identify`. PondPilot validates this identity after attaching the hidden control catalog. DuckDB and Quack versions are pinned and tested together; an unsupported protocol or missing capability produces a compatibility error.
 
-PondPilot continues splitting and validating scripts with its existing statement pipeline. When a QuackRidge target is selected, it sends each complete statement through the attached catalog's `query(...)` macro. The existing pinned connection per script tab keeps Quack's server-side session stable across statements, including transactions and temporary objects. Multi-relation joins therefore execute entirely in native DuckDB beside the PostgreSQL attachment. Version one does not mix browser-local relations with QuackRidge relations in one query, and private sources are read-only.
+PondPilot continues splitting and validating scripts with its existing statement pipeline, but all normal scripts execute in Browser DuckDB. QuackRidge databases therefore follow the same `catalog.schema.table` model as MotherDuck and other attached databases. A query may freely mix browser-local and QuackRidge relations; private-source proxy views remain read-only. Calling `quackridge.query('...')` is an explicit optimization and security boundary, never a tab-wide execution mode.
 
 Discovery uses a QuackRidge-owned metadata relation rather than inferring schemas from `current_database()`. It exposes source identity, type and health, schemas, objects, columns, ordinals, DuckDB types, and nullability. Data Explorer, previews, counts, and statistics query this contract server-side. This prevents PostgreSQL catalogs from disappearing from the tree and avoids dependence on DuckDB internals.
 
-Results use Quack's native DuckDB serialization and streaming; QuackRidge does not introduce JSON or a second query transport. Every request carries a PondPilot query ID into structured logs for correlation. Browser cancellation interrupts the pinned Quack client connection, while QuackRidge also enforces configurable execution and resource limits. Because Quack remains beta, cancellation propagation and cleanup after abandoned streams are release-gating integration tests. If either fails with the pinned version, the feature remains experimental until fixed upstream or isolated behind a transport adapter.
+Results use Quack's native DuckDB serialization and streaming; QuackRidge does not introduce JSON or a second query transport. Browser cancellation interrupts the active stateless scan, while QuackRidge also enforces configurable execution and resource limits. Because Quack remains beta, cancellation propagation and cleanup after abandoned streams are release-gating integration tests. If either fails with the pinned version, the feature remains experimental until fixed upstream or isolated behind a transport adapter.
 
 References: [Quack overview](https://duckdb.org/docs/current/quack/overview), [Quack reference](https://duckdb.org/docs/current/quack/reference), [Quack deployment and sticky sessions](https://duckdb.org/docs/current/quack/setup/deployment).
 

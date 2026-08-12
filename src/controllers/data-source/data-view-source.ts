@@ -268,7 +268,8 @@ export const deleteDataSources = async (
       }
 
       if (dataSource.type === 'quackridge') {
-        await detachAndUnregisterDatabase(conn, dataSource.alias, dataSource.endpoint);
+        const { disconnectQuackRidgeConnection } = await import('@utils/quackridge');
+        await disconnectQuackRidgeConnection(conn, dataSource);
         try {
           const { _iDbConn } = useAppStore.getState();
           if (_iDbConn) {
