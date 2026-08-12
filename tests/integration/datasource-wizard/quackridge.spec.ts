@@ -126,8 +126,8 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
       ORDER BY id;
     `);
     await runScript();
-    await expect(page.getByText('local Ada')).toBeVisible();
-    await expect(page.getByText('local Grace')).toBeVisible();
+    await expect(page.getByText('local Ada', { exact: true })).toBeVisible();
+    await expect(page.getByText('local Grace', { exact: true })).toBeVisible();
 
     await reloadPage();
     await expect(page.getByText('quackridge ⟳')).toBeVisible({ timeout: 30_000 });
@@ -138,7 +138,7 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
 
     const deniedStatements = [
       "INSERT INTO warehouse.public.customers VALUES (3, 'Unsafe')",
-      "SELECT * FROM quackridge.query('SELECT * FROM read_csv_auto(''/etc/passwd'')')",
+      "SELECT * FROM quackridge.query('DELETE FROM warehouse.public.customers')",
     ];
     for (const statement of deniedStatements) {
       await dismissNotifications(page);
