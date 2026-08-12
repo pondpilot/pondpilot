@@ -137,22 +137,13 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
     await expect(page.getByText('Grace')).toBeVisible();
 
     const deniedStatements = [
-      { sql: "INSERT INTO warehouse.public.customers VALUES (3, 'Unsafe')" },
-      {
-        sql: "SELECT * FROM quackridge.query('SELECT * FROM read_csv_auto(''/etc/passwd'')')",
-        resultError: true,
-      },
+      "INSERT INTO warehouse.public.customers VALUES (3, 'Unsafe')",
+      "SELECT * FROM quackridge.query('SELECT * FROM read_csv_auto(''/etc/passwd'')')",
     ];
     for (const statement of deniedStatements) {
       await dismissNotifications(page);
-      await fillScript(statement.sql);
+      await fillScript(statement);
       await runScriptButton.click();
-      if (statement.resultError) {
-        await expect(page.getByText('Query error. Review and try again.')).toBeVisible({
-          timeout: 30_000,
-        });
-        continue;
-      }
       const rejection = await waitForNotification(undefined, { timeout: 30_000 });
       await expect(rejection).toContainText(
         /rejected|read-only|not allowed|authorization|not an? table/i,
