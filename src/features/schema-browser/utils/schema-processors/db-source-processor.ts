@@ -4,13 +4,18 @@ import {
   LocalDB,
   MotherDuckConnection,
   QuackConnection,
+  QuackRidgeConnection,
   RemoteDB,
   PersistentDataSourceId,
 } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { SchemaBrowserTab } from '@models/tab';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
-import { formatMotherDuckDbKey, getDatabaseIdentifier } from '@utils/data-source';
+import {
+  formatMotherDuckDbKey,
+  formatQuackRidgeDbKey,
+  getDatabaseIdentifier,
+} from '@utils/data-source';
 
 import { dbColumnToSchemaColumn, SchemaGraph, SchemaNodeData, SchemaColumnData } from '../../model';
 import { getBatchTableConstraints } from '../batch-constraints';
@@ -26,7 +31,13 @@ export async function processDbSource(
   pool: AsyncDuckDBConnectionPool,
   dbSources: Map<
     PersistentDataSourceId,
-    LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection
+    | LocalDB
+    | RemoteDB
+    | IcebergCatalog
+    | DuckLakeCatalog
+    | QuackConnection
+    | QuackRidgeConnection
+    | MotherDuckConnection
   >,
   dbMetadata: Map<string, DataBaseModel>,
   abortSignal: AbortSignal,
@@ -42,7 +53,9 @@ export async function processDbSource(
     const dbName =
       dbSource.type === 'motherduck' && tab.databaseName
         ? formatMotherDuckDbKey(tab.databaseName)
-        : getDatabaseIdentifier(dbSource);
+        : dbSource.type === 'quackridge' && tab.databaseName
+          ? formatQuackRidgeDbKey(dbSource.alias, tab.databaseName)
+          : getDatabaseIdentifier(dbSource);
     const metadata = dbMetadata.get(dbName);
 
     if (metadata) {
@@ -73,13 +86,12 @@ export async function processDbSource(
 
         // Get constraint information for all tables in this schema in batch
         const tableNames = objectsToProcess.map((obj: any) => obj.name);
-        const constraintMap = await getBatchTableConstraints(
-          pool,
-          dbName,
-          schema.name,
-          tableNames,
-          abortSignal,
-        );
+        // QuackRidge v1 metadata does not expose relational constraints, and
+        // its internal databases are not attached to the browser DuckDB.
+        const constraintMap =
+          dbSource.type === 'quackridge'
+            ? new Map()
+            : await getBatchTableConstraints(pool, dbName, schema.name, tableNames, abortSignal);
 
         for (const obj of objectsToProcess) {
           // Get constraint information from the batch result
@@ -105,7 +117,7 @@ export async function processDbSource(
           }));
 
           const nodeData: SchemaNodeData = {
-            id: `${dbSource.id}.${schema.name}.${obj.name}`,
+            id: `${dbSource.id}.${tab.databaseName ? `${tab.databaseName}.` : ''}${schema.name}.${obj.name}`,
             label: obj.name,
             type: obj.type === 'table' ? 'table' : 'view',
             sourceId: dbSource.id,

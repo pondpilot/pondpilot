@@ -1,8 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import {
   formatMotherDuckDbKey,
+  formatQuackRidgeDbKey,
   isMotherDuckDbKey,
+  isQuackRidgeDbKey,
   parseMotherDuckDbKey,
+  parseQuackRidgeDbKey,
   MD_DB_PREFIX,
 } from '@utils/data-source';
 
@@ -79,5 +82,24 @@ describe('MotherDuck metadata key helpers', () => {
         expect(parseMotherDuckDbKey(key)).toBe(name);
       }
     });
+  });
+});
+
+describe('QuackRidge metadata key helpers', () => {
+  it('scopes databases by connection and roundtrips special characters', () => {
+    const key = formatQuackRidgeDbKey('my:ridge', 'support/db');
+    expect(key).toBe('qr:my%3Aridge:support%2Fdb');
+    expect(parseQuackRidgeDbKey(key)).toEqual({
+      connectionAlias: 'my:ridge',
+      dbName: 'support/db',
+    });
+    expect(isQuackRidgeDbKey(key, 'my:ridge')).toBe(true);
+    expect(isQuackRidgeDbKey(key, 'other-ridge')).toBe(false);
+  });
+
+  it('rejects malformed and non-QuackRidge keys', () => {
+    expect(parseQuackRidgeDbKey('qr:ridge:')).toBeNull();
+    expect(parseQuackRidgeDbKey('qr:%ZZ:db')).toBeNull();
+    expect(isQuackRidgeDbKey('md:support')).toBe(false);
   });
 });

@@ -3,7 +3,10 @@ import { QuackConnection, QuackRidgeConnection, RemoteDB } from '@models/data-so
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useMemo } from 'react';
 
-import { buildDatabaseNode } from '../builders/database-tree-builder';
+import {
+  buildDatabaseNode,
+  buildQuackRidgeConnectionNode,
+} from '../builders/database-tree-builder';
 import { DataExplorerNodeMap } from '../model';
 
 type UseRemoteDbNodesProps = {
@@ -31,8 +34,8 @@ export const useRemoteDbNodes = ({
 }: UseRemoteDbNodesProps) => {
   return useMemo(
     () =>
-      remoteDatabases.map((db) =>
-        buildDatabaseNode(db, false, {
+      remoteDatabases.map((db) => {
+        const context = {
           nodeMap,
           anyNodeIdToNodeTypeMap,
           conn,
@@ -43,8 +46,11 @@ export const useRemoteDbNodes = ({
           flatFileSources,
           comparisonTableNames,
           comparisonByTableName,
-        }),
-      ),
+        };
+        return db.type === 'quackridge'
+          ? buildQuackRidgeConnectionNode(db, context)
+          : buildDatabaseNode(db, false, context);
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [remoteDatabases, nodeMap, anyNodeIdToNodeTypeMap, conn, databaseMetadata, flatFileSources],
     // comparisonTableNames/comparisonByTableName are only used for system DB, so they do not

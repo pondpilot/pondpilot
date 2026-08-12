@@ -19,6 +19,7 @@ import {
   LocalDB,
   MotherDuckConnection,
   QuackConnection,
+  QuackRidgeConnection,
   RemoteDB,
   PersistentDataSourceId,
 } from '@models/data-source';
@@ -480,6 +481,7 @@ export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlat
                 dataSource.type !== 'iceberg-catalog' &&
                 dataSource.type !== 'ducklake-catalog' &&
                 dataSource.type !== 'quack' &&
+                dataSource.type !== 'quackridge' &&
                 dataSource.type !== 'motherduck',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
@@ -526,7 +528,13 @@ export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> 
 
 export function useDatabaseDataSourceMap(): Map<
   PersistentDataSourceId,
-  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection
+  | LocalDB
+  | RemoteDB
+  | IcebergCatalog
+  | DuckLakeCatalog
+  | QuackConnection
+  | QuackRidgeConnection
+  | MotherDuckConnection
 > {
   return useAppStore(
     useShallow(
@@ -541,6 +549,7 @@ export function useDatabaseDataSourceMap(): Map<
                 dataSource.type === 'iceberg-catalog' ||
                 dataSource.type === 'ducklake-catalog' ||
                 dataSource.type === 'quack' ||
+                dataSource.type === 'quackridge' ||
                 dataSource.type === 'motherduck',
             ) as [
             PersistentDataSourceId,
@@ -550,6 +559,7 @@ export function useDatabaseDataSourceMap(): Map<
               | IcebergCatalog
               | DuckLakeCatalog
               | QuackConnection
+              | QuackRidgeConnection
               | MotherDuckConnection
             ),
           ][],

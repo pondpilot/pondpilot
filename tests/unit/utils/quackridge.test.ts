@@ -241,53 +241,83 @@ describe('QuackRidge protocol', () => {
   });
 
   it('maps the stable metadata contract into catalog-scoped explorer schemas', async () => {
+    const rows = [
+      {
+        source_id: 'warehouse-source',
+        source_name: 'Warehouse',
+        source_type: 'postgres',
+        source_health: 'ready',
+        catalog_name: 'warehouse',
+        schema_name: 'sales',
+        object_name: 'orders',
+        object_type: 'table',
+        column_name: 'id',
+        ordinal_position: 1,
+        duckdb_type: 'UUID',
+        nullable: false,
+        error_code: null,
+      },
+      {
+        source_id: 'support-source',
+        source_name: 'Customer Support',
+        source_type: 'postgres',
+        source_health: 'ready',
+        catalog_name: 'support',
+        schema_name: 'helpdesk',
+        object_name: 'tickets',
+        object_type: 'table',
+        column_name: 'subject',
+        ordinal_position: 1,
+        duckdb_type: 'VARCHAR',
+        nullable: true,
+        error_code: null,
+      },
+      {
+        source_id: 'offline',
+        source_name: 'Offline',
+        source_type: 'postgres',
+        source_health: 'unavailable',
+        catalog_name: 'offline',
+        schema_name: null,
+        object_name: null,
+        object_type: null,
+        column_name: null,
+        ordinal_position: null,
+        duckdb_type: null,
+        nullable: null,
+        error_code: 'QR_SOURCE_UNAVAILABLE',
+      },
+    ];
     const pool = {
       query: jest.fn<(sql: string) => Promise<any>>().mockResolvedValue({
-        toArray: () => [
-          {
-            source_id: 'warehouse',
-            source_name: 'Warehouse',
-            source_type: 'postgres',
-            source_health: 'ready',
-            catalog_name: 'warehouse',
-            schema_name: 'sales',
-            object_name: 'orders',
-            object_type: 'table',
-            column_name: 'id',
-            ordinal_position: 1,
-            duckdb_type: 'UUID',
-            nullable: false,
-            error_code: null,
-          },
-          {
-            source_id: 'offline',
-            source_name: 'Offline',
-            source_type: 'postgres',
-            source_health: 'unavailable',
-            catalog_name: 'offline',
-            schema_name: null,
-            object_name: null,
-            object_type: null,
-            column_name: null,
-            ordinal_position: null,
-            duckdb_type: null,
-            nullable: null,
-            error_code: 'QR_SOURCE_UNAVAILABLE',
-          },
-        ],
+        numRows: rows.length,
+        getChild: (name: keyof (typeof rows)[number]) => ({
+          get: (index: number) => rows[index][name],
+        }),
       }),
     };
     const metadata = await getQuackRidgeDatabaseModel(pool as any, 'ridge');
-    expect(metadata.get('ridge')).toMatchObject({
+    expect(metadata.get('qr:ridge:warehouse')).toMatchObject({
+      name: 'warehouse',
+      sourceId: 'warehouse-source',
+      sourceType: 'postgres',
       schemas: [
         {
-          name: 'warehouse.sales',
-          catalogName: 'warehouse',
-          remoteName: 'sales',
+          name: 'sales',
           objects: [{ name: 'orders', columns: [{ name: 'id', nullable: false }] }],
         },
       ],
     });
+    expect(metadata.get('qr:ridge:support')).toMatchObject({
+      sourceType: 'postgres',
+      schemas: [{ name: 'helpdesk', objects: [{ name: 'tickets' }] }],
+    });
+    expect(metadata.get('qr:ridge:offline')).toMatchObject({
+      sourceHealth: 'unavailable',
+      sourceErrorCode: 'QR_SOURCE_UNAVAILABLE',
+      schemas: [],
+    });
     expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('quackridge_metadata_v1'));
+    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining("'information_schema'"));
   });
 });

@@ -73,6 +73,12 @@ export interface DBSchema {
 
 export interface DataBaseModel {
   name: string;
+  /** Remote source details, when this model represents a database behind a bridge. */
+  sourceId?: string;
+  sourceName?: string;
+  sourceType?: string;
+  sourceHealth?: string;
+  sourceErrorCode?: string | null;
   schemas: DBSchema[];
 }
 

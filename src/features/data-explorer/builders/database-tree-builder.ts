@@ -19,7 +19,7 @@ import { LocalEntry } from '@models/file-system';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
-import { isMotherDuckDbKey, parseMotherDuckDbKey } from '@utils/data-source';
+import { isMotherDuckDbKey, parseMotherDuckDbKey, parseQuackRidgeDbKey } from '@utils/data-source';
 import { reconnectDuckLakeCatalog, disconnectDuckLakeCatalog } from '@utils/ducklake-catalog';
 import { disconnectIcebergCatalog } from '@utils/iceberg-catalog';
 import {
@@ -809,6 +809,187 @@ export function buildMotherDuckConnectionNode(
         children: contextMenuItems,
       },
     ],
+    children: childNodes.length > 0 ? childNodes : undefined,
+  };
+}
+
+/** Builds a QuackRidge connection with its remote databases as child nodes. */
+export function buildQuackRidgeConnectionNode(
+  connection: QuackRidgeConnection,
+  context: DatabaseTreeBuilderContext,
+): TreeNodeData<DataExplorerNodeTypeMap> {
+  const { id: connectionId } = connection;
+  const {
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
+  } = context;
+  const stateIcon =
+    connection.connectionState === 'connected'
+      ? '\u2713'
+      : connection.connectionState === 'connecting'
+        ? '\u27F3'
+        : connection.connectionState === 'credentials-required'
+          ? '\uD83D\uDD12'
+          : connection.connectionState === 'error'
+            ? '\u26A0'
+            : '\u2715';
+
+  nodeMap.set(connectionId, {
+    db: connectionId,
+    schemaName: null,
+    objectName: null,
+    columnName: null,
+  });
+  anyNodeIdToNodeTypeMap.set(connectionId, 'db');
+
+  const childNodes: TreeNodeData<DataExplorerNodeTypeMap>[] = [];
+  if (connection.connectionState === 'connected') {
+    const databases = [...databaseMetadata.entries()]
+      .map(([metadataKey, dbModel]) => ({
+        parsed: parseQuackRidgeDbKey(metadataKey),
+        dbModel,
+      }))
+      .filter(
+        (
+          entry,
+        ): entry is {
+          parsed: { connectionAlias: string; dbName: string };
+          dbModel: DataBaseModel;
+        } => entry.parsed?.connectionAlias === connection.alias,
+      )
+      .sort((a, b) => a.parsed.dbName.localeCompare(b.parsed.dbName));
+
+    for (const { parsed, dbModel } of databases) {
+      const databaseName = parsed.dbName;
+      const dbNodeId = `${connectionId}::${databaseName}` as any;
+      const sortedSchemas = [...dbModel.schemas].sort((a, b) => a.name.localeCompare(b.name));
+      const sourceType = dbModel.sourceType
+        ? dbModel.sourceType.charAt(0).toUpperCase() + dbModel.sourceType.slice(1)
+        : null;
+      const sourceDescription = [sourceType, dbModel.sourceName].filter(Boolean).join(' · ');
+      const isAvailable = dbModel.sourceHealth === 'ready';
+
+      nodeMap.set(dbNodeId, {
+        db: connectionId,
+        databaseName,
+        schemaName: null,
+        objectName: null,
+        columnName: null,
+      });
+      anyNodeIdToNodeTypeMap.set(dbNodeId, 'db');
+
+      childNodes.push({
+        nodeType: 'db',
+        value: dbNodeId,
+        label: isAvailable ? databaseName : `${databaseName} \u26A0`,
+        tooltip: sourceDescription || undefined,
+        iconType: 'db',
+        isDisabled: false,
+        isSelectable: true,
+        contextMenu: [
+          {
+            children: [
+              {
+                label: 'Copy name',
+                onClick: () => copyToClipboard(databaseName, { showNotification: true }),
+              },
+              ...(isAvailable
+                ? [
+                    {
+                      label: 'Show Schema',
+                      onClick: () => {
+                        getOrCreateSchemaBrowserTab({
+                          sourceId: connectionId,
+                          sourceType: 'db',
+                          schemaName: sortedSchemas[0]?.name,
+                          databaseName,
+                          setActive: true,
+                        });
+                      },
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ],
+        children: sortedSchemas.map((schema) =>
+          buildSchemaTreeNode({
+            nodeDbId: dbNodeId,
+            sourceDbId: connectionId,
+            dbName: databaseName,
+            databaseName,
+            schema,
+            context: {
+              nodeMap,
+              anyNodeIdToNodeTypeMap,
+              flatFileSources: context.flatFileSources,
+              comparisonByTableName,
+              comparisonTableNames,
+            },
+            initialExpandedState,
+          }),
+        ),
+      });
+    }
+  }
+
+  const contextMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy name',
+      onClick: () => copyToClipboard(connection.alias, { showNotification: true }),
+    },
+    {
+      label: 'Copy URL',
+      onClick: () =>
+        copyToClipboard(connection.endpoint, {
+          showNotification: true,
+          notificationTitle: 'URL Copied',
+        }),
+    },
+  ];
+
+  if (connection.connectionState === 'connected') {
+    contextMenuItems.push({
+      label: 'Refresh',
+      onClick: () => refreshQuackRidgeMetadata(conn, connection),
+    });
+    contextMenuItems.push({
+      label: 'Disconnect',
+      onClick: () => disconnectQuackRidgeConnection(conn, connection),
+    });
+  } else if (connection.connectionState !== 'connecting') {
+    contextMenuItems.push({
+      label: 'Reconnect',
+      onClick: async () => {
+        const { _iDbConn } = useAppStore.getState();
+        if (!_iDbConn) throw new Error('Encrypted secret store is unavailable.');
+        const token = await resolveQuackRidgeToken(_iDbConn, connection);
+        if (!token) throw new Error('Stored QuackRidge credentials are unavailable.');
+        await reconnectQuackRidgeConnection(conn, connection, token);
+      },
+    });
+  }
+
+  return {
+    nodeType: 'db',
+    value: connectionId,
+    label: `${connection.alias} ${stateIcon}`,
+    iconType: 'db',
+    isDisabled: false,
+    isSelectable: true,
+    onDelete: (node) => {
+      if (node.nodeType === 'db') {
+        Promise.resolve(deleteDataSources(conn, [node.value])).catch((error) =>
+          showDatabaseOperationError('Failed to delete database', error),
+        );
+      }
+    },
+    contextMenu: [{ children: contextMenuItems }],
     children: childNodes.length > 0 ? childNodes : undefined,
   };
 }

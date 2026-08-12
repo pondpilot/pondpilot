@@ -134,6 +134,21 @@ export async function startQuackRidgeHarness(): Promise<QuackRidgeHarness> {
               ssl_mode: 'disable',
             },
           },
+          {
+            id: 'support',
+            name: 'Customer Support',
+            alias: 'support',
+            type: 'postgres',
+            enabled: true,
+            credential_ref: 'quackridge/source/support',
+            options: {
+              host: '127.0.0.1',
+              port: postgresPort,
+              database: 'postgres',
+              user: POSTGRES_USER,
+              ssl_mode: 'disable',
+            },
+          },
         ],
       },
       null,
@@ -161,6 +176,7 @@ export async function startQuackRidgeHarness(): Promise<QuackRidgeHarness> {
       env: {
         ...process.env,
         QUACKRIDGE_SECRET_QUACKRIDGE_SOURCE_WAREHOUSE: POSTGRES_PASSWORD,
+        QUACKRIDGE_SECRET_QUACKRIDGE_SOURCE_SUPPORT: POSTGRES_PASSWORD,
       },
     },
   );

@@ -9,7 +9,11 @@ import { AppIdbSchema } from '@models/persisted-store';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { getSecret, SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
-import { makePersistentDataSourceId } from '@utils/data-source';
+import {
+  formatQuackRidgeDbKey,
+  isQuackRidgeDbKey,
+  makePersistentDataSourceId,
+} from '@utils/data-source';
 import { getTableColumnId } from '@utils/db';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
@@ -446,12 +450,70 @@ export async function getQuackRidgeDatabaseModel(
   pool: AsyncDuckDBConnectionPool,
   alias: string,
 ): Promise<Map<string, DataBaseModel>> {
-  const query = buildQuackRidgeQuery(alias, 'FROM quackridge_metadata_v1()', 'metadata');
+  const query = buildQuackRidgeQuery(
+    alias,
+    `SELECT *
+FROM quackridge_metadata_v1()
+WHERE schema_name IS NULL OR schema_name NOT IN ('information_schema', 'pg_catalog')
+ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
+    'metadata',
+  );
   const result = await pool.query(query);
-  const rows = result.toArray() as QuackRidgeMetadataRow[];
-  const model: DataBaseModel = { name: alias, schemas: [] };
+  const metadata = new Map<string, DataBaseModel>();
+  const fieldNames = [
+    'source_id',
+    'source_name',
+    'source_type',
+    'source_health',
+    'catalog_name',
+    'schema_name',
+    'object_name',
+    'object_type',
+    'column_name',
+    'ordinal_position',
+    'duckdb_type',
+    'nullable',
+    'error_code',
+  ] as const satisfies readonly (keyof QuackRidgeMetadataRow)[];
+  const columns = Object.fromEntries(
+    fieldNames.map((fieldName) => [fieldName, result.getChild(fieldName)]),
+  ) as Record<(typeof fieldNames)[number], { get: (index: number) => unknown } | null>;
 
-  for (const row of rows) {
+  for (let rowIndex = 0; rowIndex < result.numRows; rowIndex += 1) {
+    const raw = Object.fromEntries(
+      fieldNames.map((fieldName) => [fieldName, columns[fieldName]?.get(rowIndex) ?? null]),
+    ) as Record<(typeof fieldNames)[number], unknown>;
+    const row: QuackRidgeMetadataRow = {
+      source_id: String(raw.source_id ?? ''),
+      source_name: String(raw.source_name ?? ''),
+      source_type: String(raw.source_type ?? ''),
+      source_health: String(raw.source_health ?? ''),
+      catalog_name: String(raw.catalog_name ?? ''),
+      schema_name: raw.schema_name === null ? null : String(raw.schema_name),
+      object_name: raw.object_name === null ? null : String(raw.object_name),
+      object_type: raw.object_type === null ? null : String(raw.object_type),
+      column_name: raw.column_name === null ? null : String(raw.column_name),
+      ordinal_position: raw.ordinal_position === null ? null : Number(raw.ordinal_position),
+      duckdb_type: raw.duckdb_type === null ? null : String(raw.duckdb_type),
+      nullable: raw.nullable === null ? null : Boolean(raw.nullable),
+      error_code: raw.error_code === null ? null : String(raw.error_code),
+    };
+    if (!row.catalog_name) continue;
+
+    const metadataKey = formatQuackRidgeDbKey(alias, row.catalog_name);
+    let model = metadata.get(metadataKey);
+    if (!model) {
+      model = {
+        name: row.catalog_name,
+        sourceId: row.source_id,
+        sourceName: row.source_name,
+        sourceType: row.source_type,
+        sourceHealth: row.source_health,
+        sourceErrorCode: row.error_code,
+        schemas: [],
+      };
+      metadata.set(metadataKey, model);
+    }
     if (
       row.source_health !== 'ready' ||
       !row.schema_name ||
@@ -464,13 +526,10 @@ export async function getQuackRidgeDatabaseModel(
     ) {
       continue;
     }
-    const schemaDisplayName = `${row.catalog_name}.${row.schema_name}`;
-    let schema = model.schemas.find((candidate) => candidate.name === schemaDisplayName);
+    let schema = model.schemas.find((candidate) => candidate.name === row.schema_name);
     if (!schema) {
       schema = {
-        name: schemaDisplayName,
-        catalogName: row.catalog_name,
-        remoteName: row.schema_name,
+        name: row.schema_name,
         objects: [],
       };
       model.schemas.push(schema);
@@ -495,7 +554,7 @@ export async function getQuackRidgeDatabaseModel(
     };
     object.columns.push(column);
   }
-  return new Map([[alias, model]]);
+  return metadata;
 }
 
 export async function refreshQuackRidgeMetadata(
@@ -504,6 +563,9 @@ export async function refreshQuackRidgeMetadata(
 ): Promise<void> {
   const metadata = await getQuackRidgeDatabaseModel(pool, connection.alias);
   const next = new Map(useAppStore.getState().databaseMetadata);
+  for (const name of next.keys()) {
+    if (isQuackRidgeDbKey(name, connection.alias)) next.delete(name);
+  }
   for (const [name, model] of metadata) next.set(name, model);
   useAppStore.setState({ databaseMetadata: next }, false, 'QuackRidge/loadMetadata');
 }
@@ -609,7 +671,9 @@ export async function disconnectQuackRidgeConnection(
 ): Promise<void> {
   await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(connection.alias)}`);
   const metadata = new Map(useAppStore.getState().databaseMetadata);
-  metadata.delete(connection.alias);
+  for (const name of metadata.keys()) {
+    if (isQuackRidgeDbKey(name, connection.alias)) metadata.delete(name);
+  }
   useAppStore.setState({ databaseMetadata: metadata }, false, 'QuackRidge/disconnect');
   updateQuackRidgeConnectionState(connection.id, 'disconnected');
 }

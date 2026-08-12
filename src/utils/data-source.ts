@@ -261,6 +261,39 @@ export function parseMotherDuckDbKey(key: string): string | null {
   return key.slice(MD_DB_PREFIX.length);
 }
 
+// QuackRidge exposes multiple databases through one attached connection. Keep
+// their metadata scoped by connection alias so two bridges can expose the same
+// catalog name without colliding in the global metadata map.
+export const QUACKRIDGE_DB_PREFIX = 'qr:';
+
+export function formatQuackRidgeDbKey(connectionAlias: string, dbName: string): string {
+  return `${QUACKRIDGE_DB_PREFIX}${encodeURIComponent(connectionAlias)}:${encodeURIComponent(dbName)}`;
+}
+
+export function parseQuackRidgeDbKey(
+  key: string,
+): { connectionAlias: string; dbName: string } | null {
+  if (!key.startsWith(QUACKRIDGE_DB_PREFIX)) return null;
+  const separatorIndex = key.indexOf(':', QUACKRIDGE_DB_PREFIX.length);
+  if (separatorIndex < 0 || separatorIndex === key.length - 1) return null;
+  try {
+    const connectionAlias = decodeURIComponent(
+      key.slice(QUACKRIDGE_DB_PREFIX.length, separatorIndex),
+    );
+    const dbName = decodeURIComponent(key.slice(separatorIndex + 1));
+    return connectionAlias && dbName ? { connectionAlias, dbName } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isQuackRidgeDbKey(key: string, connectionAlias?: string): boolean {
+  const parsed = parseQuackRidgeDbKey(key);
+  return (
+    parsed !== null && (connectionAlias === undefined || parsed.connectionAlias === connectionAlias)
+  );
+}
+
 export type DatabaseDataSource =
   | LocalDB
   | RemoteDB

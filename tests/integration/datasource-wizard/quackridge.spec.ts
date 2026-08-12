@@ -81,8 +81,10 @@ test.describe('QuackRidge local PostgreSQL bridge', () => {
 
     await expect(page.getByText('quackridge ✓')).toBeVisible();
     await page.getByRole('treeitem', { name: 'quackridge ✓' }).click();
-    await expect(page.getByText('warehouse.public')).toBeVisible();
-    await page.getByRole('treeitem', { name: 'warehouse.public' }).click();
+    await expect(page.getByRole('treeitem', { name: 'support' })).toBeVisible();
+    await page.getByRole('treeitem', { name: 'warehouse' }).click();
+    await expect(page.getByRole('treeitem', { name: 'public' })).toBeVisible();
+    await page.getByRole('treeitem', { name: 'public' }).click();
     await expect(page.getByText('customers', { exact: true })).toBeVisible();
     await expect(page.getByText('orders', { exact: true })).toBeVisible();
 

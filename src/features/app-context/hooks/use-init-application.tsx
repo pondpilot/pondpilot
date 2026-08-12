@@ -166,7 +166,6 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
 
       try {
         await reconnectQuackRidgeConnection(conn, dataSource, token);
-        connectedDatabases.push(dataSource.alias);
       } catch (error) {
         const message = sanitizeErrorMessage(
           error instanceof Error ? error.message : String(error),

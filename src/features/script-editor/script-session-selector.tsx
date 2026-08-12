@@ -24,6 +24,7 @@ import { IconChevronRight, IconDatabase, IconSearch } from '@tabler/icons-react'
 import {
   getDatabaseIdentifier,
   isDatabaseDataSource,
+  isQuackRidgeDbKey,
   parseMotherDuckDbKey,
 } from '@utils/data-source';
 import { getErrorMessage } from '@utils/error-classification';
@@ -52,6 +53,9 @@ export const ScriptSessionSelector = ({ scriptId, tabId }: ScriptSessionSelector
   const catalogs = useMemo(() => {
     const set = new Set<string>([PERSISTENT_DB_NAME, 'memory']);
     for (const dbName of databaseMetadata.keys()) {
+      // QuackRidge databases live inside the bridge's remote DuckDB session;
+      // only the bridge alias is a browser-side script session.
+      if (isQuackRidgeDbKey(dbName)) continue;
       set.add(parseMotherDuckDbKey(dbName) ?? dbName);
     }
     for (const dataSource of dataSources.values()) {
