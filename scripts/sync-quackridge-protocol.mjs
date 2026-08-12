@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
-const PINNED_TAG = 'v0.1.1';
+const PINNED_TAG = 'v0.1.2';
 const FILES = [
   'error-codes.json',
   'identity.schema.json',
