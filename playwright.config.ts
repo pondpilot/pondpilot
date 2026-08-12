@@ -3,20 +3,14 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
-const workersOverride = process.env.PLAYWRIGHT_WORKERS;
-const parsedWorkersOverride = workersOverride
-  ? Number.isNaN(Number(workersOverride))
-    ? workersOverride
-    : Number(workersOverride)
-  : undefined;
-
 export default defineConfig({
   testDir: './tests/integration',
+  fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: parsedWorkersOverride ?? (process.env.CI ? 1 : '80%'),
+  /* DuckDB-WASM and OPFS state must never be shared by parallel workers. */
+  workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: process.env.CI
     ? [['junit', { outputFile: './playwright-report/results.xml' }]]
@@ -25,7 +19,9 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      // Keep the viewport deterministic without emulating a Windows user agent
+      // on macOS. Monaco and native clipboard shortcuts must see the same OS.
+      use: { viewport: { width: 1280, height: 720 } },
     },
     // tests that use non-chromium browsers
     {

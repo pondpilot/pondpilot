@@ -1,5 +1,7 @@
 import { test as base, expect, Locator } from '@playwright/test';
 
+import { pressPrimaryShortcut } from '../utils/keyboard';
+
 type ScriptEditorFixtures = {
   /**
    * Returns the script editor locator.
@@ -91,7 +93,7 @@ export const test = base.extend<ScriptEditorFixtures>({
       await expect(scriptEditorContent).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+A');
+      await pressPrimaryShortcut(page, 'A');
       await page.keyboard.insertText(content);
     });
   },

@@ -4,6 +4,7 @@ import { test as baseTest } from '../fixtures/page';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 import { test as storageTest } from '../fixtures/storage';
+import { pressPrimaryShortcut } from '../utils/keyboard';
 
 const test = mergeTests(baseTest, scriptEditorTest, scriptExplorerTest, storageTest);
 
@@ -24,7 +25,7 @@ test.describe('AI Assistant Structured Response', () => {
     await page.keyboard.type('SELECT * FROM users;');
 
     // Open AI assistant
-    await page.keyboard.press('ControlOrMeta+i');
+    await pressPrimaryShortcut(page, 'I');
     const aiWidget = page.locator('.cm-ai-assistant-widget');
     const textarea = aiWidget.locator('.ai-widget-textarea');
 
