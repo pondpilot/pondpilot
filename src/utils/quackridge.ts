@@ -21,8 +21,7 @@ import { attachQuackConnection } from './quack';
 
 export const QUACKRIDGE_PROTOCOL_VERSION = 1 as const;
 export const QUACKRIDGE_METADATA_VERSION = 1 as const;
-export const QUACKRIDGE_RELEASE_MANIFEST_URL =
-  'https://github.com/pondpilot/quackridge/releases/latest/download/release-manifest.json';
+export const QUACKRIDGE_RELEASE_MANIFEST_URL = '/quackridge/releases/stable/release-manifest.json';
 export const QUACKRIDGE_REQUIRED_CAPABILITIES = [
   'cancellation_noop',
   'metadata_v1',
@@ -258,8 +257,15 @@ export async function fetchQuackRidgeReleaseManifest(
   manifestUrl: string,
   fetcher: typeof fetch = fetch,
 ): Promise<QuackRidgeReleaseManifest> {
-  const url = new URL(manifestUrl);
-  if (url.protocol !== 'https:') throw new Error('QuackRidge manifest URL must use HTTPS.');
+  const url = new URL(manifestUrl, globalThis.location?.origin ?? 'https://app.pondpilot.io');
+  const isSameOriginPath = manifestUrl.startsWith('/') && !manifestUrl.startsWith('//');
+  const isLocalDevelopment =
+    isSameOriginPath &&
+    url.protocol === 'http:' &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !isLocalDevelopment) {
+    throw new Error('QuackRidge manifest URL must use HTTPS.');
+  }
   const response = await fetcher(url, {
     credentials: 'omit',
     cache: 'no-store',

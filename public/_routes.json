@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "include": ["/quackridge/releases/stable/release-manifest.json"],
+  "exclude": []
+}

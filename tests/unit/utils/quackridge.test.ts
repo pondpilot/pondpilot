@@ -2,12 +2,14 @@ import { describe, expect, it, jest } from '@jest/globals';
 import {
   detectQuackRidgePlatform,
   buildQuackRidgeQuery,
+  fetchQuackRidgeReleaseManifest,
   findQuackRidgeLocalReference,
   getQuackRidgeDatabaseModel,
   identifyQuackRidge,
   makeQuackRidgeConnection,
   mapQuackRidgeError,
   pairWithQuackRidge,
+  QUACKRIDGE_RELEASE_MANIFEST_URL,
   selectQuackRidgeAsset,
   validatePairingChallengeUrl,
   validateQuackRidgeIdentity,
@@ -99,6 +101,23 @@ describe('QuackRidge protocol', () => {
         assets: [{ ...manifestFixture.assets[0], sha256: 'not-a-hash' }],
       }),
     ).toThrow('invalid asset');
+  });
+
+  it('loads the release manifest through the same-origin Cloudflare endpoint', async () => {
+    const fetcher = jest.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(manifestFixture), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(
+      fetchQuackRidgeReleaseManifest(QUACKRIDGE_RELEASE_MANIFEST_URL, fetcher),
+    ).resolves.toMatchObject({ version: '0.1.0' });
+    expect(fetcher).toHaveBeenCalledWith(
+      new URL(QUACKRIDGE_RELEASE_MANIFEST_URL, 'https://app.pondpilot.io'),
+      expect.objectContaining({ credentials: 'omit', cache: 'no-store', redirect: 'error' }),
+    );
   });
 
   it('detects architecture only when browser evidence is sufficient', async () => {
