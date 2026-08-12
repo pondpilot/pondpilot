@@ -454,6 +454,7 @@ export function useProtectedViews(): Set<string> {
                 dataSource.type !== 'iceberg-catalog' &&
                 dataSource.type !== 'ducklake-catalog' &&
                 dataSource.type !== 'quack' &&
+                dataSource.type !== 'quackridge' &&
                 dataSource.type !== 'motherduck',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),

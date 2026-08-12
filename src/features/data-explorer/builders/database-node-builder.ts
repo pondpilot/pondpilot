@@ -438,9 +438,10 @@ export function buildSchemaTreeNode({
   initialExpandedState: Record<string, boolean>;
   databaseName?: string;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
-  const { name: schemaName, objects } = schema;
-  const schemaNodeId = `${nodeDbId}.${schemaName}`;
-  const resolvedDatabaseName = databaseName ?? dbName;
+  const { name: schemaDisplayName, objects } = schema;
+  const schemaName = schema.remoteName ?? schemaDisplayName;
+  const schemaNodeId = `${nodeDbId}.${schemaDisplayName}`;
+  const resolvedDatabaseName = databaseName ?? schema.catalogName ?? dbName;
 
   context.nodeMap.set(schemaNodeId, {
     db: sourceDbId,
@@ -596,7 +597,7 @@ export function buildSchemaTreeNode({
   return {
     nodeType: 'schema',
     value: schemaNodeId,
-    label: schemaName,
+    label: schemaDisplayName,
     iconType: 'db-schema',
     isDisabled: false,
     isSelectable: false,

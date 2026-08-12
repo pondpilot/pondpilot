@@ -7,6 +7,7 @@ import {
   MotherDuckConnection,
   PersistentDataSourceId,
   QuackConnection,
+  QuackRidgeConnection,
   ReadStatView,
   RemoteDB,
 } from '@models/data-source';
@@ -42,6 +43,7 @@ export function ensureFlatFileDataSource(
     obj.type === 'iceberg-catalog' ||
     obj.type === 'ducklake-catalog' ||
     obj.type === 'quack' ||
+    obj.type === 'quackridge' ||
     obj.type === 'motherduck'
   ) {
     throw new Error(`Data source with id ${obj.id} is not a flat file data source`);
@@ -219,6 +221,12 @@ export function isQuackConnection(dataSource: AnyDataSource): dataSource is Quac
   return dataSource.type === 'quack';
 }
 
+export function isQuackRidgeConnection(
+  dataSource: AnyDataSource,
+): dataSource is QuackRidgeConnection {
+  return dataSource.type === 'quackridge';
+}
+
 export function isMotherDuckConnection(
   dataSource: AnyDataSource,
 ): dataSource is MotherDuckConnection {
@@ -254,7 +262,13 @@ export function parseMotherDuckDbKey(key: string): string | null {
 }
 
 export type DatabaseDataSource =
-  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection;
+  | LocalDB
+  | RemoteDB
+  | IcebergCatalog
+  | DuckLakeCatalog
+  | QuackConnection
+  | QuackRidgeConnection
+  | MotherDuckConnection;
 
 export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is DatabaseDataSource {
   return (
@@ -263,6 +277,7 @@ export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is D
     dataSource.type === 'iceberg-catalog' ||
     dataSource.type === 'ducklake-catalog' ||
     dataSource.type === 'quack' ||
+    dataSource.type === 'quackridge' ||
     dataSource.type === 'motherduck'
   );
 }
@@ -277,6 +292,7 @@ export function getDatabaseIdentifier(dataSource: DatabaseDataSource): string {
   if (dataSource.type === 'iceberg-catalog') return dataSource.catalogAlias;
   if (dataSource.type === 'ducklake-catalog') return dataSource.catalogAlias;
   if (dataSource.type === 'motherduck') return MD_DB_PREFIX;
+  if (dataSource.type === 'quackridge') return dataSource.alias;
   return dataSource.dbName;
 }
 

@@ -11,6 +11,7 @@ import {
   MotherDuckConnection,
   PersistentDataSourceId,
   QuackConnection,
+  QuackRidgeConnection,
   RemoteDB,
 } from '@models/data-source';
 import { ColumnSortSpecList } from '@models/db';
@@ -259,6 +260,7 @@ export const getOrCreateTabFromLocalDBObject = (
     | IcebergCatalog
     | DuckLakeCatalog
     | QuackConnection
+    | QuackRidgeConnection
     | MotherDuckConnection
     | PersistentDataSourceId,
   schemaName: string,
@@ -507,6 +509,7 @@ export const findTabFromLocalDBObject = (
     | IcebergCatalog
     | DuckLakeCatalog
     | QuackConnection
+    | QuackRidgeConnection
     | MotherDuckConnection
     | PersistentDataSourceId,
   schemaName: string,
@@ -732,6 +735,32 @@ export const updateScriptTabLastExecutedQuery = ({
     iDb
       .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
       .catch(createPersistenceCatchHandler('persist tab column sizes cache update'));
+  }
+};
+
+export const updateScriptTabExecutionTarget = (
+  tabId: TabId,
+  executionTargetId: PersistentDataSourceId | null,
+): void => {
+  const { tabs, dataSources, _iDbConn } = useAppStore.getState();
+  const currentTab = ensureTab(tabId, tabs);
+  if (currentTab.type !== 'script') return;
+  if (executionTargetId) {
+    const target = dataSources.get(executionTargetId);
+    if (!target || target.type !== 'quackridge') {
+      throw new Error('Script execution target must be a QuackRidge connection.');
+    }
+  }
+  const updatedTab: ScriptTab = {
+    ...currentTab,
+    executionTargetId: executionTargetId ?? undefined,
+    lastExecutedQuery: null,
+  };
+  updateScriptTabLastExecutedQueryAction(updatedTab);
+  if (_iDbConn) {
+    _iDbConn
+      .put(TAB_TABLE_NAME, updatedTab, updatedTab.id)
+      .catch(createPersistenceCatchHandler('persist script execution target update'));
   }
 };
 

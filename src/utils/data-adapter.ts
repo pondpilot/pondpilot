@@ -14,6 +14,7 @@ import {
   LocalDB,
   MotherDuckConnection,
   QuackConnection,
+  QuackRidgeConnection,
   RemoteDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
@@ -24,6 +25,7 @@ import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { getDatabaseIdentifier } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { buildQuackRidgeQuery } from '@utils/quackridge';
 
 import { convertArrowTable } from './arrow';
 import { isFlatFileDataSource } from './data-source';
@@ -424,6 +426,100 @@ function getDatabaseDataAdapterApi(
   };
 }
 
+function getQuackRidgeDataAdapterApi(
+  pool: AsyncDuckDBConnectionPool,
+  dataSource: QuackRidgeConnection,
+  tab: TabReactiveState<LocalDBDataTab>,
+): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
+  if (dataSource.connectionState !== 'connected') {
+    return {
+      adapter: null,
+      userErrors: [`QuackRidge '${dataSource.alias}' is not connected`],
+      internalErrors: [],
+    };
+  }
+  const catalog = tab.databaseName;
+  if (!catalog) {
+    return {
+      adapter: null,
+      userErrors: [],
+      internalErrors: ['QuackRidge table is missing its source catalog'],
+    };
+  }
+  const fqn = `${toDuckDBIdentifier(catalog)}.${toDuckDBIdentifier(tab.schemaName)}.${toDuckDBIdentifier(tab.objectName)}`;
+  const remoteQuery = (sql: string, operation: string) =>
+    buildQuackRidgeQuery(
+      dataSource.alias,
+      sql,
+      `explorer_${operation}_${Date.now()}`.replace(/[^A-Za-z0-9_-]/g, '_'),
+    );
+
+  return {
+    adapter: {
+      sourceQuery: remoteQuery(`SELECT * FROM ${fqn}`, 'source'),
+      getSortableReader: async (sort, abortSignal) => {
+        if (abortSignal.aborted) return null;
+        const orderBy = sort.length
+          ? ` ORDER BY ${sort
+              .map((item) => `${toDuckDBIdentifier(item.column)} ${item.order || 'asc'}`)
+              .join(', ')}`
+          : '';
+        return pool.send(remoteQuery(`SELECT * FROM ${fqn}${orderBy}`, 'preview'), true);
+      },
+      getRowCount: async (abortSignal) => {
+        if (abortSignal.aborted) return { value: 0, aborted: true };
+        const value = await pool.query(remoteQuery(`SELECT count(*) FROM ${fqn}`, 'count'));
+        return { value: Number(value.getChildAt(0)?.get(0)), aborted: false };
+      },
+      getColumnAggregate: async (columnName, aggType, abortSignal) => {
+        if (abortSignal.aborted) return { value: undefined, aborted: true };
+        const value = await pool.query(
+          remoteQuery(
+            `SELECT ${aggType}(${toDuckDBIdentifier(columnName)}) FROM ${fqn}`,
+            'aggregate',
+          ),
+        );
+        return { value: value.getChildAt(0)?.get(0), aborted: false };
+      },
+      getColumnsData: async (columns, abortSignal) => {
+        if (abortSignal.aborted) return { value: [], aborted: true };
+        const names = columns.map((column) => toDuckDBIdentifier(column.name)).join(', ');
+        const value = await pool.query(
+          remoteQuery(`SELECT ${names} FROM ${fqn}`, 'column_summary'),
+        );
+        return { value: convertArrowTable(value, columns), aborted: false };
+      },
+      getChartAggregatedData: async (
+        xColumn,
+        yColumn,
+        aggregation,
+        groupByColumn,
+        sortBy,
+        sortOrder,
+        abortSignal,
+      ) => {
+        if (abortSignal.aborted) return { value: [], aborted: true };
+        const sql = buildChartAggregationQuery(
+          fqn,
+          xColumn,
+          yColumn,
+          aggregation,
+          groupByColumn,
+          sortBy,
+          sortOrder,
+        );
+        const value = await pool.query(remoteQuery(sql, 'statistics'));
+        return {
+          value: convertArrowToChartData(value, groupByColumn !== null),
+          aborted: false,
+        };
+      },
+    },
+    userErrors: [],
+    internalErrors: [],
+  };
+}
+
 export function getFileDataAdapterQueries({
   pool,
   dataSource,
@@ -601,6 +697,17 @@ export function getFileDataAdapterQueries({
     }
 
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
+  }
+
+  if (dataSource.type === 'quackridge') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: ['QuackRidge objects require a database data tab'],
+      };
+    }
+    return getQuackRidgeDataAdapterApi(pool, dataSource, tab);
   }
 
   const _exhaustiveCheck: never = dataSource;

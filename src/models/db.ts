@@ -65,6 +65,9 @@ export interface DBTableOrView {
 
 export interface DBSchema {
   name: string;
+  /** Displayed schemas may retain their server-side catalog/name separately. */
+  catalogName?: string;
+  remoteName?: string;
   objects: DBTableOrView[];
 }
 

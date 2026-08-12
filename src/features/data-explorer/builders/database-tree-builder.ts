@@ -10,6 +10,7 @@ import {
   LocalDB,
   MotherDuckConnection,
   QuackConnection,
+  QuackRidgeConnection,
   RemoteDB,
 } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
@@ -34,6 +35,12 @@ import {
   reconnectQuackDataSource,
   refreshQuackMetadata,
 } from '@utils/quack';
+import {
+  disconnectQuackRidgeConnection,
+  reconnectQuackRidgeConnection,
+  refreshQuackRidgeMetadata,
+  resolveQuackRidgeToken,
+} from '@utils/quackridge';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 
@@ -89,12 +96,16 @@ const showDatabaseOperationError = (title: string, error: unknown): void => {
  * @returns TreeNodeData configured as a complete database node with all children
  */
 export function buildDatabaseNode(
-  dataSource: LocalDB | RemoteDB | QuackConnection,
+  dataSource: LocalDB | RemoteDB | QuackConnection | QuackRidgeConnection,
   isSystemDb: boolean,
   context: DatabaseTreeBuilderContext,
 ): TreeNodeData<DataExplorerNodeTypeMap> {
-  const { id: dbId, dbName } = dataSource;
-  const isRemoteDb = dataSource.type === 'remote-db' || dataSource.type === 'quack';
+  const dbId = dataSource.id;
+  const dbName = dataSource.type === 'quackridge' ? dataSource.alias : dataSource.dbName;
+  const isRemoteDb =
+    dataSource.type === 'remote-db' ||
+    dataSource.type === 'quack' ||
+    dataSource.type === 'quackridge';
   const {
     nodeMap,
     anyNodeIdToNodeTypeMap,
@@ -124,7 +135,7 @@ export function buildDatabaseNode(
 
   // For remote databases, append connection state indicator
   if (isRemoteDb) {
-    const remoteDb = dataSource as RemoteDB | QuackConnection;
+    const remoteDb = dataSource as RemoteDB | QuackConnection | QuackRidgeConnection;
     const stateIcon =
       remoteDb.connectionState === 'connected'
         ? '✓'
@@ -161,7 +172,8 @@ export function buildDatabaseNode(
         getOrCreateSchemaBrowserTab({
           sourceId: dbId,
           sourceType: 'db',
-          schemaName: firstSchema?.name,
+          schemaName: firstSchema?.remoteName ?? firstSchema?.name,
+          databaseName: firstSchema?.catalogName,
           setActive: true,
         });
       },
@@ -186,7 +198,11 @@ export function buildDatabaseNode(
           label: 'Copy URL',
           onClick: () => {
             copyToClipboard(
-              dataSource.type === 'quack' ? dataSource.uri : (dataSource as RemoteDB).url,
+              dataSource.type === 'quack'
+                ? dataSource.uri
+                : dataSource.type === 'quackridge'
+                  ? dataSource.endpoint
+                  : dataSource.url,
               {
                 showNotification: true,
                 notificationTitle: 'URL Copied',
@@ -196,32 +212,47 @@ export function buildDatabaseNode(
         },
         {
           label:
-            (dataSource as RemoteDB | QuackConnection).connectionState === 'connected'
+            (dataSource as RemoteDB | QuackConnection | QuackRidgeConnection).connectionState ===
+            'connected'
               ? 'Refresh'
               : 'Reconnect',
           onClick: async () => {
-            if ((dataSource as RemoteDB | QuackConnection).connectionState === 'connected') {
+            if (
+              (dataSource as RemoteDB | QuackConnection | QuackRidgeConnection).connectionState ===
+              'connected'
+            ) {
               // Refresh metadata
               if (dataSource.type === 'quack') {
                 await refreshQuackMetadata(conn, dataSource);
+              } else if (dataSource.type === 'quackridge') {
+                await refreshQuackRidgeMetadata(conn, dataSource);
               } else {
                 await refreshDatabaseMetadata(conn, [dbName]);
               }
             } else if (dataSource.type === 'quack') {
               await reconnectQuackDataSource(conn, dataSource);
+            } else if (dataSource.type === 'quackridge') {
+              const { _iDbConn } = useAppStore.getState();
+              if (!_iDbConn) throw new Error('Encrypted secret store is unavailable.');
+              const token = await resolveQuackRidgeToken(_iDbConn, dataSource);
+              if (!token) throw new Error('Stored QuackRidge credentials are unavailable.');
+              await reconnectQuackRidgeConnection(conn, dataSource, token);
             } else {
               // Attempt reconnection
               await reconnectRemoteDatabase(conn, dataSource as RemoteDB);
             }
           },
         },
-        ...((dataSource as RemoteDB | QuackConnection).connectionState === 'connected'
+        ...((dataSource as RemoteDB | QuackConnection | QuackRidgeConnection).connectionState ===
+        'connected'
           ? [
               {
                 label: 'Disconnect',
                 onClick: async () => {
                   if (dataSource.type === 'quack') {
                     await disconnectQuackConnection(conn, dataSource);
+                  } else if (dataSource.type === 'quackridge') {
+                    await disconnectQuackRidgeConnection(conn, dataSource);
                   } else {
                     await disconnectRemoteDatabase(conn, dataSource as RemoteDB);
                   }
@@ -295,6 +326,7 @@ export function buildDatabaseNode(
           comparisonTableNames,
         },
         initialExpandedState,
+        databaseName: schema.catalogName,
       }),
     ),
   };

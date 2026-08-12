@@ -57,6 +57,8 @@ export interface ScriptTab extends TabBase {
   dataViewPaneHeight: number;
   editorPaneHeight: number;
   lastExecutedQuery: string | null;
+  /** Null/undefined executes in browser DuckDB; QuackRidge IDs execute server-side. */
+  executionTargetId?: PersistentDataSourceId;
 }
 
 export interface FlatFileDataSourceTab extends TabBase {

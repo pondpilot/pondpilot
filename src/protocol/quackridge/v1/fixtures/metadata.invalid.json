@@ -1,0 +1,14 @@
+{
+  "source_id": "",
+  "source_name": "Warehouse",
+  "source_type": "postgres",
+  "source_health": "broken",
+  "catalog_name": "warehouse",
+  "schema_name": null,
+  "object_name": null,
+  "object_type": null,
+  "column_name": null,
+  "ordinal_position": 0,
+  "duckdb_type": null,
+  "nullable": null
+}

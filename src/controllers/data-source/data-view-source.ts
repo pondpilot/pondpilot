@@ -254,6 +254,20 @@ export const deleteDataSources = async (
         continue;
       }
 
+      if (dataSource.type === 'quackridge') {
+        await detachAndUnregisterDatabase(conn, dataSource.alias, dataSource.endpoint);
+        try {
+          const { _iDbConn } = useAppStore.getState();
+          if (_iDbConn) {
+            const { deleteSecret } = await import('@services/secret-store');
+            await deleteSecret(_iDbConn, dataSource.secretRef);
+          }
+        } catch (storeError) {
+          console.warn('Failed to delete QuackRidge secret during deletion:', storeError);
+        }
+        continue;
+      }
+
       if (dataSource.type === 'ducklake-catalog') {
         // For DuckLake catalogs, just detach
         await detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.url);

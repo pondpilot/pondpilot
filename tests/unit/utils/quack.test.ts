@@ -80,7 +80,7 @@ describe('quack utils', () => {
     await expect(loadQuackExtension({ query } as any)).resolves.toBeUndefined();
     expect(query).toHaveBeenNthCalledWith(
       7,
-      "LOAD 'https://extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm'",
+      "LOAD 'https://extensions.duckdb.org/v1.5.5/wasm_eh/quack.duckdb_extension.wasm'",
     );
     expect(query).toHaveBeenLastCalledWith('LOAD quack');
   });
@@ -135,7 +135,7 @@ describe('quack utils', () => {
     ).resolves.toBeUndefined();
     expect(pool.query).toHaveBeenNthCalledWith(
       4,
-      "LOAD 'https://extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm'",
+      "LOAD 'https://extensions.duckdb.org/v1.5.5/wasm_eh/quack.duckdb_extension.wasm'",
     );
   });
 

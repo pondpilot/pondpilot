@@ -1,0 +1,103 @@
+name: QuackRidge native E2E
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/quackridge-e2e.yml'
+      - 'scripts/sync-quackridge-protocol.mjs'
+      - 'src/protocol/quackridge/**'
+      - 'src/utils/quackridge.ts'
+      - 'src/features/datasource-wizard/components/quackridge-config.tsx'
+      - 'src/features/tab-view/views/script-tab-view.tsx'
+      - 'tests/integration/datasource-wizard/quackridge*'
+  workflow_dispatch:
+  schedule:
+    - cron: '23 7 * * 2'
+
+concurrency:
+  group: quackridge-e2e-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PINNED_QUACKRIDGE_REF: v0.1.0
+
+jobs:
+  pinned:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: pondpilot/quackridge
+          ref: ${{ env.PINNED_QUACKRIDGE_REF }}
+          path: quackridge
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: quackridge/go.mod
+          cache-dependency-path: quackridge/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn playwright install --with-deps chromium
+      - name: Build trusted pinned QuackRidge source
+        run: |
+          ./quackridge/scripts/fetch-extensions.sh /tmp/quackridge-extensions
+          go build -C quackridge -o /tmp/quackridge ./cmd/quackridge
+      - run: yarn build:test
+      - name: Run native bridge suite
+        run: yarn playwright test tests/integration/datasource-wizard/quackridge.spec.ts --project=chromium
+        env:
+          CI: true
+          RUN_QUACKRIDGE_E2E: 'true'
+          QUACKRIDGE_BINARY: /tmp/quackridge
+          QUACKRIDGE_EXTENSION_DIR: /tmp/quackridge-extensions
+
+  newest-prerelease:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve newest prerelease without changing the supported pin
+        id: prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh api repos/pondpilot/quackridge/releases --jq '[.[] | select(.prerelease)][0].tag_name')
+          test -n "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: pondpilot/quackridge
+          ref: ${{ steps.prerelease.outputs.tag }}
+          path: quackridge
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: quackridge/go.mod
+          cache-dependency-path: quackridge/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn playwright install --with-deps chromium
+      - name: Build newest prerelease from reviewed repository source
+        run: |
+          ./quackridge/scripts/fetch-extensions.sh /tmp/quackridge-extensions
+          go build -C quackridge -o /tmp/quackridge ./cmd/quackridge
+      - run: yarn build:test
+      - name: Run compatibility suite
+        run: yarn playwright test tests/integration/datasource-wizard/quackridge.spec.ts --project=chromium
+        env:
+          CI: true
+          RUN_QUACKRIDGE_E2E: 'true'
+          QUACKRIDGE_BINARY: /tmp/quackridge
+          QUACKRIDGE_EXTENSION_DIR: /tmp/quackridge-extensions

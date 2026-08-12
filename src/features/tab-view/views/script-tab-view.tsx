@@ -5,6 +5,7 @@ import { updateSQLScriptContent } from '@controllers/sql-script';
 import {
   updateScriptTabLastExecutedQuery,
   updateScriptTabLayout,
+  updateScriptTabExecutionTarget,
   clearTabExecutionError,
   setTabExecutionError,
   updateTabViewMode,
@@ -14,7 +15,9 @@ import { useChartData, useSmallMultiplesData } from '@features/chart-view';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { ScriptEditor } from '@features/script-editor';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
+import { Select } from '@mantine/core';
 import { ChartConfig, DEFAULT_CHART_CONFIG, DEFAULT_VIEW_MODE, ViewMode } from '@models/chart';
+import { QuackRidgeConnection } from '@models/data-source';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { AsyncDuckDBPooledPreparedStatement } from '@services/duckdb-pool/duckdb-pooled-prepared-stmt';
@@ -47,10 +50,15 @@ import {
   ClassifiedSQLStatement,
 } from '@utils/editor/sql';
 import { isNotReadableError, getErrorMessage } from '@utils/error-classification';
+import {
+  buildQuackRidgeQuery,
+  findQuackRidgeLocalReference,
+  mapQuackRidgeError,
+} from '@utils/quackridge';
 import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
 import { DataView, DataViewInfoPane } from '../components';
 import { useDataAdapter } from '../hooks/use-data-adapter';
@@ -145,6 +153,17 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   const pool = useInitializedDuckDBConnectionPool();
   const protectedViews = useProtectedViews();
   const { preferences } = useEditorPreferences();
+  const dataSources = useAppStore((state) => state.dataSources);
+  const executionTargets = useMemo(
+    () =>
+      Array.from(dataSources.values()).filter(
+        (source): source is QuackRidgeConnection => source.type === 'quackridge',
+      ),
+    [dataSources],
+  );
+  const executionTarget = tab.executionTargetId
+    ? executionTargets.find((target) => target.id === tab.executionTargetId)
+    : undefined;
 
   const formatStatementError = useCallback(
     (
@@ -189,6 +208,26 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Classify statements
       const classifiedStatements = classifySQLStatements(statements);
 
+      if (tab.executionTargetId && !executionTarget) {
+        setScriptExecutionState('error');
+        showError({
+          title: 'QuackRidge target unavailable',
+          message: 'Select an available execution target before running this script.',
+        });
+        return;
+      }
+      if (
+        executionTarget?.connectionState !== undefined &&
+        executionTarget.connectionState !== 'connected'
+      ) {
+        setScriptExecutionState('error');
+        showError({
+          title: 'QuackRidge is not connected',
+          message: `Reconnect ${executionTarget.alias} before running this script.`,
+        });
+        return;
+      }
+
       // Check if the statements are valid
       const errors = validateStatements(classifiedStatements, protectedViews);
       if (errors.length > 0) {
@@ -199,6 +238,23 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           message: errors.join('\n'),
         });
         return;
+      }
+
+      if (executionTarget) {
+        const localCatalogs = Array.from(dataSources.values())
+          .filter((source) => source.type !== 'quackridge' && 'dbName' in source)
+          .map((source) => source.dbName);
+        for (const statement of classifiedStatements) {
+          const localReference = findQuackRidgeLocalReference(statement.code, localCatalogs);
+          if (localReference) {
+            setScriptExecutionState('error');
+            showError({
+              title: 'Cross-engine query is not supported',
+              message: `QuackRidge v1 cannot combine the browser-local '${localReference}' catalog with private sources.`,
+            });
+            return;
+          }
+        }
       }
 
       // Query to be used in data adapter and saved to the store
@@ -235,6 +291,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       }
 
       const readBackSessionState = async () => {
+        if (executionTarget) return;
         try {
           const result = await conn.query(
             'SELECT current_database() AS db, current_schema() AS schema',
@@ -305,7 +362,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         // executed outside the transaction, but transactional statements after
         // USE still get rollback protection.
         const shouldUseTransaction =
-          classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
+          !executionTarget &&
+          classifiedStatements.length > 1 &&
+          classifiedStatements.some((s) => s.needsTransaction);
         let transactionActive = false;
         const replayableSqlByStatement = new Map<ClassifiedSQLStatement, string>();
 
@@ -334,6 +393,16 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         const runQueryWithFileSyncAndRetry = async (statement: ClassifiedSQLStatement) => {
           const { code } = statement;
+          if (executionTarget) {
+            const queryId = `pp_${tab.id}_${statement.statementIndex}_${Date.now()}`.replace(
+              /[^A-Za-z0-9_-]/g,
+              '_',
+            );
+            const remoteQuery = buildQuackRidgeQuery(executionTarget.alias, code, queryId);
+            await conn.query(remoteQuery);
+            replayableSqlByStatement.set(statement, remoteQuery);
+            return;
+          }
           let executedSql = code;
           const options = {
             rollbackOnCorsError: !transactionActive,
@@ -383,7 +452,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             await beginTransactionIfNeeded(statement);
             await runQueryWithFileSyncAndRetry(statement);
           } catch (error) {
-            const message = getErrorMessage(error);
+            const message = executionTarget ? mapQuackRidgeError(error) : getErrorMessage(error);
             await rollbackTransactionIfActive();
             console.error('Error executing statement:', statement.type, error);
             setScriptExecutionState('error');
@@ -417,10 +486,26 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         if (SelectableStatements.includes(lastStatement.type)) {
           // Validate last SELECT statement via prepare
           try {
-            const preparedStatement = await prepQueryWithFileSyncAndRetry(lastStatement.code);
-            await preparedStatement.close();
+            const selectableQuery = executionTarget
+              ? buildQuackRidgeQuery(
+                  executionTarget.alias,
+                  lastStatement.code,
+                  `pp_${tab.id}_${lastStatement.statementIndex}_${Date.now()}`.replace(
+                    /[^A-Za-z0-9_-]/g,
+                    '_',
+                  ),
+                )
+              : lastStatement.code;
+            // Quack's query table function opens a streaming server request during
+            // prepare and does not yield a reusable prepared statement. The data
+            // adapter executes the wrapped query once when it loads the result.
+            if (!executionTarget) {
+              const preparedStatement = await prepQueryWithFileSyncAndRetry(selectableQuery);
+              await preparedStatement.close();
+            }
+            replayableSqlByStatement.set(lastStatement, selectableQuery);
           } catch (error) {
-            const message = getErrorMessage(error);
+            const message = executionTarget ? mapQuackRidgeError(error) : getErrorMessage(error);
 
             await rollbackTransactionIfActive();
             console.error(
@@ -452,7 +537,10 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             });
             return;
           }
-          lastExecutedQuery = redactSensitiveLastQuery(lastStatement, lastStatement.code);
+          lastExecutedQuery = redactSensitiveLastQuery(
+            lastStatement,
+            replayableSqlByStatement.get(lastStatement) ?? lastStatement.code,
+          );
         } else {
           // The last statement is not a SELECT statement
           // Execute it immediately
@@ -463,7 +551,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             await beginTransactionIfNeeded(lastStatement);
             await runQueryWithFileSyncAndRetry(lastStatement);
           } catch (error) {
-            const message = getErrorMessage(error);
+            const message = executionTarget ? mapQuackRidgeError(error) : getErrorMessage(error);
             await rollbackTransactionIfActive();
             console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
             setScriptExecutionState('error');
@@ -509,7 +597,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           (s) => s.type === SQLStatement.CREATE && SECRET_STATEMENT_PATTERN.test(s.code),
         );
 
-        if (hasDDL || hasAttachDetach) {
+        if (!executionTarget && (hasDDL || hasAttachDetach)) {
           if (hasAttachDetach) {
             const secretSetupStatements = classifiedStatements
               .filter(
@@ -610,7 +698,10 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       preferences,
       tab.id,
       tab.sqlScriptId,
+      tab.executionTargetId,
       formatStatementError,
+      executionTarget,
+      dataSources,
     ],
   );
 
@@ -626,13 +717,47 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         defaultSizes={[tab.editorPaneHeight, tab.dataViewPaneHeight]}
       >
         <Allotment.Pane preferredSize={tab.editorPaneHeight} minSize={200}>
-          <ScriptEditor
-            id={tab.sqlScriptId}
-            tabId={tab.id}
-            active={active}
-            runScriptQuery={runScriptQuery}
-            scriptState={scriptExecutionState}
-          />
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="border-border-light dark:border-border-dark flex items-center gap-2 border-b px-3 py-2">
+              <span className="text-textSecondary-light dark:text-textSecondary-dark text-xs font-medium uppercase tracking-wide">
+                Execute on
+              </span>
+              <Select
+                size="xs"
+                value={tab.executionTargetId ?? 'browser'}
+                onChange={(value) =>
+                  updateScriptTabExecutionTarget(
+                    tab.id,
+                    value && value !== 'browser' ? (value as QuackRidgeConnection['id']) : null,
+                  )
+                }
+                data={[
+                  { value: 'browser', label: 'Browser DuckDB' },
+                  ...executionTargets.map((target) => ({
+                    value: target.id,
+                    label: `QuackRidge · ${target.alias}${target.connectionState === 'connected' ? '' : ' (offline)'}`,
+                    disabled: target.connectionState !== 'connected',
+                  })),
+                ]}
+                allowDeselect={false}
+                data-testid="script-execution-target"
+              />
+              {executionTarget && (
+                <span className="text-textSecondary-light dark:text-textSecondary-dark text-xs">
+                  Server-side · read-only · cancellation unavailable
+                </span>
+              )}
+            </div>
+            <div className="min-h-0 flex-1">
+              <ScriptEditor
+                id={tab.sqlScriptId}
+                tabId={tab.id}
+                active={active}
+                runScriptQuery={runScriptQuery}
+                scriptState={scriptExecutionState}
+              />
+            </div>
+          </div>
         </Allotment.Pane>
 
         <Allotment.Pane preferredSize={tab.dataViewPaneHeight} minSize={120}>

@@ -374,6 +374,11 @@ export const SpotlightMenu = () => {
         continue;
       }
 
+      // QuackRidge is an editor execution target, not a file-like Spotlight entry.
+      if (dataSource.type === 'quackridge') {
+        continue;
+      }
+
       // Flat file data sources
       dataSourceActions.push({
         id: `open-data-source-${dataSource.id}`,

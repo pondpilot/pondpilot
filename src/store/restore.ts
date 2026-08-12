@@ -102,7 +102,7 @@ async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
           const legacyDataSource = dv as { lastUsed?: number };
           const lastUsed =
             legacyDataSource.lastUsed ??
-            (dv.type === 'remote-db' || dv.type === 'quack'
+            (dv.type === 'remote-db' || dv.type === 'quack' || dv.type === 'quackridge'
               ? dv.attachedAt
               : now - dataSourcesArray.length + index);
           dataSourceAccessStore.put(lastUsed, dv.id);
@@ -807,7 +807,7 @@ export const restoreAppDataFromIDB = async (
       const legacyDs = dv as LegacyDataSource;
       const lastUsed =
         legacyDs.lastUsed ??
-        (dv.type === 'remote-db' || dv.type === 'quack'
+        (dv.type === 'remote-db' || dv.type === 'quack' || dv.type === 'quackridge'
           ? dv.attachedAt
           : now - dataSourcesArray.length + index);
       dataSourceAccessTimes.set(dv.id, lastUsed);
@@ -1082,6 +1082,7 @@ export const restoreAppDataFromIDB = async (
       ds.type === 'iceberg-catalog' ||
       ds.type === 'ducklake-catalog' ||
       ds.type === 'quack' ||
+      ds.type === 'quackridge' ||
       ds.type === 'motherduck'
     ) {
       validDataSources.add(ds.id);

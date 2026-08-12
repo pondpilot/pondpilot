@@ -11,6 +11,7 @@ import {
   IconX,
   IconClipboard,
   IconSnowflake,
+  IconAffiliate,
 } from '@tabler/icons-react';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { setDataTestId } from '@utils/test-id';
@@ -22,6 +23,7 @@ import { DuckLakeCatalogConfig } from './components/ducklake-catalog-config';
 import { IcebergCatalogConfig } from './components/iceberg-catalog-config';
 import { MotherDuckConfig } from './components/motherduck-config';
 import { QuackConfig } from './components/quack-config';
+import { QuackRidgeConfig } from './components/quackridge-config';
 import { RemoteServerConfig } from './components/remote-server-config';
 import { validateJSON, validateCSV } from './utils/clipboard-import';
 
@@ -40,6 +42,7 @@ export type WizardStep =
   | 'ducklake-config'
   | 'motherduck-config'
   | 'quack-config'
+  | 'quackridge-config'
   | 'clipboard-csv'
   | 'clipboard-json';
 
@@ -55,6 +58,8 @@ const getStepTitle = (step: WizardStep): string => {
       return 'MOTHERDUCK';
     case 'quack-config':
       return 'QUACK SERVER';
+    case 'quackridge-config':
+      return 'QUACKRIDGE';
     case 'clipboard-csv':
       return 'IMPORT CSV FROM CLIPBOARD';
     case 'clipboard-json':
@@ -182,6 +187,10 @@ export function DatasourceWizardModal({
 
   const handleMotherDuckClick = () => {
     setStep('motherduck-config');
+  };
+
+  const handleQuackRidgeClick = () => {
+    setStep('quackridge-config');
   };
 
   const handleBack = () => {
@@ -369,6 +378,20 @@ export function DatasourceWizardModal({
 
   const remoteCards = [
     {
+      type: 'quackridge' as const,
+      onClick: handleQuackRidgeClick,
+      icon: (
+        <IconAffiliate
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'QuackRidge',
+      description: 'Local PostgreSQL bridge',
+      testId: 'add-quackridge-card',
+    },
+    {
       type: 'remote' as const,
       onClick: handleRemoteDatabaseClick,
       icon: (
@@ -515,6 +538,10 @@ export function DatasourceWizardModal({
       )}
 
       {step === 'quack-config' && <QuackConfig onBack={handleBack} onClose={onClose} pool={pool} />}
+
+      {step === 'quackridge-config' && (
+        <QuackRidgeConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (
         <ClipboardImportConfig
