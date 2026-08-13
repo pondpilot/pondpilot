@@ -1,6 +1,6 @@
 {
   "source": "github.com/pondpilot/quackridge",
-  "tag": "v0.2.0-rc.5",
+  "tag": "v0.2.0-rc.6",
   "protocol": 2,
   "files": {
     "error-codes.json": "6ecc3e966703a06e72414d5cfd4fa587ac590d19c4a2a9019c5e99b13d85937d",
