@@ -50,7 +50,36 @@
           "sticky_sessions"
         ]
       },
-      "uniqueItems": true
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "allOf": [
+        {
+          "contains": {
+            "const": "cancellation_noop"
+          }
+        },
+        {
+          "contains": {
+            "const": "metadata_v2"
+          }
+        },
+        {
+          "contains": {
+            "const": "pairing_v2"
+          }
+        },
+        {
+          "contains": {
+            "const": "query_ids"
+          }
+        },
+        {
+          "contains": {
+            "const": "sticky_sessions"
+          }
+        }
+      ]
     }
   }
 }

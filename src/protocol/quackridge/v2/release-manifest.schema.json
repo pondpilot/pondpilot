@@ -28,10 +28,10 @@
       ],
       "properties": {
         "minimum": {
-          "type": "integer"
+          "const": 2
         },
         "maximum": {
-          "type": "integer"
+          "const": 2
         }
       }
     },
