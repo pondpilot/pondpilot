@@ -77,6 +77,8 @@ export interface DataBaseModel {
   sourceId?: string;
   sourceName?: string;
   sourceType?: string;
+  connectorType?: string;
+  databaseType?: string;
   sourceHealth?: string;
   sourceErrorCode?: string | null;
   schemas: DBSchema[];

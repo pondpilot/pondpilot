@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
-const PINNED_TAG = 'v0.1.2';
+const PINNED_TAG = 'v0.2.0-rc.1';
 const FILES = [
   'error-codes.json',
   'identity.schema.json',
@@ -20,9 +20,10 @@ const FILES = [
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
 const sourceRoot = path.resolve(
-  process.env.QUACKRIDGE_PROTOCOL_SOURCE ?? path.join(repositoryRoot, '..', 'quackridge', 'protocol', 'v1'),
+  process.env.QUACKRIDGE_PROTOCOL_SOURCE ??
+    path.join(repositoryRoot, '..', 'quackridge', 'protocol', 'v2'),
 );
-const destinationRoot = path.join(repositoryRoot, 'src', 'protocol', 'quackridge', 'v1');
+const destinationRoot = path.join(repositoryRoot, 'src', 'protocol', 'quackridge', 'v2');
 const checkOnly = process.argv.includes('--check');
 
 const digest = (value) => createHash('sha256').update(value).digest('hex');
@@ -55,7 +56,7 @@ const pin = `${JSON.stringify(
   {
     source: 'github.com/pondpilot/quackridge',
     tag: PINNED_TAG,
-    protocol: 1,
+    protocol: 2,
     files: hashes,
   },
   null,

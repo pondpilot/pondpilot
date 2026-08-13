@@ -24,13 +24,14 @@ import { IDBPDatabase } from 'idb';
 
 import { attachQuackConnection, buildQuackSecretName } from './quack';
 
-export const QUACKRIDGE_PROTOCOL_VERSION = 1 as const;
-export const QUACKRIDGE_METADATA_VERSION = 1 as const;
-export const QUACKRIDGE_RELEASE_MANIFEST_URL = '/quackridge/releases/stable/release-manifest.json';
+export const QUACKRIDGE_PROTOCOL_VERSION = 2 as const;
+export const QUACKRIDGE_METADATA_VERSION = 2 as const;
+export const QUACKRIDGE_RELEASE_MANIFEST_URL =
+  '/quackridge/releases/prerelease/release-manifest.json';
 export const QUACKRIDGE_REQUIRED_CAPABILITIES = [
   'cancellation_noop',
-  'metadata_v1',
-  'pairing_v1',
+  'metadata_v2',
+  'pairing_v2',
   'query_ids',
   'sticky_sessions',
 ] as const satisfies readonly QuackRidgeCapability[];
@@ -38,9 +39,9 @@ export const QUACKRIDGE_REQUIRED_CAPABILITIES = [
 export type QuackRidgeIdentity = {
   product: 'quackridge';
   product_version: string;
-  protocol_version: 1;
-  metadata_version: 1;
-  source_types: ['postgres'];
+  protocol_version: 2;
+  metadata_version: 2;
+  connector_types: ['duckdb', 'mysql', 'odbc', 'postgres', 'sqlite'];
   read_only: true;
   capabilities: QuackRidgeCapability[];
 };
@@ -97,7 +98,7 @@ export function validateQuackRidgeIdentity(value: unknown): QuackRidgeIdentity {
       'product_version',
       'protocol_version',
       'metadata_version',
-      'source_types',
+      'connector_types',
       'read_only',
       'capabilities',
     ]) ||
@@ -113,9 +114,11 @@ export function validateQuackRidgeIdentity(value: unknown): QuackRidgeIdentity {
     value.protocol_version !== QUACKRIDGE_PROTOCOL_VERSION ||
     value.metadata_version !== QUACKRIDGE_METADATA_VERSION ||
     value.read_only !== true ||
-    !Array.isArray(value.source_types) ||
-    value.source_types.length !== 1 ||
-    value.source_types[0] !== 'postgres' ||
+    !Array.isArray(value.connector_types) ||
+    !['duckdb', 'mysql', 'odbc', 'postgres', 'sqlite'].every(
+      (connector, index) => (value.connector_types as unknown[])[index] === connector,
+    ) ||
+    value.connector_types.length !== 5 ||
     !Array.isArray(value.capabilities) ||
     value.capabilities.some((capability) => typeof capability !== 'string')
   ) {
@@ -127,7 +130,7 @@ export function validateQuackRidgeIdentity(value: unknown): QuackRidgeIdentity {
     capabilities.length !== QUACKRIDGE_REQUIRED_CAPABILITIES.length ||
     !QUACKRIDGE_REQUIRED_CAPABILITIES.every((capability) => capabilities.includes(capability))
   ) {
-    throw new Error('This QuackRidge server does not provide the required v1 capabilities.');
+    throw new Error('This QuackRidge server does not provide the required v2 capabilities.');
   }
   return value as QuackRidgeIdentity;
 }
@@ -167,7 +170,7 @@ export function validatePairingChallengeUrl(value: string): URL {
   if (
     url.protocol !== 'http:' ||
     !isLoopback ||
-    url.pathname !== '/v1/pair' ||
+    url.pathname !== '/v2/pair' ||
     url.username ||
     url.password ||
     url.search ||
@@ -231,7 +234,7 @@ export function validateQuackRidgeReleaseManifest(value: unknown): QuackRidgeRel
     (value.protocol.minimum as number) > QUACKRIDGE_PROTOCOL_VERSION ||
     (value.protocol.maximum as number) < QUACKRIDGE_PROTOCOL_VERSION
   ) {
-    throw new Error('This QuackRidge release does not support PondPilot protocol v1.');
+    throw new Error('This QuackRidge release does not support PondPilot protocol v2.');
   }
 
   const assets = value.assets.map((candidate) => {
@@ -373,14 +376,14 @@ export async function identifyQuackRidge(
     typeof identity.platform === 'string'
   ) {
     // Quack's whoami() exposes a fixed identity struct and omits custom meta
-    // keys. Protocol v1 defines the remaining fields and required capability
+    // keys. Protocol v2 defines the remaining fields and required capability
     // set, while pairing validates the complete identity before attachment.
     return {
       product: 'quackridge',
       product_version: identity.product_version,
       protocol_version: QUACKRIDGE_PROTOCOL_VERSION,
       metadata_version: QUACKRIDGE_METADATA_VERSION,
-      source_types: ['postgres'],
+      connector_types: ['duckdb', 'mysql', 'odbc', 'postgres', 'sqlite'],
       read_only: true,
       capabilities: [...QUACKRIDGE_REQUIRED_CAPABILITIES],
     };
@@ -421,7 +424,8 @@ export function mapQuackRidgeError(error: unknown): string {
 type QuackRidgeMetadataRow = {
   source_id: string;
   source_name: string;
-  source_type: string;
+  connector_type: string;
+  database_type: string;
   source_health: string;
   catalog_name: string;
   schema_name: string | null;
@@ -431,6 +435,7 @@ type QuackRidgeMetadataRow = {
   ordinal_position: number | null;
   duckdb_type: string | null;
   nullable: boolean | null;
+  is_system_schema: boolean | null;
   error_code: string | null;
 };
 
@@ -441,8 +446,7 @@ export async function getQuackRidgeDatabaseModel(
   const query = buildQuackRidgeQuery(
     alias,
     `SELECT *
-FROM quackridge_metadata_v1()
-WHERE schema_name IS NULL OR schema_name NOT IN ('information_schema', 'pg_catalog')
+FROM quackridge_metadata_v2()
 ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
     'metadata',
   );
@@ -451,7 +455,8 @@ ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
   const fieldNames = [
     'source_id',
     'source_name',
-    'source_type',
+    'connector_type',
+    'database_type',
     'source_health',
     'catalog_name',
     'schema_name',
@@ -461,6 +466,7 @@ ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
     'ordinal_position',
     'duckdb_type',
     'nullable',
+    'is_system_schema',
     'error_code',
   ] as const satisfies readonly (keyof QuackRidgeMetadataRow)[];
   const columns = Object.fromEntries(
@@ -474,7 +480,8 @@ ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
     const row: QuackRidgeMetadataRow = {
       source_id: String(raw.source_id ?? ''),
       source_name: String(raw.source_name ?? ''),
-      source_type: String(raw.source_type ?? ''),
+      connector_type: String(raw.connector_type ?? ''),
+      database_type: String(raw.database_type ?? ''),
       source_health: String(raw.source_health ?? ''),
       catalog_name: String(raw.catalog_name ?? ''),
       schema_name: raw.schema_name === null ? null : String(raw.schema_name),
@@ -484,6 +491,7 @@ ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
       ordinal_position: raw.ordinal_position === null ? null : Number(raw.ordinal_position),
       duckdb_type: raw.duckdb_type === null ? null : String(raw.duckdb_type),
       nullable: raw.nullable === null ? null : Boolean(raw.nullable),
+      is_system_schema: raw.is_system_schema === null ? null : Boolean(raw.is_system_schema),
       error_code: raw.error_code === null ? null : String(raw.error_code),
     };
     if (!row.catalog_name) continue;
@@ -495,7 +503,9 @@ ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
         name: row.catalog_name,
         sourceId: row.source_id,
         sourceName: row.source_name,
-        sourceType: row.source_type,
+        sourceType: row.database_type,
+        connectorType: row.connector_type,
+        databaseType: row.database_type,
         sourceHealth: row.source_health,
         sourceErrorCode: row.error_code,
         schemas: [],
@@ -504,6 +514,7 @@ ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
     }
     if (
       row.source_health !== 'ready' ||
+      row.is_system_schema === true ||
       !row.schema_name ||
       !row.object_name ||
       !row.object_type ||

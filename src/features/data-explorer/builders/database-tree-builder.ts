@@ -868,10 +868,15 @@ export function buildQuackRidgeConnectionNode(
       const databaseName = parsed.dbName;
       const dbNodeId = `${connectionId}::${databaseName}` as any;
       const sortedSchemas = [...dbModel.schemas].sort((a, b) => a.name.localeCompare(b.name));
-      const sourceType = dbModel.sourceType
-        ? dbModel.sourceType.charAt(0).toUpperCase() + dbModel.sourceType.slice(1)
+      const sourceType = dbModel.databaseType
+        ? dbModel.databaseType.charAt(0).toUpperCase() + dbModel.databaseType.slice(1)
         : null;
-      const sourceDescription = [sourceType, dbModel.sourceName].filter(Boolean).join(' · ');
+      const connector = dbModel.connectorType
+        ? `${dbModel.connectorType.toUpperCase()} connector`
+        : null;
+      const sourceDescription = [sourceType, connector, dbModel.sourceName]
+        .filter(Boolean)
+        .join(' · ');
       const isAvailable = dbModel.sourceHealth === 'ready';
 
       nodeMap.set(dbNodeId, {

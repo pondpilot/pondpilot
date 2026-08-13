@@ -1,0 +1,18 @@
+{
+  "source": "github.com/pondpilot/quackridge",
+  "tag": "v0.2.0-rc.1",
+  "protocol": 2,
+  "files": {
+    "error-codes.json": "6ecc3e966703a06e72414d5cfd4fa587ac590d19c4a2a9019c5e99b13d85937d",
+    "identity.schema.json": "e1e09c7989844e0e48756147ea5e08425b540f00af99f4624ec9a98081d5effc",
+    "metadata.schema.json": "90de3980e99de54b6397e74c8b71ef0a0fc2ac2ad596e6a30a43c0afad025e8c",
+    "pairing.schema.json": "84897e0fa630ba62d17521b2332ba7a3e731bf92ba28a557ea4de7dee9e0c2a3",
+    "release-manifest.schema.json": "f2ad6f98df8fa5c02487c69c5226ecce9b152cd0572354be35143b843300e7ae",
+    "fixtures/identity.invalid.json": "3db4eae959e23bb3266908e050a36580f63b23cd49751d335ebf67c8479828c7",
+    "fixtures/identity.valid.json": "d9da30a12df54ee09ef39ef5b73f1ec42f5a4e6c6fb438ef499f96292f6ff5bd",
+    "fixtures/metadata.invalid.json": "1f0d019eccf8030144a221874226ff3af819c6756a58c665d17964eb3566b7b1",
+    "fixtures/metadata.valid.json": "67c0fcf9c8a236db5067dce4182db04457d53faf85120b9aa5a7f711b37a83c1",
+    "fixtures/pairing.invalid.json": "e5e000c5d378e45ab2c67dd069a30e8ac8e7c9cbc400fc45c070fdbd1db02576",
+    "fixtures/pairing.valid.json": "4a0f457f29384af76610bf7be10699dac11b5d83b3d7a1520bd9569e0c72165e"
+  }
+}

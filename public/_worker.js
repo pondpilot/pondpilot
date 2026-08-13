@@ -1,5 +1,13 @@
-const MANIFEST_URL =
-  'https://github.com/pondpilot/quackridge/releases/latest/download/release-manifest.json';
+const MANIFEST_URLS = new Map([
+  [
+    '/quackridge/releases/stable/release-manifest.json',
+    'https://github.com/pondpilot/quackridge/releases/latest/download/release-manifest.json',
+  ],
+  [
+    '/quackridge/releases/prerelease/release-manifest.json',
+    'https://github.com/pondpilot/quackridge/releases/download/v0.2.0-rc.1/release-manifest.json',
+  ],
+]);
 
 const responseHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,9 +38,14 @@ export default {
       return jsonError('Method not allowed.', 405);
     }
 
+    const manifestUrl = MANIFEST_URLS.get(new URL(request.url).pathname);
+    if (!manifestUrl) {
+      return jsonError('Not found.', 404);
+    }
+
     let upstream;
     try {
-      upstream = await fetch(MANIFEST_URL, {
+      upstream = await fetch(manifestUrl, {
         headers: { Accept: 'application/json' },
         redirect: 'follow',
         cf: {

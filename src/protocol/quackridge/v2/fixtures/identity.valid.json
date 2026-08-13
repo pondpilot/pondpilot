@@ -1,0 +1,21 @@
+{
+  "product": "quackridge",
+  "product_version": "0.1.0-dev",
+  "protocol_version": 2,
+  "metadata_version": 2,
+  "connector_types": [
+    "duckdb",
+    "mysql",
+    "odbc",
+    "postgres",
+    "sqlite"
+  ],
+  "read_only": true,
+  "capabilities": [
+    "cancellation_noop",
+    "metadata_v2",
+    "pairing_v2",
+    "query_ids",
+    "sticky_sessions"
+  ]
+}

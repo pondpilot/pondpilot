@@ -17,13 +17,13 @@ import {
   validateQuackRidgeReleaseManifest,
 } from '@utils/quackridge';
 
-import * as identityFixture from '../../../src/protocol/quackridge/v1/fixtures/identity.valid.json';
-import * as pairingFixture from '../../../src/protocol/quackridge/v1/fixtures/pairing.valid.json';
+import * as identityFixture from '../../../src/protocol/quackridge/v2/fixtures/identity.valid.json';
+import * as pairingFixture from '../../../src/protocol/quackridge/v2/fixtures/pairing.valid.json';
 
 const manifestFixture = {
   version: '0.1.0',
   channel: 'prerelease',
-  protocol: { minimum: 1, maximum: 1 },
+  protocol: { minimum: 2, maximum: 2 },
   assets: [
     {
       os: 'darwin',
@@ -50,7 +50,7 @@ describe('QuackRidge protocol', () => {
         ...identityFixture,
         capabilities: identityFixture.capabilities.slice(1),
       }),
-    ).toThrow('required v1 capabilities');
+    ).toThrow('required v2 capabilities');
   });
 
   it('validates pairing responses and local-only endpoints', () => {
@@ -61,8 +61,8 @@ describe('QuackRidge protocol', () => {
   });
 
   it('only accepts temporary loopback pairing URLs', () => {
-    expect(validatePairingChallengeUrl('http://127.0.0.1:1234/v1/pair').port).toBe('1234');
-    expect(() => validatePairingChallengeUrl('https://example.com/v1/pair')).toThrow(
+    expect(validatePairingChallengeUrl('http://127.0.0.1:1234/v2/pair').port).toBe('1234');
+    expect(() => validatePairingChallengeUrl('https://example.com/v2/pair')).toThrow(
       'temporary QuackRidge loopback URL',
     );
   });
@@ -76,7 +76,7 @@ describe('QuackRidge protocol', () => {
         }),
     );
     await expect(
-      pairWithQuackRidge('http://localhost:1234/v1/pair', '0123456789abcdef', fetcher),
+      pairWithQuackRidge('http://localhost:1234/v2/pair', '0123456789abcdef', fetcher),
     ).resolves.toMatchObject({ endpoint: pairingFixture.endpoint });
     expect(fetcher).toHaveBeenCalledWith(
       expect.any(URL),
@@ -85,7 +85,7 @@ describe('QuackRidge protocol', () => {
 
     fetcher.mockResolvedValueOnce(new Response('', { status: 410 }));
     await expect(
-      pairWithQuackRidge('http://localhost:1234/v1/pair', '0123456789abcdef', fetcher),
+      pairWithQuackRidge('http://localhost:1234/v2/pair', '0123456789abcdef', fetcher),
     ).rejects.toThrow('expired');
   });
 
@@ -170,11 +170,11 @@ describe('QuackRidge protocol', () => {
 
     await expect(identifyQuackRidge(pool as any, 'ridge')).resolves.toMatchObject({
       product: 'quackridge',
-      protocol_version: 1,
+      protocol_version: 2,
     });
   });
 
-  it('accepts Quack fixed whoami fields for the validated v1 contract', async () => {
+  it('accepts Quack fixed whoami fields for the validated v2 contract', async () => {
     const pool = {
       query: jest.fn<(sql: string) => Promise<any>>().mockResolvedValue({
         numRows: 1,
@@ -187,15 +187,15 @@ describe('QuackRidge protocol', () => {
                   platform: 'linux_amd64',
                   product: 'quackridge',
                   product_version: '0.1.0-dev',
-                  protocol_version: 1,
+                  protocol_version: 2,
                 },
         }),
       }),
     };
 
     await expect(identifyQuackRidge(pool as any, 'ridge')).resolves.toMatchObject({
-      metadata_version: 1,
-      capabilities: expect.arrayContaining(['cancellation_noop', 'metadata_v1']),
+      metadata_version: 2,
+      capabilities: expect.arrayContaining(['cancellation_noop', 'metadata_v2']),
     });
   });
 
@@ -273,7 +273,9 @@ describe('QuackRidge protocol', () => {
       {
         source_id: 'warehouse-source',
         source_name: 'Warehouse',
-        source_type: 'postgres',
+        connector_type: 'postgres',
+        database_type: 'postgres',
+        is_system_schema: false,
         source_health: 'ready',
         catalog_name: 'warehouse',
         schema_name: 'sales',
@@ -288,7 +290,9 @@ describe('QuackRidge protocol', () => {
       {
         source_id: 'support-source',
         source_name: 'Customer Support',
-        source_type: 'postgres',
+        connector_type: 'odbc',
+        database_type: 'sqlserver',
+        is_system_schema: false,
         source_health: 'ready',
         catalog_name: 'support',
         schema_name: 'helpdesk',
@@ -303,7 +307,9 @@ describe('QuackRidge protocol', () => {
       {
         source_id: 'offline',
         source_name: 'Offline',
-        source_type: 'postgres',
+        connector_type: 'mysql',
+        database_type: 'mariadb',
+        is_system_schema: null,
         source_health: 'unavailable',
         catalog_name: 'offline',
         schema_name: null,
@@ -329,6 +335,8 @@ describe('QuackRidge protocol', () => {
       name: 'warehouse',
       sourceId: 'warehouse-source',
       sourceType: 'postgres',
+      connectorType: 'postgres',
+      databaseType: 'postgres',
       schemas: [
         {
           name: 'sales',
@@ -337,7 +345,9 @@ describe('QuackRidge protocol', () => {
       ],
     });
     expect(metadata.get('qr:ridge:support')).toMatchObject({
-      sourceType: 'postgres',
+      sourceType: 'sqlserver',
+      connectorType: 'odbc',
+      databaseType: 'sqlserver',
       schemas: [{ name: 'helpdesk', objects: [{ name: 'tickets' }] }],
     });
     expect(metadata.get('qr:ridge:offline')).toMatchObject({
@@ -345,7 +355,6 @@ describe('QuackRidge protocol', () => {
       sourceErrorCode: 'QR_SOURCE_UNAVAILABLE',
       schemas: [],
     });
-    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('quackridge_metadata_v1'));
-    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining("'information_schema'"));
+    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('quackridge_metadata_v2'));
   });
 });

@@ -251,7 +251,7 @@ export function QuackRidgeConfig({ pool, onBack, onClose }: QuackRidgeConfigProp
           </Text>
           <TextInput
             label="Temporary pairing URL"
-            placeholder="http://127.0.0.1:12345/v1/pair"
+            placeholder="http://127.0.0.1:12345/v2/pair"
             value={challengeUrl}
             onChange={(event) => setChallengeUrl(event.currentTarget.value)}
             data-testid={setDataTestId('quackridge-pairing-url-input')}

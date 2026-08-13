@@ -403,11 +403,11 @@ describe('buildDatabaseNode', () => {
         endpoint: 'quack:127.0.0.1:34175',
         alias: 'quackridge',
         productVersion: '0.1.0',
-        protocolVersion: 1,
+        protocolVersion: 2,
         capabilities: [
           'cancellation_noop',
-          'metadata_v1',
-          'pairing_v1',
+          'metadata_v2',
+          'pairing_v2',
           'query_ids',
           'sticky_sessions',
         ],
@@ -420,6 +420,8 @@ describe('buildDatabaseNode', () => {
         name: 'commerce',
         sourceName: 'Commerce',
         sourceType: 'postgres',
+        connectorType: 'postgres',
+        databaseType: 'postgres',
         sourceHealth: 'ready',
         schemas: [{ name: 'sales', objects: [] }],
       });
@@ -427,6 +429,8 @@ describe('buildDatabaseNode', () => {
         name: 'support',
         sourceName: 'Customer Support',
         sourceType: 'postgres',
+        connectorType: 'postgres',
+        databaseType: 'postgres',
         sourceHealth: 'ready',
         schemas: [{ name: 'helpdesk', objects: [] }],
       });
@@ -439,7 +443,7 @@ describe('buildDatabaseNode', () => {
 
       expect(node.label).toBe('quackridge ✓');
       expect(node.children?.map((child) => child.label)).toEqual(['commerce', 'support']);
-      expect(node.children?.[1].tooltip).toBe('Postgres · Customer Support');
+      expect(node.children?.[1].tooltip).toBe('Postgres · POSTGRES connector · Customer Support');
       expect(buildSchemaTreeNode).toHaveBeenCalledWith(
         expect.objectContaining({
           nodeDbId: 'ridge-id::support',

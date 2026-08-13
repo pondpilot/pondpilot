@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quackridge.pondpilot.io/protocol/v2/metadata.schema.json",
+  "title": "QuackRidge metadata v2 row",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "source_name",
+    "connector_type",
+    "database_type",
+    "source_health",
+    "catalog_name",
+    "schema_name",
+    "object_name",
+    "object_type",
+    "column_name",
+    "ordinal_position",
+    "duckdb_type",
+    "nullable",
+    "is_system_schema",
+    "error_code"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "connector_type": {
+      "enum": [
+        "duckdb",
+        "mysql",
+        "odbc",
+        "postgres",
+        "sqlite"
+      ]
+    },
+    "database_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_health": {
+      "enum": [
+        "ready",
+        "degraded",
+        "unavailable"
+      ]
+    },
+    "catalog_name": {
+      "type": "string"
+    },
+    "schema_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "object_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "object_type": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "table",
+        "view",
+        null
+      ]
+    },
+    "column_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ordinal_position": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "duckdb_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nullable": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "is_system_schema": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "error_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

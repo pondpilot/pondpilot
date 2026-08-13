@@ -1,0 +1,17 @@
+{
+  "source_id": "warehouse",
+  "source_name": "Warehouse",
+  "connector_type": "postgres",
+  "database_type": "postgres",
+  "source_health": "ready",
+  "catalog_name": "warehouse",
+  "schema_name": "public",
+  "object_name": "orders",
+  "object_type": "table",
+  "column_name": "id",
+  "ordinal_position": 1,
+  "duckdb_type": "UUID",
+  "nullable": false,
+  "is_system_schema": false,
+  "error_code": null
+}

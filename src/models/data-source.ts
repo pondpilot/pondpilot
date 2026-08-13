@@ -359,7 +359,7 @@ export interface QuackConnection {
 }
 
 export type QuackRidgeCapability =
-  'cancellation_noop' | 'metadata_v1' | 'pairing_v1' | 'query_ids' | 'sticky_sessions';
+  'cancellation_noop' | 'metadata_v2' | 'pairing_v2' | 'query_ids' | 'sticky_sessions';
 
 /**
  * A QuackRidge bridge is deliberately distinct from a generic Quack server.
@@ -371,7 +371,7 @@ export interface QuackRidgeConnection {
   endpoint: string;
   alias: string;
   productVersion: string;
-  protocolVersion: 1;
+  protocolVersion: 2;
   capabilities: QuackRidgeCapability[];
   connectionState: 'connected' | 'disconnected' | 'error' | 'connecting' | 'credentials-required';
   connectionError?: string;
