@@ -5,7 +5,7 @@ const MANIFEST_URLS = new Map([
   ],
   [
     '/quackridge/releases/prerelease/release-manifest.json',
-    'https://github.com/pondpilot/quackridge/releases/download/v0.2.0-rc.4/release-manifest.json',
+    'https://github.com/pondpilot/quackridge/releases/download/v0.2.0-rc.5/release-manifest.json',
   ],
 ]);
 
