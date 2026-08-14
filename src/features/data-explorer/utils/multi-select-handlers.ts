@@ -39,7 +39,15 @@ export async function handleMultiSelectDelete(
     }
 
     // Handle database nodes
-    if ('db' in nodeInfo && nodeType === 'db' && nodeInfo.db) {
+    // Nested MotherDuck/QuackRidge databases are selectable database nodes,
+    // but their `db` field identifies the owning connection. Only connection
+    // roots and standalone databases may be deleted as data sources.
+    if (
+      'db' in nodeInfo &&
+      nodeType === 'db' &&
+      nodeInfo.db &&
+      nodeInfo.databaseName === undefined
+    ) {
       deletableDataSourceIds.push(nodeInfo.db);
       return;
     }
@@ -149,6 +157,7 @@ export function handleMultiSelectShowSchema(
         item.info &&
         isDBNodeInfo(item.info) &&
         item.info.db === firstNodeInfo.db &&
+        item.info.databaseName === firstNodeInfo.databaseName &&
         item.info.schemaName === firstNodeInfo.schemaName,
     );
 
@@ -177,6 +186,7 @@ export function handleMultiSelectShowSchema(
         sourceType: 'db',
         schemaName: firstNodeInfo.schemaName,
         objectNames,
+        ...(firstNodeInfo.databaseName ? { databaseName: firstNodeInfo.databaseName } : {}),
         setActive: true,
       });
     }

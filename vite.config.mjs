@@ -103,6 +103,13 @@ export default defineConfig(({ mode }) => {
           followRedirects: true,
           rewrite: () => '/pondpilot/quackridge/releases/latest/download/release-manifest.json',
         },
+        '/quackridge/releases/prerelease/release-manifest.json': {
+          target: 'https://github.com',
+          changeOrigin: true,
+          followRedirects: true,
+          rewrite: () =>
+            '/pondpilot/quackridge/releases/download/v0.2.0-rc.8/release-manifest.json',
+        },
       },
     },
     define: {

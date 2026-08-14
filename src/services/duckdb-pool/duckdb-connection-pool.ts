@@ -59,6 +59,7 @@ type RegisterGlobalCatalogMutationOptions = {
   appliedConnection?: AsyncDuckDBConnection;
   appliedTabId?: TabId;
   postAttachSql?: string[];
+  cleanupSql?: string[];
 };
 
 export type DuckDBConnectionPoolOptions = {
@@ -148,6 +149,7 @@ export class AsyncDuckDBConnectionPool {
   private readonly _pinnedReaders: Map<TabId, AsyncDuckDBPooledStreamReader<any>> = new Map();
   private readonly _registeredAttaches: Map<string, RegisteredAttach> = new Map();
   private readonly _registeredDetaches: Map<string, number> = new Map();
+  private readonly _registeredCleanupSql = new Map<number, string[]>();
   private readonly _connectionCatalogVersions: WeakMap<AsyncDuckDBConnection, number> =
     new WeakMap();
   private readonly _connectionAppliedCatalogMutations: WeakMap<AsyncDuckDBConnection, Set<number>> =
@@ -380,6 +382,22 @@ export class AsyncDuckDBConnectionPool {
       if (detachVersion > connVersion && !appliedMutations?.has(detachVersion)) {
         if (await this._detachIfPresent(conn, dbName)) {
           sessionDisturbed = true;
+        }
+      }
+    }
+
+    // Cleanup mutations are versioned independently from catalog names. A
+    // later re-ATTACH may replace a registered DETACH before an idle pooled
+    // connection reconciles, but it must not erase credential cleanup that
+    // connection still needs to run.
+    for (const [cleanupVersion, cleanupStatements] of this._registeredCleanupSql) {
+      if (
+        cleanupVersion <= targetVersion &&
+        cleanupVersion > connVersion &&
+        !appliedMutations?.has(cleanupVersion)
+      ) {
+        for (const cleanupSql of cleanupStatements) {
+          await conn.query(cleanupSql);
         }
       }
     }
@@ -1296,6 +1314,9 @@ export class AsyncDuckDBConnectionPool {
     const version = this._catalogVersion;
     this._registeredAttaches.delete(dbName);
     this._registeredDetaches.set(dbName, version);
+    if (options.cleanupSql?.length) {
+      this._registeredCleanupSql.set(version, options.cleanupSql);
+    }
     this._markCatalogVersionApplied(options, version);
   }
 

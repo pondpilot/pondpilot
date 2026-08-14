@@ -503,6 +503,7 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
                 dataSource.type !== 'iceberg-catalog' &&
                 dataSource.type !== 'ducklake-catalog' &&
                 dataSource.type !== 'quack' &&
+                dataSource.type !== 'quackridge' &&
                 dataSource.type !== 'motherduck',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),

@@ -342,6 +342,33 @@ describe('AsyncDuckDBConnectionPool pinned tab sessions', () => {
     expect(connections[0].databases.has('remote_db')).toBe(false);
   });
 
+  it('replays registered DETACH cleanup onto every pooled connection', async () => {
+    const { pool, connections } = makePool(4, 1);
+    const attachSql = "ATTACH '/tmp/remote.duckdb' AS remote_db";
+    const cleanupSql = 'DROP SECRET IF EXISTS remote_secret';
+
+    pool.registerGlobalAttach('remote_db', attachSql);
+    await pool.query('SELECT 1');
+    const pinned = await pool.pinForTab(tabId('tab-a'));
+    await pinned.query('SELECT 2');
+    await pinned.close();
+
+    pool.registerGlobalDetach('remote_db', { cleanupSql: [cleanupSql] });
+    await pool.query('SELECT 3');
+    // Re-register before the idle pinned connection reconciles. Cleanup from
+    // the superseded detach must still run before the newer attach replay.
+    pool.registerGlobalAttach('remote_db', attachSql);
+    const reconciledPinned = await pool.pinForTab(tabId('tab-a'));
+    await reconciledPinned.query('SELECT 4');
+    await reconciledPinned.close();
+
+    expect(connections[0].calls).toContain(cleanupSql);
+    expect(connections[1].calls).toContain(cleanupSql);
+    expect(connections[1].calls.indexOf(cleanupSql)).toBeLessThan(
+      connections[1].calls.lastIndexOf(attachSql),
+    );
+  });
+
   it('records pool-level ATTACH statements for later pinned script connections', async () => {
     const { pool, connections } = makePool(4, 1);
 

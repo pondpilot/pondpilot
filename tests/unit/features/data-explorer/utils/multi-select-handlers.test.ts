@@ -102,6 +102,23 @@ describe('multi-select-handlers', () => {
       expect(deleteLocalFileOrFolders).not.toHaveBeenCalled();
     });
 
+    it('does not delete a connection when its nested database node is selected', () => {
+      const connectionId = 'ridge-connection' as PersistentDataSourceId;
+      const nodeValue = 'ridge-connection::commerce';
+      mockContext.nodeMap.set(nodeValue, {
+        db: connectionId,
+        databaseName: 'commerce',
+        schemaName: null,
+        objectName: null,
+        columnName: null,
+      });
+      mockContext.anyNodeIdToNodeTypeMap.set(nodeValue, 'db');
+
+      handleMultiSelectDelete([createNode(nodeValue, 'commerce', 'db')], mockContext);
+
+      expect(deleteDataSources).not.toHaveBeenCalled();
+    });
+
     it('should delete sheet nodes', () => {
       // Setup sheet node
       const entryId = 'file-456' as LocalEntryId;
@@ -255,6 +272,57 @@ describe('multi-select-handlers', () => {
         message: 'All selected items must belong to the same database schema',
       });
       expect(getOrCreateSchemaBrowserTab).not.toHaveBeenCalled();
+    });
+
+    it('keeps identically named schemas in different QuackRidge databases separate', () => {
+      const connectionId = 'ridge-connection' as PersistentDataSourceId;
+      mockContext.nodeMap.set('commerce-table', {
+        db: connectionId,
+        databaseName: 'commerce',
+        schemaName: 'public',
+        objectName: 'orders',
+        columnName: null,
+      });
+      mockContext.nodeMap.set('support-table', {
+        db: connectionId,
+        databaseName: 'support',
+        schemaName: 'public',
+        objectName: 'tickets',
+        columnName: null,
+      });
+      mockContext.anyNodeIdToNodeTypeMap.set('commerce-table', 'object');
+      mockContext.anyNodeIdToNodeTypeMap.set('support-table', 'object');
+
+      handleMultiSelectShowSchema(['commerce-table', 'support-table'], mockContext);
+
+      expect(showWarning).toHaveBeenCalledWith({
+        title: 'Schema Mismatch',
+        message: 'All selected items must belong to the same database schema',
+      });
+      expect(getOrCreateSchemaBrowserTab).not.toHaveBeenCalled();
+    });
+
+    it('passes the QuackRidge database name to the schema browser tab', () => {
+      const connectionId = 'ridge-connection' as PersistentDataSourceId;
+      mockContext.nodeMap.set('commerce-table', {
+        db: connectionId,
+        databaseName: 'commerce',
+        schemaName: 'public',
+        objectName: 'orders',
+        columnName: null,
+      });
+      mockContext.anyNodeIdToNodeTypeMap.set('commerce-table', 'object');
+
+      handleMultiSelectShowSchema(['commerce-table'], mockContext);
+
+      expect(getOrCreateSchemaBrowserTab).toHaveBeenCalledWith({
+        sourceId: connectionId,
+        sourceType: 'db',
+        databaseName: 'commerce',
+        schemaName: 'public',
+        objectNames: ['orders'],
+        setActive: true,
+      });
     });
 
     it('should show schema for file nodes', () => {

@@ -557,11 +557,11 @@ ORDER BY catalog_name, schema_name, object_name, ordinal_position`,
 }
 
 export function buildQuackRidgeProxyCatalogSetup(
-  connection: Pick<QuackRidgeConnection, 'alias' | 'endpoint'>,
+  connection: Pick<QuackRidgeConnection, 'id' | 'alias' | 'endpoint'>,
   token: string,
   model: DataBaseModel,
 ): { attachSql: string; setupSql: string[]; postAttachSql: string[] } {
-  const secretName = buildQuackSecretName(`${connection.alias}_bridge`);
+  const secretName = buildQuackRidgeProxySecretName(connection);
   const setupSql = [
     `CREATE OR REPLACE TEMPORARY SECRET ${toDuckDBIdentifier(secretName)} (
       TYPE quack,
@@ -588,6 +588,22 @@ export function buildQuackRidgeProxyCatalogSetup(
     postAttachSql,
   };
 }
+
+export function buildQuackRidgeProxySecretName(
+  connection: Pick<QuackRidgeConnection, 'id' | 'alias'>,
+): string {
+  // Keep ownership connection-scoped: multiple saved aliases may legitimately
+  // point at the same QuackRidge endpoint without deleting each other's token.
+  return buildQuackSecretName(`${connection.alias}_${connection.id}_bridge`);
+}
+
+const removeQuackRidgeMetadata = (connectionAlias: string, action: string): void => {
+  const next = new Map(useAppStore.getState().databaseMetadata);
+  for (const name of next.keys()) {
+    if (isQuackRidgeDbKey(name, connectionAlias)) next.delete(name);
+  }
+  useAppStore.setState({ databaseMetadata: next }, false, action);
+};
 
 export async function refreshQuackRidgeMetadata(
   pool: AsyncDuckDBConnectionPool,
@@ -664,6 +680,10 @@ export async function refreshQuackRidgeMetadata(
         .query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(catalog)}`)
         .catch(() => undefined);
     }
+    // The old proxies were detached before rebuilding began and the new ones
+    // have just been rolled back. Remove their stale ready metadata so session
+    // restoration cannot offer catalogs that are no longer attached.
+    removeQuackRidgeMetadata(connection.alias, 'QuackRidge/rollbackMetadata');
     throw error;
   }
 
@@ -754,6 +774,7 @@ export async function reconnectQuackRidgeConnection(
   token: string,
 ): Promise<void> {
   updateQuackRidgeConnectionState(connection.id, 'connecting');
+  let controlCatalogAttached = false;
   try {
     await attachAndIdentifyQuackRidge({
       pool,
@@ -761,9 +782,19 @@ export async function reconnectQuackRidgeConnection(
       alias: connection.alias,
       token,
     });
+    controlCatalogAttached = true;
     await refreshQuackRidgeMetadata(pool, connection, token);
     updateQuackRidgeConnectionState(connection.id, 'connected');
   } catch (error) {
+    // Attachment succeeded if metadata refresh was reached. Remove the control
+    // catalog so a transient refresh failure cannot wedge every later reconnect
+    // with an "already attached" error.
+    if (controlCatalogAttached) {
+      pool.registerGlobalDetach(connection.alias);
+      await pool
+        .query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(connection.alias)}`)
+        .catch(() => undefined);
+    }
     const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
     updateQuackRidgeConnectionState(connection.id, 'error', message);
     throw new Error(message);
@@ -782,14 +813,13 @@ export async function disconnectQuackRidgeConnection(
     )
     .map((parsed) => parsed.dbName);
   for (const catalog of sourceCatalogs) {
+    pool.registerGlobalDetach(catalog);
     await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(catalog)}`);
   }
+  const dropProxySecretSql = `DROP SECRET IF EXISTS ${toDuckDBIdentifier(buildQuackRidgeProxySecretName(connection))}`;
+  pool.registerGlobalDetach(connection.alias, { cleanupSql: [dropProxySecretSql] });
   await pool.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(connection.alias)}`);
-  const metadata = new Map(useAppStore.getState().databaseMetadata);
-  for (const name of metadata.keys()) {
-    if (isQuackRidgeDbKey(name, connection.alias)) metadata.delete(name);
-  }
-  useAppStore.setState({ databaseMetadata: metadata }, false, 'QuackRidge/disconnect');
+  removeQuackRidgeMetadata(connection.alias, 'QuackRidge/disconnect');
   updateQuackRidgeConnectionState(connection.id, 'disconnected');
 }
 

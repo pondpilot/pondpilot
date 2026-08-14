@@ -1,8 +1,12 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { PersistentDataSourceId, QuackRidgeConnection } from '@models/data-source';
+import { useAppStore } from '@store/app-store';
 import {
   detectQuackRidgePlatform,
   buildQuackRidgeProxyCatalogSetup,
+  buildQuackRidgeProxySecretName,
   buildQuackRidgeQuery,
+  disconnectQuackRidgeConnection,
   fetchQuackRidgeReleaseManifest,
   getQuackRidgeDatabaseModel,
   identifyQuackRidge,
@@ -10,6 +14,7 @@ import {
   mapQuackRidgeError,
   pairWithQuackRidge,
   QUACKRIDGE_RELEASE_MANIFEST_URL,
+  refreshQuackRidgeMetadata,
   selectQuackRidgeAsset,
   validatePairingChallengeUrl,
   validateQuackRidgeIdentity,
@@ -222,7 +227,11 @@ describe('QuackRidge protocol', () => {
 
   it('builds browser-side proxy catalogs with one stateless scan per remote relation', () => {
     const proxy = buildQuackRidgeProxyCatalogSetup(
-      { alias: 'ridge', endpoint: 'quack:127.0.0.1:9494' },
+      {
+        id: 'ridge-connection' as any,
+        alias: 'ridge',
+        endpoint: 'quack:127.0.0.1:9494',
+      },
       'secret-token',
       {
         name: 'commerce',
@@ -255,6 +264,110 @@ describe('QuackRidge protocol', () => {
       .join('\n');
     expect(viewSql).not.toContain('secret-token');
     expect(proxy.setupSql[0]).toContain('TEMPORARY SECRET');
+  });
+
+  it('uses distinct proxy secret names for aliases with the same normalized form', () => {
+    const model = { name: 'commerce', schemas: [] };
+    const first = buildQuackRidgeProxyCatalogSetup(
+      { id: 'connection-a' as any, alias: 'ridge-one', endpoint: 'quack:127.0.0.1:9494' },
+      'first-token',
+      model,
+    );
+    const second = buildQuackRidgeProxyCatalogSetup(
+      { id: 'connection-b' as any, alias: 'ridge_one', endpoint: 'quack:127.0.0.1:9595' },
+      'second-token',
+      model,
+    );
+
+    expect(first.setupSql[0].match(/SECRET\s+"?([^"\s(]+)/)?.[1]).not.toBe(
+      second.setupSql[0].match(/SECRET\s+"?([^"\s(]+)/)?.[1],
+    );
+  });
+
+  it('keeps proxy secret ownership scoped to the saved connection', () => {
+    expect(buildQuackRidgeProxySecretName({ id: 'connection-a' as any, alias: 'ridge' })).not.toBe(
+      buildQuackRidgeProxySecretName({ id: 'connection-b' as any, alias: 'ridge' }),
+    );
+  });
+
+  it('registers connection-scoped proxy secret cleanup when disconnecting', async () => {
+    const connection = {
+      type: 'quackridge',
+      id: 'ridge-connection' as PersistentDataSourceId,
+      alias: 'ridge',
+      endpoint: 'quack:127.0.0.1:9494',
+      connectionState: 'connected',
+    } as QuackRidgeConnection;
+    useAppStore.setState({
+      databaseMetadata: new Map([['qr:ridge:commerce', { name: 'commerce', schemas: [] }]]),
+    });
+    const pool = {
+      query: jest.fn<(sql: string) => Promise<any>>().mockResolvedValue(undefined),
+      registerGlobalDetach: jest.fn(),
+    };
+
+    await disconnectQuackRidgeConnection(pool as any, connection);
+
+    expect(pool.registerGlobalDetach).toHaveBeenCalledWith('commerce');
+    expect(pool.registerGlobalDetach).toHaveBeenCalledWith('ridge', {
+      cleanupSql: [`DROP SECRET IF EXISTS ${buildQuackRidgeProxySecretName(connection)}`],
+    });
+    expect(useAppStore.getState().databaseMetadata.has('qr:ridge:commerce')).toBe(false);
+  });
+
+  it('removes stale ready metadata when rebuilding proxy catalogs rolls back', async () => {
+    const row = {
+      source_id: 'commerce-source',
+      source_name: 'Commerce',
+      connector_type: 'postgres',
+      database_type: 'postgres',
+      source_health: 'ready',
+      catalog_name: 'commerce',
+      schema_name: null,
+      object_name: null,
+      object_type: null,
+      column_name: null,
+      ordinal_position: null,
+      duckdb_type: null,
+      nullable: null,
+      is_system_schema: null,
+      error_code: null,
+    };
+    useAppStore.setState({
+      databaseMetadata: new Map([
+        ['qr:ridge:old_catalog', { name: 'old_catalog', sourceHealth: 'ready', schemas: [] }],
+      ]),
+    });
+    const pool = {
+      query: jest.fn<(sql: string) => Promise<any>>().mockImplementation(async (sql) => {
+        if (sql.includes('quackridge_metadata_v2')) {
+          return {
+            numRows: 1,
+            getChild: (name: keyof typeof row) => ({ get: () => row[name] }),
+          };
+        }
+        if (sql.includes('duckdb_databases')) {
+          return {
+            toArray: () => [{ database_name: 'old_catalog' }, { database_name: 'commerce' }],
+          };
+        }
+        return undefined;
+      }),
+      registerGlobalDetach: jest.fn(),
+      registerGlobalAttach: jest.fn(),
+    };
+    const connection = {
+      type: 'quackridge',
+      id: 'ridge-connection' as PersistentDataSourceId,
+      alias: 'ridge',
+      endpoint: 'quack:127.0.0.1:9494',
+    } as QuackRidgeConnection;
+
+    await expect(refreshQuackRidgeMetadata(pool as any, connection, 'new-token')).rejects.toThrow(
+      'conflicts with an attached browser catalog',
+    );
+
+    expect(useAppStore.getState().databaseMetadata.has('qr:ridge:old_catalog')).toBe(false);
   });
 
   it('maps stable server errors without retaining secret-bearing context', () => {

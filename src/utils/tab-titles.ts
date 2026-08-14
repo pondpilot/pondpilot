@@ -53,6 +53,9 @@ export function getSchemaBrowserTabTitle(
     if (dataSource && dataSource.type === 'motherduck') {
       return tab.databaseName ? `Cloud: ${tab.databaseName}` : 'MotherDuck';
     }
+    if (dataSource && dataSource.type === 'quackridge') {
+      return tab.databaseName ? `QuackRidge: ${tab.databaseName}` : 'QuackRidge';
+    }
     if (
       dataSource &&
       (dataSource.type === 'iceberg-catalog' || dataSource.type === 'ducklake-catalog')
@@ -156,6 +159,9 @@ export function getSchemaBrowserDisplayTitle(
     if (dataSource && dataSource.type === 'motherduck') {
       const title = tab.databaseName ?? 'MotherDuck';
       return { prefix: 'Cloud:', title };
+    }
+    if (dataSource && dataSource.type === 'quackridge') {
+      return { prefix: 'QuackRidge:', title: tab.databaseName ?? dataSource.alias };
     }
     if (
       dataSource &&

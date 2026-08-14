@@ -45,6 +45,10 @@ jobs:
           node-version: '22'
       - run: corepack enable
       - run: yarn install --immutable
+      - name: Verify pinned QuackRidge protocol snapshot
+        run: yarn quackridge:protocol:check
+        env:
+          QUACKRIDGE_PROTOCOL_SOURCE: quackridge/protocol/v2
       - run: yarn playwright install --with-deps chromium
       - name: Build trusted pinned QuackRidge source
         run: |
