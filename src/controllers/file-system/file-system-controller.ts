@@ -516,6 +516,7 @@ export const deleteLocalFileOrFolders = async (
       dataSource.type === 'iceberg-catalog' ||
       dataSource.type === 'ducklake-catalog' ||
       dataSource.type === 'quack' ||
+      dataSource.type === 'quackridge' ||
       dataSource.type === 'motherduck'
     ) {
       continue;
@@ -693,6 +694,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
         dataSource.type !== 'iceberg-catalog' &&
         dataSource.type !== 'ducklake-catalog' &&
         dataSource.type !== 'quack' &&
+        dataSource.type !== 'quackridge' &&
         dataSource.type !== 'motherduck' &&
         localFileIdsToDelete.has(dataSource.fileSourceId)
       ) {

@@ -14,6 +14,7 @@ import {
   LocalDB,
   MotherDuckConnection,
   QuackConnection,
+  QuackRidgeConnection,
   RemoteDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
@@ -373,7 +374,13 @@ function getFlatFileDataAdapterQueries(
 function getDatabaseDataAdapterApi(
   pool: AsyncDuckDBConnectionPool,
   dataSource:
-    LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection,
+    | LocalDB
+    | RemoteDB
+    | IcebergCatalog
+    | DuckLakeCatalog
+    | QuackConnection
+    | QuackRidgeConnection
+    | MotherDuckConnection,
   tab: TabReactiveState<LocalDBDataTab>,
   options: {
     usePagedReader?: boolean;
@@ -600,6 +607,28 @@ export function getFileDataAdapterQueries({
       };
     }
 
+    return getDatabaseDataAdapterApi(pool, dataSource, tab);
+  }
+
+  if (dataSource.type === 'quackridge') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: ['QuackRidge objects require a database data tab'],
+      };
+    }
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: [`QuackRidge '${dataSource.alias}' is not connected`],
+        internalErrors: [],
+      };
+    }
+
+    // Each QuackRidge source is attached as a regular DuckDB catalog. Reuse
+    // the standard adapter so previews and charts remain browser-coordinated
+    // and can participate in the same plan as local files and other sources.
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 

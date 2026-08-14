@@ -13,7 +13,12 @@ import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
 import { useAppStore } from '@store/app-store';
-import { getDatabaseIdentifier, isDatabaseDataSource, isMotherDuckDbKey } from '@utils/data-source';
+import {
+  getDatabaseIdentifier,
+  isDatabaseDataSource,
+  isMotherDuckDbKey,
+  isQuackRidgeDbKey,
+} from '@utils/data-source';
 import { parseTableAccessKey } from '@utils/table-access';
 
 import { persistDeleteDataSource } from './persist';
@@ -105,6 +110,14 @@ export const deleteDataSources = async (
       if (isMotherDuckDbKey(dbName)) {
         deletedDbIdentifiers.add(dbName);
       }
+    }
+  }
+  const deletedQuackRidgeAliases = deletedDataSources
+    .filter((dataSource) => dataSource.type === 'quackridge')
+    .map((dataSource) => dataSource.alias);
+  for (const alias of deletedQuackRidgeAliases) {
+    for (const dbName of databaseMetadata.keys()) {
+      if (isQuackRidgeDbKey(dbName, alias)) deletedDbIdentifiers.add(dbName);
     }
   }
   const newTableAccessTimes = new Map(
@@ -250,6 +263,21 @@ export const deleteDataSources = async (
           } catch (storeError) {
             console.warn('Failed to delete Quack secret from store during deletion:', storeError);
           }
+        }
+        continue;
+      }
+
+      if (dataSource.type === 'quackridge') {
+        const { disconnectQuackRidgeConnection } = await import('@utils/quackridge');
+        await disconnectQuackRidgeConnection(conn, dataSource);
+        try {
+          const { _iDbConn } = useAppStore.getState();
+          if (_iDbConn) {
+            const { deleteSecret } = await import('@services/secret-store');
+            await deleteSecret(_iDbConn, dataSource.secretRef);
+          }
+        } catch (storeError) {
+          console.warn('Failed to delete QuackRidge secret during deletion:', storeError);
         }
         continue;
       }

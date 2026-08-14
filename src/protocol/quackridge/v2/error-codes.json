@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "codes": [
+    "QR_AUTHENTICATION",
+    "QR_PROTOCOL_MISMATCH",
+    "QR_SOURCE_UNAVAILABLE",
+    "QR_REJECTED_STATEMENT",
+    "QR_CANCELLED",
+    "QR_TIMEOUT",
+    "QR_RESOURCE_EXHAUSTED",
+    "QR_INTERNAL"
+  ]
+}

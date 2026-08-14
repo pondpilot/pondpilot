@@ -1,0 +1,11 @@
+{
+  "product": "generic-quack",
+  "product_version": "latest",
+  "protocol_version": 2,
+  "metadata_version": 1,
+  "source_types": [
+    "mysql"
+  ],
+  "read_only": false,
+  "capabilities": []
+}

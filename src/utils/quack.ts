@@ -89,11 +89,11 @@ const getQuackWasmExtensionUrls = (): string[] => {
 
   return [
     ...(configuredUrl ? [configuredUrl] : []),
-    // The official v1.5.2 artifact contains the full Quack extension symbols.
+    // The official v1.5.5 artifact contains the full Quack extension symbols.
     // It is kept as a direct-load fallback for newer DuckDB-WASM builds and as a
     // storage-support retry when repository-loaded artifacts only expose helper
     // functions without registering the Quack ATTACH storage type.
-    'https://extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm',
+    'https://extensions.duckdb.org/v1.5.5/wasm_eh/quack.duckdb_extension.wasm',
   ];
 };
 

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quackridge.pondpilot.io/protocol/v2/identity.schema.json",
+  "title": "QuackRidge protocol v2 identity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "product",
+    "product_version",
+    "protocol_version",
+    "metadata_version",
+    "connector_types",
+    "read_only",
+    "capabilities"
+  ],
+  "properties": {
+    "product": {
+      "const": "quackridge"
+    },
+    "product_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "protocol_version": {
+      "const": 2
+    },
+    "metadata_version": {
+      "const": 2
+    },
+    "connector_types": {
+      "const": [
+        "duckdb",
+        "mysql",
+        "odbc",
+        "postgres",
+        "sqlite"
+      ]
+    },
+    "read_only": {
+      "const": true
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "cancellation_noop",
+          "metadata_v2",
+          "pairing_v2",
+          "query_ids",
+          "sticky_sessions"
+        ]
+      },
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "allOf": [
+        {
+          "contains": {
+            "const": "cancellation_noop"
+          }
+        },
+        {
+          "contains": {
+            "const": "metadata_v2"
+          }
+        },
+        {
+          "contains": {
+            "const": "pairing_v2"
+          }
+        },
+        {
+          "contains": {
+            "const": "query_ids"
+          }
+        },
+        {
+          "contains": {
+            "const": "sticky_sessions"
+          }
+        }
+      ]
+    }
+  }
+}

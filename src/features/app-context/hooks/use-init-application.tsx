@@ -24,6 +24,7 @@ import {
   isLocalDatabase,
   isMotherDuckConnection,
   isQuackConnection,
+  isQuackRidgeConnection,
 } from '@utils/data-source';
 import {
   attachAndVerifyDuckLakeCatalog,
@@ -44,6 +45,11 @@ import {
   reconnectQuackConnection,
   updateQuackConnectionState,
 } from '@utils/quack';
+import {
+  reconnectQuackRidgeConnection,
+  resolveQuackRidgeToken,
+  updateQuackRidgeConnectionState,
+} from '@utils/quackridge';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
@@ -62,7 +68,7 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
   // same engine instance. Preserve normal insertion order otherwise.
   const getReconnectPriority = (dataSource: AnyDataSource): number => {
     if (isMotherDuckConnection(dataSource)) return 0;
-    if (isQuackConnection(dataSource)) return 2;
+    if (isQuackConnection(dataSource) || isQuackRidgeConnection(dataSource)) return 2;
     return 1;
   };
   const orderedDataSources = Array.from(dataSources).sort(
@@ -146,6 +152,26 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
         const sanitized = sanitizeErrorMessage(errorMessage);
         console.warn(`Failed to reconnect DuckLake catalog ${dataSource.catalogAlias}:`, sanitized);
         updateDuckLakeConnectionState(id, 'error', sanitized);
+      }
+      continue;
+    }
+
+    if (isQuackRidgeConnection(dataSource)) {
+      const token = _iDbConn ? await resolveQuackRidgeToken(_iDbConn, dataSource) : null;
+
+      if (!token) {
+        updateQuackRidgeConnectionState(id, 'credentials-required');
+        continue;
+      }
+
+      try {
+        await reconnectQuackRidgeConnection(conn, dataSource, token);
+      } catch (error) {
+        const message = sanitizeErrorMessage(
+          error instanceof Error ? error.message : String(error),
+        );
+        console.warn(`Failed to reconnect QuackRidge ${dataSource.alias}:`, message);
+        updateQuackRidgeConnectionState(id, 'error', message);
       }
       continue;
     }

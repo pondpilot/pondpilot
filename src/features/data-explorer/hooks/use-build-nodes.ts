@@ -5,6 +5,7 @@ import {
   LocalDB,
   MotherDuckConnection,
   QuackConnection,
+  QuackRidgeConnection,
   RemoteDB,
 } from '@models/data-source';
 import { AsyncDuckDBConnectionPool } from '@services/duckdb-pool/duckdb-connection-pool';
@@ -20,7 +21,7 @@ import { useSystemDbNode } from './use-system-db-node';
 type UseBuildNodesProps = {
   systemDatabase: LocalDB | undefined;
   localDatabases: LocalDB[];
-  remoteDatabases: Array<RemoteDB | QuackConnection>;
+  remoteDatabases: Array<RemoteDB | QuackConnection | QuackRidgeConnection>;
   icebergCatalogs: IcebergCatalog[];
   duckLakeCatalogs: DuckLakeCatalog[];
   motherduckConnections: MotherDuckConnection[];

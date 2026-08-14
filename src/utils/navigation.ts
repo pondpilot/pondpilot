@@ -50,13 +50,14 @@ export function getTabName(
       dataSource.type !== 'iceberg-catalog' &&
       dataSource.type !== 'ducklake-catalog' &&
       dataSource.type !== 'quack' &&
+      dataSource.type !== 'quackridge' &&
       dataSource.type !== 'motherduck'
     ) {
       return 'Unknown data source';
     }
 
     const dbIdentifier =
-      dataSource.type === 'motherduck' && tab.databaseName
+      (dataSource.type === 'motherduck' || dataSource.type === 'quackridge') && tab.databaseName
         ? tab.databaseName
         : getDatabaseIdentifier(dataSource);
     return `${dbIdentifier}.${tab.schemaName}.${tab.objectName}`;
@@ -69,6 +70,7 @@ export function getTabName(
     dataSource.type === 'iceberg-catalog' ||
     dataSource.type === 'ducklake-catalog' ||
     dataSource.type === 'quack' ||
+    dataSource.type === 'quackridge' ||
     dataSource.type === 'motherduck'
   ) {
     return 'Unknown data source';
@@ -105,6 +107,7 @@ export function getTabIcon(
       dataSource.type === 'iceberg-catalog' ||
       dataSource.type === 'ducklake-catalog' ||
       dataSource.type === 'quack' ||
+      dataSource.type === 'quackridge' ||
       dataSource.type === 'motherduck'
     ) {
       return 'error';

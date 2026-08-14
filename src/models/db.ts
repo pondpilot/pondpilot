@@ -65,11 +65,22 @@ export interface DBTableOrView {
 
 export interface DBSchema {
   name: string;
+  /** Displayed schemas may retain their server-side catalog/name separately. */
+  catalogName?: string;
+  remoteName?: string;
   objects: DBTableOrView[];
 }
 
 export interface DataBaseModel {
   name: string;
+  /** Remote source details, when this model represents a database behind a bridge. */
+  sourceId?: string;
+  sourceName?: string;
+  sourceType?: string;
+  connectorType?: string;
+  databaseType?: string;
+  sourceHealth?: string;
+  sourceErrorCode?: string | null;
   schemas: DBSchema[];
 }
 

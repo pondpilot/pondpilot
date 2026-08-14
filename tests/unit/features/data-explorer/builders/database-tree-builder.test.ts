@@ -2,11 +2,19 @@ import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
 import { buildSchemaTreeNode } from '@features/data-explorer/builders/database-node-builder';
-import { buildDatabaseNode } from '@features/data-explorer/builders/database-tree-builder';
+import {
+  buildDatabaseNode,
+  buildQuackRidgeConnectionNode,
+} from '@features/data-explorer/builders/database-tree-builder';
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '@features/data-explorer/model';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { LocalDB, RemoteDB, PersistentDataSourceId } from '@models/data-source';
+import {
+  LocalDB,
+  RemoteDB,
+  PersistentDataSourceId,
+  QuackRidgeConnection,
+} from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
@@ -384,6 +392,71 @@ describe('buildDatabaseNode', () => {
       // Test disconnect
       disconnectItem?.onClick?.(node, {} as any);
       expect(disconnectRemoteDatabase).toHaveBeenCalledWith(mockContext.conn, remoteDb);
+    });
+  });
+
+  describe('QuackRidge connection nodes', () => {
+    it('nests each database above its schemas and retains source type context', () => {
+      const connection: QuackRidgeConnection = {
+        id: 'ridge-id' as PersistentDataSourceId,
+        type: 'quackridge',
+        endpoint: 'quack:127.0.0.1:34175',
+        alias: 'quackridge',
+        productVersion: '0.1.0',
+        protocolVersion: 2,
+        capabilities: [
+          'cancellation_noop',
+          'metadata_v2',
+          'pairing_v2',
+          'query_ids',
+          'sticky_sessions',
+        ],
+        connectionState: 'connected',
+        pairedAt: 1,
+        attachedAt: 1,
+        secretRef: 'secret-id' as any,
+      };
+      mockContext.databaseMetadata.set('qr:quackridge:commerce', {
+        name: 'commerce',
+        sourceName: 'Commerce',
+        sourceType: 'postgres',
+        connectorType: 'postgres',
+        databaseType: 'postgres',
+        sourceHealth: 'ready',
+        schemas: [{ name: 'sales', objects: [] }],
+      });
+      mockContext.databaseMetadata.set('qr:quackridge:support', {
+        name: 'support',
+        sourceName: 'Customer Support',
+        sourceType: 'postgres',
+        connectorType: 'postgres',
+        databaseType: 'postgres',
+        sourceHealth: 'ready',
+        schemas: [{ name: 'helpdesk', objects: [] }],
+      });
+      mockContext.databaseMetadata.set('qr:another-ridge:hidden', {
+        name: 'hidden',
+        schemas: [],
+      });
+
+      const node = buildQuackRidgeConnectionNode(connection, mockContext);
+
+      expect(node.label).toBe('quackridge ✓');
+      expect(node.children?.map((child) => child.label)).toEqual(['commerce', 'support']);
+      expect(node.children?.[1].tooltip).toBe('Postgres · POSTGRES connector · Customer Support');
+      expect(buildSchemaTreeNode).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nodeDbId: 'ridge-id::support',
+          sourceDbId: 'ridge-id',
+          dbName: 'support',
+          databaseName: 'support',
+          schema: { name: 'helpdesk', objects: [] },
+        }),
+      );
+      expect(mockContext.nodeMap.get('ridge-id::support')).toMatchObject({
+        db: 'ridge-id',
+        databaseName: 'support',
+      });
     });
   });
 

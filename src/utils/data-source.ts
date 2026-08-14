@@ -7,6 +7,7 @@ import {
   MotherDuckConnection,
   PersistentDataSourceId,
   QuackConnection,
+  QuackRidgeConnection,
   ReadStatView,
   RemoteDB,
 } from '@models/data-source';
@@ -42,6 +43,7 @@ export function ensureFlatFileDataSource(
     obj.type === 'iceberg-catalog' ||
     obj.type === 'ducklake-catalog' ||
     obj.type === 'quack' ||
+    obj.type === 'quackridge' ||
     obj.type === 'motherduck'
   ) {
     throw new Error(`Data source with id ${obj.id} is not a flat file data source`);
@@ -219,6 +221,12 @@ export function isQuackConnection(dataSource: AnyDataSource): dataSource is Quac
   return dataSource.type === 'quack';
 }
 
+export function isQuackRidgeConnection(
+  dataSource: AnyDataSource,
+): dataSource is QuackRidgeConnection {
+  return dataSource.type === 'quackridge';
+}
+
 export function isMotherDuckConnection(
   dataSource: AnyDataSource,
 ): dataSource is MotherDuckConnection {
@@ -253,8 +261,47 @@ export function parseMotherDuckDbKey(key: string): string | null {
   return key.slice(MD_DB_PREFIX.length);
 }
 
+// QuackRidge exposes multiple databases through one attached connection. Keep
+// their metadata scoped by connection alias so two bridges can expose the same
+// catalog name without colliding in the global metadata map.
+export const QUACKRIDGE_DB_PREFIX = 'qr:';
+
+export function formatQuackRidgeDbKey(connectionAlias: string, dbName: string): string {
+  return `${QUACKRIDGE_DB_PREFIX}${encodeURIComponent(connectionAlias)}:${encodeURIComponent(dbName)}`;
+}
+
+export function parseQuackRidgeDbKey(
+  key: string,
+): { connectionAlias: string; dbName: string } | null {
+  if (!key.startsWith(QUACKRIDGE_DB_PREFIX)) return null;
+  const separatorIndex = key.indexOf(':', QUACKRIDGE_DB_PREFIX.length);
+  if (separatorIndex < 0 || separatorIndex === key.length - 1) return null;
+  try {
+    const connectionAlias = decodeURIComponent(
+      key.slice(QUACKRIDGE_DB_PREFIX.length, separatorIndex),
+    );
+    const dbName = decodeURIComponent(key.slice(separatorIndex + 1));
+    return connectionAlias && dbName ? { connectionAlias, dbName } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isQuackRidgeDbKey(key: string, connectionAlias?: string): boolean {
+  const parsed = parseQuackRidgeDbKey(key);
+  return (
+    parsed !== null && (connectionAlias === undefined || parsed.connectionAlias === connectionAlias)
+  );
+}
+
 export type DatabaseDataSource =
-  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | QuackConnection | MotherDuckConnection;
+  | LocalDB
+  | RemoteDB
+  | IcebergCatalog
+  | DuckLakeCatalog
+  | QuackConnection
+  | QuackRidgeConnection
+  | MotherDuckConnection;
 
 export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is DatabaseDataSource {
   return (
@@ -263,6 +310,7 @@ export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is D
     dataSource.type === 'iceberg-catalog' ||
     dataSource.type === 'ducklake-catalog' ||
     dataSource.type === 'quack' ||
+    dataSource.type === 'quackridge' ||
     dataSource.type === 'motherduck'
   );
 }
@@ -277,6 +325,7 @@ export function getDatabaseIdentifier(dataSource: DatabaseDataSource): string {
   if (dataSource.type === 'iceberg-catalog') return dataSource.catalogAlias;
   if (dataSource.type === 'ducklake-catalog') return dataSource.catalogAlias;
   if (dataSource.type === 'motherduck') return MD_DB_PREFIX;
+  if (dataSource.type === 'quackridge') return dataSource.alias;
   return dataSource.dbName;
 }
 

@@ -20,9 +20,7 @@ const getNodeModulesPackage = (id) => {
     .slice(nodeModulesIndex + '/node_modules/'.length)
     .split('/');
 
-  return scopeOrName.startsWith('@')
-    ? `${scopeOrName}/${scopedName}`
-    : scopeOrName;
+  return scopeOrName.startsWith('@') ? `${scopeOrName}/${scopedName}` : scopeOrName;
 };
 
 const getManualChunkName = (id) => {
@@ -97,6 +95,21 @@ export default defineConfig(({ mode }) => {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'credentialless',
+      },
+      proxy: {
+        '/quackridge/releases/stable/release-manifest.json': {
+          target: 'https://github.com',
+          changeOrigin: true,
+          followRedirects: true,
+          rewrite: () => '/pondpilot/quackridge/releases/latest/download/release-manifest.json',
+        },
+        '/quackridge/releases/prerelease/release-manifest.json': {
+          target: 'https://github.com',
+          changeOrigin: true,
+          followRedirects: true,
+          rewrite: () =>
+            '/pondpilot/quackridge/releases/download/v0.2.0-rc.8/release-manifest.json',
+        },
       },
     },
     define: {

@@ -1,0 +1,16 @@
+{
+  "source_id": "",
+  "source_name": "Warehouse",
+  "connector_type": "unknown",
+  "database_type": "",
+  "source_health": "broken",
+  "catalog_name": "warehouse",
+  "schema_name": null,
+  "object_name": null,
+  "object_type": null,
+  "column_name": null,
+  "ordinal_position": 0,
+  "duckdb_type": null,
+  "nullable": null,
+  "is_system_schema": null
+}

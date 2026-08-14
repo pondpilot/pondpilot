@@ -11,6 +11,7 @@ import {
   MotherDuckConnection,
   PersistentDataSourceId,
   QuackConnection,
+  QuackRidgeConnection,
   RemoteDB,
 } from '@models/data-source';
 import { ColumnSortSpecList } from '@models/db';
@@ -259,6 +260,7 @@ export const getOrCreateTabFromLocalDBObject = (
     | IcebergCatalog
     | DuckLakeCatalog
     | QuackConnection
+    | QuackRidgeConnection
     | MotherDuckConnection
     | PersistentDataSourceId,
   schemaName: string,
@@ -507,6 +509,7 @@ export const findTabFromLocalDBObject = (
     | IcebergCatalog
     | DuckLakeCatalog
     | QuackConnection
+    | QuackRidgeConnection
     | MotherDuckConnection
     | PersistentDataSourceId,
   schemaName: string,

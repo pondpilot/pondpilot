@@ -52,11 +52,14 @@ type ConnectionClaimMode = 'background' | 'pinnable' | 'any';
 type RegisteredAttach = {
   sql: string;
   setupSql: string[];
+  postAttachSql: string[];
   version: number;
 };
 type RegisterGlobalCatalogMutationOptions = {
   appliedConnection?: AsyncDuckDBConnection;
   appliedTabId?: TabId;
+  postAttachSql?: string[];
+  cleanupSql?: string[];
 };
 
 export type DuckDBConnectionPoolOptions = {
@@ -146,6 +149,7 @@ export class AsyncDuckDBConnectionPool {
   private readonly _pinnedReaders: Map<TabId, AsyncDuckDBPooledStreamReader<any>> = new Map();
   private readonly _registeredAttaches: Map<string, RegisteredAttach> = new Map();
   private readonly _registeredDetaches: Map<string, number> = new Map();
+  private readonly _registeredCleanupSql = new Map<number, string[]>();
   private readonly _connectionCatalogVersions: WeakMap<AsyncDuckDBConnection, number> =
     new WeakMap();
   private readonly _connectionAppliedCatalogMutations: WeakMap<AsyncDuckDBConnection, Set<number>> =
@@ -382,6 +386,22 @@ export class AsyncDuckDBConnectionPool {
       }
     }
 
+    // Cleanup mutations are versioned independently from catalog names. A
+    // later re-ATTACH may replace a registered DETACH before an idle pooled
+    // connection reconciles, but it must not erase credential cleanup that
+    // connection still needs to run.
+    for (const [cleanupVersion, cleanupStatements] of this._registeredCleanupSql) {
+      if (
+        cleanupVersion <= targetVersion &&
+        cleanupVersion > connVersion &&
+        !appliedMutations?.has(cleanupVersion)
+      ) {
+        for (const cleanupSql of cleanupStatements) {
+          await conn.query(cleanupSql);
+        }
+      }
+    }
+
     for (const [dbName, attach] of registeredAttaches) {
       if (appliedMutations?.has(attach.version)) {
         continue;
@@ -425,6 +445,17 @@ export class AsyncDuckDBConnectionPool {
 
       if (!(await this._databaseExists(conn, dbName))) {
         await conn.query(attach.sql);
+      }
+
+      for (const postAttachSql of attach.postAttachSql) {
+        try {
+          await conn.query(postAttachSql);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!message.toLowerCase().includes('already exists')) {
+            throw error;
+          }
+        }
       }
     }
 
@@ -1253,6 +1284,10 @@ export class AsyncDuckDBConnectionPool {
       this._registeredAttaches.set(dbName, {
         ...existing,
         setupSql: setupSql.length > 0 ? setupSql : existing.setupSql,
+        postAttachSql:
+          options.postAttachSql && options.postAttachSql.length > 0
+            ? options.postAttachSql
+            : existing.postAttachSql,
       });
       this._registeredDetaches.delete(dbName);
       this._markCatalogVersionApplied(options, existing.version);
@@ -1264,6 +1299,7 @@ export class AsyncDuckDBConnectionPool {
     this._registeredAttaches.set(dbName, {
       sql,
       setupSql,
+      postAttachSql: options.postAttachSql ?? [],
       version,
     });
     this._registeredDetaches.delete(dbName);
@@ -1278,6 +1314,9 @@ export class AsyncDuckDBConnectionPool {
     const version = this._catalogVersion;
     this._registeredAttaches.delete(dbName);
     this._registeredDetaches.set(dbName, version);
+    if (options.cleanupSql?.length) {
+      this._registeredCleanupSql.set(version, options.cleanupSql);
+    }
     this._markCatalogVersionApplied(options, version);
   }
 

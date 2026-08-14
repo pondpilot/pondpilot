@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quackridge.pondpilot.io/protocol/v2/pairing.schema.json",
+  "title": "QuackRidge pairing response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "endpoint",
+    "identity",
+    "token"
+  ],
+  "properties": {
+    "endpoint": {
+      "type": "string",
+      "pattern": "^quack:(localhost|127\\.0\\.0\\.1|\\[::1\\])(?::[0-9]{1,5})?$"
+    },
+    "identity": {
+      "$ref": "identity.schema.json"
+    },
+    "token": {
+      "type": "string",
+      "minLength": 32
+    }
+  }
+}

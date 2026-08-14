@@ -1,0 +1,17 @@
+{
+  "product": "quackridge",
+  "product_version": "0.1.0-dev",
+  "protocol_version": 1,
+  "metadata_version": 1,
+  "source_types": [
+    "postgres"
+  ],
+  "read_only": true,
+  "capabilities": [
+    "cancellation_noop",
+    "metadata_v1",
+    "pairing_v1",
+    "query_ids",
+    "sticky_sessions"
+  ]
+}

@@ -38,7 +38,9 @@
     "lint:stylelint:fix": "stylelint '**/*.css' --cache --fix",
     "prettier": "prettier --check \"**/*.{ts,tsx}\"",
     "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
-    "readstat:install": "node scripts/install-readstat-wasm.mjs"
+    "readstat:install": "node scripts/install-readstat-wasm.mjs",
+    "quackridge:protocol:sync": "node scripts/sync-quackridge-protocol.mjs",
+    "quackridge:protocol:check": "node scripts/sync-quackridge-protocol.mjs --check"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.0.0",
@@ -46,7 +48,7 @@
     "@dnd-kit/modifiers": "9.0.0",
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",
-    "@duckdb/duckdb-wasm": "1.33.1-dev53.0",
+    "@duckdb/duckdb-wasm": "1.33.1-dev64.0",
     "@mantine/core": "8.2.3",
     "@mantine/hooks": "8.2.3",
     "@mantine/modals": "8.2.3",

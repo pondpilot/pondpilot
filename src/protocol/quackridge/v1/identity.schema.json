@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quackridge.pondpilot.io/protocol/v1/identity.schema.json",
+  "title": "QuackRidge identity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "product",
+    "product_version",
+    "protocol_version",
+    "metadata_version",
+    "source_types",
+    "read_only",
+    "capabilities"
+  ],
+  "properties": {
+    "product": {
+      "const": "quackridge"
+    },
+    "product_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "protocol_version": {
+      "const": 1
+    },
+    "metadata_version": {
+      "const": 1
+    },
+    "source_types": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "postgres"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "read_only": {
+      "const": true
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "cancellation_noop",
+          "metadata_v1",
+          "pairing_v1",
+          "query_ids",
+          "sticky_sessions"
+        ]
+      },
+      "uniqueItems": true
+    }
+  }
+}

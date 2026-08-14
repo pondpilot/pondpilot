@@ -91,7 +91,7 @@ export async function withMotherDuckConnection<T>(
 }
 
 /**
- * Returns the DuckDB core version (e.g. "v1.5.1") by querying the running engine.
+ * Returns the DuckDB core version (e.g. "v1.5.5") by querying the running engine.
  * This keeps the MotherDuck API header in sync when the @duckdb/duckdb-wasm package is upgraded.
  */
 async function getDuckDBVersion(pool: MotherDuckQueryable): Promise<string> {

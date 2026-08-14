@@ -358,6 +358,29 @@ export interface QuackConnection {
   disableSsl?: boolean;
 }
 
+export type QuackRidgeCapability =
+  'cancellation_noop' | 'metadata_v2' | 'pairing_v2' | 'query_ids' | 'sticky_sessions';
+
+/**
+ * A QuackRidge bridge is deliberately distinct from a generic Quack server.
+ * Its token only exists in the encrypted secret store referenced here.
+ */
+export interface QuackRidgeConnection {
+  readonly type: 'quackridge';
+  id: PersistentDataSourceId;
+  endpoint: string;
+  alias: string;
+  productVersion: string;
+  protocolVersion: 2;
+  capabilities: QuackRidgeCapability[];
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting' | 'credentials-required';
+  connectionError?: string;
+  pairedAt: number;
+  attachedAt: number;
+  lastConnectedAt?: number;
+  secretRef: SecretId;
+}
+
 export interface MotherDuckConnection {
   readonly type: 'motherduck';
   id: PersistentDataSourceId;
@@ -395,6 +418,7 @@ export type AnyDataSource =
   | IcebergCatalog
   | DuckLakeCatalog
   | QuackConnection
+  | QuackRidgeConnection
   | MotherDuckConnection;
 
 // Special constant for the system database

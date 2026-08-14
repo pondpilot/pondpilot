@@ -104,9 +104,9 @@ test.describe('File Columns Display', () => {
     });
 
     // Initially columns should not be visible
-    await expect(page.getByText('id')).toBeHidden();
-    await expect(page.getByText('name')).toBeHidden();
-    await expect(page.getByText('email')).toBeHidden();
+    await expect(page.getByTestId(/.*::id-container$/)).toBeHidden();
+    await expect(page.getByTestId(/.*::name-container$/)).toBeHidden();
+    await expect(page.getByTestId(/.*::email-container$/)).toBeHidden();
 
     // Alt+Click to expand columns
     await fileNode.click({ modifiers: ['Alt'] });

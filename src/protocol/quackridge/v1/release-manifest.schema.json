@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quackridge.pondpilot.io/protocol/v1/release-manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "channel",
+    "protocol",
+    "assets"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "channel": {
+      "enum": [
+        "prerelease",
+        "stable"
+      ]
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum",
+        "maximum"
+      ],
+      "properties": {
+        "minimum": {
+          "type": "integer"
+        },
+        "maximum": {
+          "type": "integer"
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "os",
+          "arch",
+          "url",
+          "sha256",
+          "signature",
+          "minimum_os"
+        ],
+        "properties": {
+          "os": {
+            "enum": [
+              "darwin",
+              "linux",
+              "windows"
+            ]
+          },
+          "arch": {
+            "enum": [
+              "amd64",
+              "arm64"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "signature": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minimum_os": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

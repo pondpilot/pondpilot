@@ -21,14 +21,11 @@ import { SQLScriptId } from '@models/sql-script';
 import { TabId } from '@models/tab';
 import { setScriptSession, useAppStore } from '@store/app-store';
 import { IconChevronRight, IconDatabase, IconSearch } from '@tabler/icons-react';
-import {
-  getDatabaseIdentifier,
-  isDatabaseDataSource,
-  parseMotherDuckDbKey,
-} from '@utils/data-source';
 import { getErrorMessage } from '@utils/error-classification';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useMemo, useState } from 'react';
+
+import { getScriptSessionCatalogs } from './script-session-catalogs';
 
 interface ScriptSessionSelectorProps {
   scriptId: SQLScriptId;
@@ -49,19 +46,10 @@ export const ScriptSessionSelector = ({ scriptId, tabId }: ScriptSessionSelector
   const [catalogFilter, setCatalogFilter] = useState('');
   const [previewCatalog, setPreviewCatalog] = useState<string | null>(null);
 
-  const catalogs = useMemo(() => {
-    const set = new Set<string>([PERSISTENT_DB_NAME, 'memory']);
-    for (const dbName of databaseMetadata.keys()) {
-      set.add(parseMotherDuckDbKey(dbName) ?? dbName);
-    }
-    for (const dataSource of dataSources.values()) {
-      if (isDatabaseDataSource(dataSource)) {
-        if (dataSource.type === 'motherduck') continue;
-        set.add(getDatabaseIdentifier(dataSource));
-      }
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [dataSources, databaseMetadata]);
+  const catalogs = useMemo(
+    () => getScriptSessionCatalogs(dataSources, databaseMetadata),
+    [dataSources, databaseMetadata],
+  );
 
   // Drop schema cache whenever the attached-catalog set changes so that
   // ATTACH/DETACH/CREATE SCHEMA/DROP SCHEMA in another tab can't leave stale
