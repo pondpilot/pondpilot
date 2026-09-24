@@ -2,22 +2,26 @@
 
 This directory contains fixtures used across the application's tests.
 
-## Browser Caching and Context Reuse
+## Deterministic browser module cache
 
-To optimize test run speed, we've implemented a caching mechanism for expensive resources like the duckdb-wasm modules.
+DuckDB-WASM modules and extensions are downloaded before Playwright starts. Their exact URLs and
+SHA-256 checksums are pinned in `scripts/module-cache.mjs`.
 
 ### Module Caching Implementation
 
-Persists downloaded modules in `.module-cache` directory
+The fixture serves only entries from `.module-cache` that match the manifest checksum:
 
-- Loads from network if modules are not cached
-- Saves any newly downloaded modules to cache automatically
-- Works offline after modules are cached
+- cache misses never fall through to a CDN during a test;
+- unknown CDN URLs fail the test and must be added to the manifest deliberately;
+- corrupted entries are replaced by the pre-cache command and rejected by the fixture.
 
 ### Pre-caching Modules
 
 You can pre-cache the modules by running the following command:
 
 ```bash
-just cache-online-modules
+yarn cache:test-modules
 ```
+
+Use `node scripts/cache-online-modules.mjs --offline` to verify an already populated cache without
+network access.
