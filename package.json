@@ -15,7 +15,7 @@
   ],
   "homepage": "https://app.pondpilot.io",
   "engines": {
-    "node": ">=24.0.0 <25"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "dev": "vite",
