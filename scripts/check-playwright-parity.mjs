@@ -20,8 +20,12 @@ for (const [id, serialTest] of serial.tests) {
 if (serial.skipped !== sharded.skipped) {
   failures.push(`skip count differs: serial=${serial.skipped}, sharded=${sharded.skipped}`);
 }
+// Retries are measured during the shadow rollout, not gated: a flaky test can pass on retry in
+// one run and on the first attempt in the other while both runs report the same outcome.
 if (serial.flaky !== sharded.flaky) {
-  failures.push(`flaky retry count differs: serial=${serial.flaky}, sharded=${sharded.flaky}`);
+  console.log(
+    `::warning::Flaky retry count differs: serial=${serial.flaky}, sharded=${sharded.flaky}`,
+  );
 }
 
 if (failures.length) {
@@ -30,7 +34,7 @@ if (failures.length) {
 
 console.log(
   `Verified ${serial.tests.size} serial/sharded test outcomes ` +
-    `(${serial.skipped} skipped, ${serial.flaky} flaky retries).`,
+    `(${serial.skipped} skipped; flaky retries: serial=${serial.flaky}, sharded=${sharded.flaky}).`,
 );
 
 async function readJUnit(argument) {
