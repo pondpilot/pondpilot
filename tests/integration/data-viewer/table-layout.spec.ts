@@ -6,6 +6,7 @@ import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fi
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
+import { pressPrimaryShortcut } from '../utils/keyboard';
 
 const test = mergeTests(baseTest, scriptExplorerTest, scriptEditorTest, dataViewTest);
 
@@ -98,7 +99,7 @@ test('Column widths update when the result schema expands in the same tab', asyn
 
   const replaceScript = async (content: string) => {
     await scriptEditorContent.click();
-    await page.keyboard.press('Control+A');
+    await pressPrimaryShortcut(page, 'A');
     await page.keyboard.insertText(content);
   };
 

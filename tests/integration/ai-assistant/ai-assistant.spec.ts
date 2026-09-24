@@ -1,9 +1,11 @@
 import { expect, mergeTests } from '@playwright/test';
 
+import { getClipboardContent } from '../../utils';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 import { test as storageTest } from '../fixtures/storage';
+import { pressPrimaryShortcut } from '../utils/keyboard';
 
 const test = mergeTests(baseTest, scriptEditorTest, scriptExplorerTest, storageTest);
 
@@ -21,7 +23,7 @@ test.describe('AI Assistant Integration', () => {
       await scriptEditorContent.click();
 
       // Press Cmd+I (Mac) or Ctrl+I (Windows/Linux) to open AI assistant
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
 
       // Verify AI assistant widget is visible
       const widget = page.locator('.cm-ai-assistant-widget');
@@ -35,7 +37,7 @@ test.describe('AI Assistant Integration', () => {
     test('should close AI assistant with Escape key', async ({ page, scriptEditorContent }) => {
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
       await expect(widget).toBeVisible();
 
@@ -52,14 +54,14 @@ test.describe('AI Assistant Integration', () => {
     }) => {
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
       await expect(widget).toBeVisible();
 
       // Focus the editor again (not the widget) before pressing the shortcut
       await scriptEditorContent.click();
       // Press shortcut again to close
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       await expect(widget).toBeHidden();
     });
   });
@@ -68,7 +70,7 @@ test.describe('AI Assistant Integration', () => {
     test('should show mention dropdown when typing @', async ({ page, scriptEditorContent }) => {
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
       const textarea = widget.locator('.ai-widget-textarea');
 
@@ -95,7 +97,7 @@ test.describe('AI Assistant Integration', () => {
     test('should insert selected mention on Enter', async ({ page, scriptEditorContent }) => {
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
       const textarea = widget.locator('.ai-widget-textarea');
 
@@ -126,7 +128,7 @@ test.describe('AI Assistant Integration', () => {
     test('should close mention dropdown on Escape', async ({ page, scriptEditorContent }) => {
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
       const textarea = widget.locator('.ai-widget-textarea');
 
@@ -159,7 +161,7 @@ test.describe('AI Assistant Integration', () => {
     }) => {
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
       const textarea = widget.locator('.ai-widget-textarea');
 
@@ -171,7 +173,7 @@ test.describe('AI Assistant Integration', () => {
         // Close and reopen to simulate submitting
         await textarea.press('Escape');
 
-        await page.keyboard.press('ControlOrMeta+i');
+        await pressPrimaryShortcut(page, 'I');
       }
 
       // Clear textarea
@@ -198,7 +200,7 @@ test.describe('AI Assistant Integration', () => {
       await page.keyboard.type('SELECT * FROM users;');
 
       // Open AI assistant
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
 
       // Check context section exists
@@ -224,7 +226,7 @@ test.describe('AI Assistant Integration', () => {
     test('should show database schema indicator', async ({ page, scriptEditorContent }) => {
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
 
       // Expand context
@@ -244,7 +246,7 @@ test.describe('AI Assistant Integration', () => {
     test('should have proper ARIA labels', async ({ page, scriptEditorContent }) => {
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
 
       // Check textarea aria-label
@@ -266,7 +268,7 @@ test.describe('AI Assistant Integration', () => {
     }) => {
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
 
       // Check for live region
@@ -278,10 +280,15 @@ test.describe('AI Assistant Integration', () => {
   });
 
   test.describe('Copy/paste functionality', () => {
-    test('should allow copy and paste in textarea', async ({ page, scriptEditorContent }) => {
+    test('should allow copy and paste in textarea', async ({
+      page,
+      context,
+      scriptEditorContent,
+    }) => {
+      await context.grantPermissions(['clipboard-read', 'clipboard-write']);
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
+      await pressPrimaryShortcut(page, 'I');
       const widget = page.locator('.cm-ai-assistant-widget');
       const textarea = widget.locator('.ai-widget-textarea');
 
@@ -290,11 +297,12 @@ test.describe('AI Assistant Integration', () => {
 
       // Select all and copy
       await textarea.selectText();
-      await page.keyboard.press('ControlOrMeta+c');
+      await pressPrimaryShortcut(page, 'C');
+      await expect.poll(() => getClipboardContent(page)).toBe('Test text to copy');
 
       // Clear and paste
       await textarea.fill('');
-      await page.keyboard.press('ControlOrMeta+v');
+      await pressPrimaryShortcut(page, 'V');
 
       // Should have pasted text
       await expect(textarea).toHaveValue('Test text to copy');
