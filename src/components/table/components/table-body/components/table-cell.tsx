@@ -93,15 +93,18 @@ export const TableRegularCell = memo(
       </Box>
     );
 
-    const defaultNode = (
+    // Only truncated cells get a Tooltip: a Mantine Tooltip per cell, even a
+    // disabled one, makes every table page render several times slower.
+    const defaultNode = isTruncated ? (
       <Tooltip
         withinPortal
-        disabled={!isTruncated}
         events={{ hover: true, focus: true, touch: false }}
         label={formattedValue}
       >
         {cellElement}
       </Tooltip>
+    ) : (
+      cellElement
     );
 
     if (columnMeta?.cellRenderer) {
