@@ -9,6 +9,35 @@ import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 
 const test = mergeTests(baseTest, scriptExplorerTest, scriptEditorTest, dataViewTest);
 
+const expectColumnWidthsAligned = async (
+  dataTable: Parameters<typeof getHeaderCell>[0],
+  columnNames: string[],
+  rowIndexes: number[],
+) => {
+  for (let columnIndex = 0; columnIndex < columnNames.length; columnIndex += 1) {
+    const columnId = getTableColumnId(columnNames[columnIndex], columnIndex);
+    const headerCell = getHeaderCell(dataTable, columnId);
+
+    await expect(headerCell).toBeVisible();
+    await expect
+      .poll(() => headerCell.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeGreaterThan(40);
+
+    for (const rowIndex of rowIndexes) {
+      const dataCell = getDataCellContainer(dataTable, columnId, rowIndex);
+      await expect
+        .poll(async () => {
+          const [headerWidth, dataWidth] = await Promise.all([
+            headerCell.evaluate((element) => element.getBoundingClientRect().width),
+            dataCell.evaluate((element) => element.getBoundingClientRect().width),
+          ]);
+          return Math.abs(headerWidth - dataWidth);
+        })
+        .toBeLessThan(0.5);
+    }
+  }
+};
+
 test('Header cell width matches data cell width for special character columns', async ({
   createScriptAndSwitchToItsTab,
   fillScript,
@@ -59,19 +88,27 @@ test('Header cell width matches data cell width for special character columns', 
 });
 
 test('Column widths update when the result schema expands in the same tab', async ({
+  page,
   createScriptAndSwitchToItsTab,
-  fillScript,
   runScript,
+  scriptEditorContent,
   waitForDataTable,
 }) => {
   await createScriptAndSwitchToItsTab();
 
-  await fillScript('SELECT 1 AS initial_column;');
+  const replaceScript = async (content: string) => {
+    await scriptEditorContent.click();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.insertText(content);
+  };
+
+  await replaceScript('SELECT 1 AS initial_column;');
   await runScript();
-  await waitForDataTable();
+  let dataTable = await waitForDataTable();
+  await expect(getHeaderCell(dataTable, getTableColumnId('initial_column', 0))).toBeVisible();
 
   const columnNames = ['line_id', 'run_id', 'message'];
-  await fillScript(`
+  await replaceScript(`
     SELECT
       21004 + i AS line_id,
       48262306 AS run_id,
@@ -79,24 +116,156 @@ test('Column widths update when the result schema expands in the same tab', asyn
         WHEN i < 4 THEN 'ok'
         ELSE repeat('A long error message ', 50)
       END AS message
-    FROM range(6) AS rows(i);
+    FROM range(6) AS rows(i)
+    ORDER BY i;
+  `);
+  await runScript();
+
+  dataTable = await waitForDataTable();
+  await expectColumnWidthsAligned(dataTable, columnNames, [0, 4]);
+
+  const reorderedColumns = ['message', 'line_id', 'run_id'];
+  await replaceScript(`
+    SELECT
+      CASE WHEN i < 4 THEN 'reordered' ELSE repeat('Long reordered value ', 20) END AS message,
+      i AS line_id,
+      i * 10 AS run_id
+    FROM range(6) AS rows(i)
+    ORDER BY i;
+  `);
+  await runScript();
+  dataTable = await waitForDataTable();
+  await expect(getHeaderCell(dataTable, getTableColumnId('message', 0))).toBeVisible();
+  await expectColumnWidthsAligned(dataTable, reorderedColumns, [0, 4]);
+
+  const replacementColumns = ['alpha', 'beta', 'gamma'];
+  await replaceScript(`SELECT i AS alpha, i + 1 AS beta, i + 2 AS gamma FROM range(6) rows(i);`);
+  await runScript();
+  dataTable = await waitForDataTable();
+  await expect(getHeaderCell(dataTable, getTableColumnId('alpha', 0))).toBeVisible();
+  await expectColumnWidthsAligned(dataTable, replacementColumns, [0, 4]);
+
+  await replaceScript(`SELECT 7 AS final_column;`);
+  await runScript();
+  dataTable = await waitForDataTable();
+  await expect(getHeaderCell(dataTable, getTableColumnId('final_column', 0))).toBeVisible();
+  await expect(dataTable.locator('[data-testid^="data-table-header-cell-container-"]')).toHaveCount(
+    2,
+  );
+  await expectColumnWidthsAligned(dataTable, ['final_column'], [0]);
+});
+
+test('Truncation and tooltip state follow column resizing', async ({
+  page,
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  waitForDataTable,
+}) => {
+  const longValue = 'Long value '.repeat(10).trim();
+  await createScriptAndSwitchToItsTab();
+  await fillScript(`SELECT '${longValue}' AS message;`);
+  await runScript();
+
+  const dataTable = await waitForDataTable();
+  const columnId = getTableColumnId('message', 0);
+  const cell = getDataCellContainer(dataTable, columnId, 0);
+  const header = getHeaderCell(dataTable, columnId);
+  const resizeBy = async (delta: number) => {
+    const resizerBox = await header.locator('.resizer').boundingBox();
+    expect(resizerBox).not.toBeNull();
+    await page.mouse.move(resizerBox!.x + resizerBox!.width / 2, resizerBox!.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(resizerBox!.x + delta, resizerBox!.y + 10);
+    await page.mouse.up();
+  };
+
+  await expect
+    .poll(() =>
+      cell.evaluate((element) => {
+        const value = element.firstElementChild as HTMLElement;
+        return value.scrollWidth - value.clientWidth;
+      }),
+    )
+    .toBeGreaterThan(0);
+  await expect(cell).toHaveAttribute('data-truncated', 'true');
+
+  await resizeBy(750);
+  await expect(cell).not.toHaveAttribute('data-truncated', 'true');
+  await page.mouse.move(0, 0);
+  await cell.hover();
+  await expect(page.getByRole('tooltip')).toBeHidden();
+
+  await resizeBy(-750);
+  await expect(cell).toHaveAttribute('data-truncated', 'true');
+  await page.mouse.move(0, 0);
+  await cell.hover();
+  await expect(page.getByRole('tooltip')).toHaveText(longValue);
+  await page.mouse.move(0, 0);
+  await cell.focus();
+  await expect(page.getByRole('tooltip')).toHaveText(longValue);
+
+  await resizeBy(750);
+  await expect(cell).not.toHaveAttribute('data-truncated', 'true');
+  await expect(page.getByRole('tooltip')).toBeHidden();
+});
+
+test('Narrow tables keep headers aligned while scrolling', async ({
+  page,
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  waitForDataTable,
+}) => {
+  await page.setViewportSize({ width: 640, height: 720 });
+  await createScriptAndSwitchToItsTab();
+  await fillScript(`
+    SELECT
+      i AS first_column,
+      i AS second_column,
+      i AS third_column,
+      i AS fourth_column,
+      i AS fifth_column
+    FROM range(200) AS rows(i)
+    ORDER BY i;
   `);
   await runScript();
 
   const dataTable = await waitForDataTable();
+  const scrollContainer = dataTable.locator('..');
+  const firstHeader = getHeaderCell(dataTable, getTableColumnId('first_column', 0));
+  const initialHeaderY = await firstHeader.evaluate((element) => element.getBoundingClientRect().y);
 
-  for (let columnIndex = 0; columnIndex < columnNames.length; columnIndex += 1) {
-    const columnId = getTableColumnId(columnNames[columnIndex], columnIndex);
-    const headerBoundingBox = await getHeaderCell(dataTable, columnId).boundingBox();
-
-    for (const rowIndex of [0, 4]) {
-      const dataBoundingBox = await getDataCellContainer(
-        dataTable,
-        columnId,
-        rowIndex,
-      ).boundingBox();
-
-      expect(dataBoundingBox?.width).toBeCloseTo(headerBoundingBox?.width as number, 1);
-    }
-  }
+  await expect
+    .poll(() => scrollContainer.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeGreaterThan(0);
+  await scrollContainer.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect
+    .poll(() => scrollContainer.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0);
+  await expect
+    .poll(() => scrollContainer.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  await expect
+    .poll(() => firstHeader.evaluate((element) => element.getBoundingClientRect().y))
+    .toBeCloseTo(initialHeaderY, 0);
+  await expect
+    .poll(async () => {
+      const [headerX, cellX] = await Promise.all([
+        firstHeader.evaluate((element) => element.getBoundingClientRect().x),
+        getDataCellContainer(dataTable, getTableColumnId('first_column', 0), 99).evaluate(
+          (element) => element.getBoundingClientRect().x,
+        ),
+      ]);
+      return Math.abs(headerX - cellX);
+    })
+    .toBeLessThan(0.5);
+  await expectColumnWidthsAligned(
+    dataTable,
+    ['first_column', 'second_column', 'third_column', 'fourth_column', 'fifth_column'],
+    [0, 99],
+  );
 });
