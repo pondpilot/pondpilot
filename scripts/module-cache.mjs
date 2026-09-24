@@ -48,6 +48,12 @@ export const moduleCacheResources = Object.freeze([
     url: `${duckDbExtensionBase}/wasm_eh/${name}.duckdb_extension.wasm`,
     sha256: eh,
   })),
+  // Patched Quack build loaded by src/utils/quack.ts (see duckdb/duckdb-quack#143). Only the
+  // opt-in RUN_QUACK_E2E scenarios request it.
+  {
+    url: `https://nightly-extensions.duckdb.org/v${DUCKDB_EXTENSION_VERSION}/wasm_eh/quack.duckdb_extension.wasm`,
+    sha256: '88e3d0766e67c31fb31853bc652ef6cf90dc170e790e203dea8d0518b2b4f64b',
+  },
 ]);
 
 export const localModuleArtifacts = Object.freeze([
