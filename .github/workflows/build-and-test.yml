@@ -94,6 +94,11 @@ jobs:
         env:
           CI: true
 
+      - name: Run component tests
+        run: yarn test:component
+        env:
+          CI: true
+
       - name: Install Playwright browsers
         run: yarn playwright install --with-deps chromium webkit
 
