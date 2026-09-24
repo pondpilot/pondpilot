@@ -138,9 +138,6 @@ test('Should create file tree structure and verify persistence after reload', as
   // Create files and directories
   await setupFileSystem(FILE_SYSTEM_TREE);
 
-  // Wait for all files and directories to appear
-  await page.waitForTimeout(2000);
-
   // 5. Check the file tree structure
   // Note: XLSX files appear as expandable nodes with sheets as children, not at root level
   const rootFiles = ['a', 'a_1 (a)', 'a_2 (a)', 'a_3 (a)'];

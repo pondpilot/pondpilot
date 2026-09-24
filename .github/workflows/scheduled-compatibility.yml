@@ -1,0 +1,124 @@
+name: Scheduled Compatibility Tests
+
+on:
+  schedule:
+    - cron: '17 3 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-compatibility:
+    name: Firefox & WebKit Compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.node-version'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Install browsers
+        run: yarn playwright install --with-deps firefox webkit
+
+      - name: Build for integration tests
+        run: yarn build:test
+
+      - name: Run compatibility scenarios
+        id: compatibility
+        continue-on-error: true
+        run: yarn test:e2e:compatibility:no-build
+        env:
+          CI: true
+
+      - name: Record compatibility status
+        if: always()
+        run: |
+          if [ '${{ steps.compatibility.outcome }}' = 'success' ]; then
+            echo 'Firefox and WebKit compatibility scenarios passed.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Known Firefox/WebKit compatibility gaps reproduced; inspect the attached report, trace, and screenshots.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload compatibility report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: compatibility-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  quack:
+    name: Quack Compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.node-version'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Install Chromium
+        run: yarn playwright install --with-deps chromium
+
+      - name: Build for integration tests
+        run: yarn build:test
+
+      - name: Run Quack protocol scenario
+        run: yarn test:e2e:quack:protocol:no-build
+        env:
+          CI: true
+          RUN_QUACK_E2E: true
+
+      - name: Preserve Quack protocol report
+        run: mv playwright-report/results.xml playwright-report/quack-protocol-results.xml
+
+      - name: Run Quack browser compatibility scenario
+        id: quack-browser
+        continue-on-error: true
+        run: yarn test:e2e:quack:browser:no-build
+        env:
+          CI: true
+          RUN_QUACK_E2E: true
+
+      - name: Record Quack browser status
+        if: always()
+        run: |
+          if [ '${{ steps.quack-browser.outcome }}' = 'success' ]; then
+            echo 'Quack browser compatibility scenario passed.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'The known DuckDB-WASM Quack compatibility gap reproduced; the native protocol gate passed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Quack report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: quack-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

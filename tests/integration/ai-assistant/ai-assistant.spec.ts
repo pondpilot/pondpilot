@@ -48,10 +48,11 @@ test.describe('AI Assistant Integration', () => {
       await expect(widget).toBeHidden();
     });
 
-    test.skip('should toggle AI assistant with repeated shortcut', async ({
+    test('should toggle AI assistant with repeated shortcut', async ({
       page,
       scriptEditorContent,
     }) => {
+      test.skip(true, 'Repeated shortcut toggling is not implemented; review-by: 2026-11-10');
       // Focus the editor and open AI assistant
       await scriptEditorContent.click();
       await pressPrimaryShortcut(page, 'I');
@@ -151,45 +152,6 @@ test.describe('AI Assistant Integration', () => {
 
       // aria-expanded should be false
       await expect(textarea).toHaveAttribute('aria-expanded', 'false');
-    });
-  });
-
-  test.describe.skip('Prompt history', () => {
-    test('should navigate prompt history with arrow keys', async ({
-      page,
-      scriptEditorContent,
-    }) => {
-      // Focus the editor and open AI assistant
-      await scriptEditorContent.click();
-      await pressPrimaryShortcut(page, 'I');
-      const widget = page.locator('.cm-ai-assistant-widget');
-      const textarea = widget.locator('.ai-widget-textarea');
-
-      // Type and "submit" a few prompts (we'll just type them)
-      const prompts = ['First prompt', 'Second prompt', 'Third prompt'];
-
-      for (const prompt of prompts) {
-        await textarea.fill(prompt);
-        // Close and reopen to simulate submitting
-        await textarea.press('Escape');
-
-        await pressPrimaryShortcut(page, 'I');
-      }
-
-      // Clear textarea
-      await textarea.fill('');
-
-      // Press up arrow to get last prompt
-      await page.keyboard.press('ArrowUp');
-      await expect(textarea).toHaveValue(prompts[2]);
-
-      // Press up again to get second prompt
-      await page.keyboard.press('ArrowUp');
-      await expect(textarea).toHaveValue(prompts[1]);
-
-      // Press down to go back
-      await page.keyboard.press('ArrowDown');
-      await expect(textarea).toHaveValue(prompts[2]);
     });
   });
 

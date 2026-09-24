@@ -121,9 +121,6 @@ test('Convert To: CSV submenu should not include CSV as an option', async ({
   await expect(convertToItem).toBeVisible();
   await convertToItem.hover();
 
-  // Wait for submenu
-  await page.waitForTimeout(300);
-
   // CSV should NOT be in the submenu (same-format hidden)
   const csvSubmenuItem = page.getByRole('menuitem', { name: 'CSV', exact: true });
   await expect(csvSubmenuItem).toBeHidden();

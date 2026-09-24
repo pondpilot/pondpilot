@@ -86,10 +86,11 @@ test.describe('Datasource Wizard', () => {
     await expect(disabled).toBeDisabled();
   });
 
-  test.skip('should disable buttons during connection test', async ({
-    page,
-    openDatasourceWizard,
-  }) => {
+  test('should disable buttons during connection test', async ({ page, openDatasourceWizard }) => {
+    test.skip(
+      true,
+      'Requires deterministic remote-request interception before it can be enabled; review-by: 2026-11-10',
+    );
     // Navigate to remote database config
     await openDatasourceWizard();
     const remoteDBCard = getWizardCard(

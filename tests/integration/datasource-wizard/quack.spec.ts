@@ -32,7 +32,7 @@ test.describe('Quack datasource', () => {
 
   test.skip(
     process.env.RUN_QUACK_E2E !== 'true',
-    'Set RUN_QUACK_E2E=true to run the Quack browser E2E against a local DuckDB server',
+    'Scheduled-only Quack browser coverage; set RUN_QUACK_E2E=true (review-by: 2026-11-10)',
   );
 
   let server: QuackServerProcess | undefined;
