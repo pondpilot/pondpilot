@@ -9,9 +9,12 @@ import {
   ChartAggregationType,
   ChartSortOrder,
   ColumnAggregateType,
+  ColumnDistribution,
+  ColumnStats,
   DataAdapterApi,
   DataAdapterStreamReader,
   GetDataTableSliceReturnType,
+  MetadataColumnType,
   RowCountInfo,
 } from '@models/data-adapter';
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from '@models/db';
@@ -1235,6 +1238,86 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
   );
 
+  const getColumnStats = useCallback(
+    async (columnNames: string[]): Promise<ColumnStats[] | undefined> => {
+      if (!queries.getColumnStats) {
+        return Promise.resolve(undefined);
+      }
+
+      abortUserTasks();
+      const signal = getUserTasksAbortSignal();
+
+      const { value, aborted } = await runWithMainReaderPaused(() =>
+        queries.getColumnStats!(columnNames, signal),
+      );
+
+      if (aborted) {
+        throw new CancelledOperation({
+          isUser: false,
+          reason: 'Operation cancelled as it was replaced by a newer column stats request',
+        });
+      }
+
+      return value;
+    },
+    [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
+  );
+
+  const getColumnDistribution = useCallback(
+    async (
+      columnName: string,
+      columnType: MetadataColumnType,
+    ): Promise<ColumnDistribution | undefined> => {
+      if (!queries.getColumnDistribution) {
+        return Promise.resolve(undefined);
+      }
+
+      abortUserTasks();
+      const signal = getUserTasksAbortSignal();
+
+      const { value, aborted } = await runWithMainReaderPaused(() =>
+        queries.getColumnDistribution!(columnName, columnType, signal),
+      );
+
+      if (aborted) {
+        throw new CancelledOperation({
+          isUser: false,
+          reason: 'Operation cancelled as it was replaced by a newer column distribution request',
+        });
+      }
+
+      return value;
+    },
+    [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
+  );
+
+  const getAllColumnDistributions = useCallback(
+    async (
+      columns: Array<{ name: string; type: MetadataColumnType }>,
+    ): Promise<Map<string, ColumnDistribution> | undefined> => {
+      if (!queries.getAllColumnDistributions) {
+        return Promise.resolve(undefined);
+      }
+
+      abortUserTasks();
+      const signal = getUserTasksAbortSignal();
+
+      const { value, aborted } = await runWithMainReaderPaused(() =>
+        queries.getAllColumnDistributions!(columns, signal),
+      );
+
+      if (aborted) {
+        throw new CancelledOperation({
+          isUser: false,
+          reason: 'Operation cancelled as it was replaced by a newer batch distribution request',
+        });
+      }
+
+      return value;
+    },
+    [queries, abortUserTasks, getUserTasksAbortSignal, runWithMainReaderPaused],
+  );
+
   const cancelDataRead = useCallback(
     async ({ releaseReader = false }: { releaseReader?: boolean } = {}) => {
       // this will ensure that fetching doesn't resume
@@ -1317,6 +1400,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     toggleColumnSort,
     getColumnAggregate,
     getChartAggregatedData,
+    getColumnStats,
+    getColumnDistribution,
+    getAllColumnDistributions,
     cancelDataRead,
     ackDataReadCancelled,
   };

@@ -16,6 +16,7 @@ import {
   Divider,
   Tooltip,
   SegmentedControl,
+  VisuallyHidden,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { ChartConfig, ViewMode } from '@models/chart';
@@ -25,7 +26,16 @@ import { DBColumn } from '@models/db';
 import { ExportFormat } from '@models/export-options';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore, clearPendingConvert } from '@store/app-store';
-import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
+import {
+  IconX,
+  IconCopy,
+  IconRefresh,
+  IconChevronDown,
+  IconScale,
+  IconTable,
+  IconChartBar,
+  IconTableColumn,
+} from '@tabler/icons-react';
 import {
   getDatabaseIdentifier,
   isDatabaseDataSource,
@@ -357,9 +367,9 @@ export const DataViewInfoPane = ({
       wrap="nowrap"
       className="h-7 mt-2 mb-3 px-3 relative z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
     >
-      <Group gap="sm" wrap="nowrap" className="overflow-x-auto shrink min-w-0 custom-scroll-hidden">
+      <Group gap="sm" wrap="nowrap" className="overflow-x-auto flex-1 min-w-0 custom-scroll-hidden">
         <Group gap={4} wrap="nowrap" className="shrink-0">
-          {hasData && viewMode !== 'chart' && (
+          {hasData && viewMode === 'table' && (
             <ColRowCount
               rowCount={rowCountToShow}
               columnCount={columnCount}
@@ -417,11 +427,36 @@ export const DataViewInfoPane = ({
             data={[
               {
                 value: 'table',
-                label: 'Table',
+                label: (
+                  <Tooltip label="Table" openDelay={400}>
+                    <span className="inline-flex items-center">
+                      <IconTable size={16} stroke={1.5} />
+                      <VisuallyHidden>Table</VisuallyHidden>
+                    </span>
+                  </Tooltip>
+                ),
               },
               {
                 value: 'chart',
-                label: 'Chart',
+                label: (
+                  <Tooltip label="Chart" openDelay={400}>
+                    <span className="inline-flex items-center">
+                      <IconChartBar size={16} stroke={1.5} />
+                      <VisuallyHidden>Chart</VisuallyHidden>
+                    </span>
+                  </Tooltip>
+                ),
+              },
+              {
+                value: 'metadata',
+                label: (
+                  <Tooltip label="Metadata" openDelay={400}>
+                    <span className="inline-flex items-center">
+                      <IconTableColumn size={16} stroke={1.5} />
+                      <VisuallyHidden>Metadata</VisuallyHidden>
+                    </span>
+                  </Tooltip>
+                ),
               },
             ]}
             disabled={!hasData}
