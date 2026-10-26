@@ -44,21 +44,21 @@ describe('quack utils', () => {
     );
   });
 
-  it('loads the patched pinned Quack WASM artifact before repositories', async () => {
+  it('loads the pinned Quack WASM artifact before repositories', async () => {
     const query = jest.fn<(sql: string) => Promise<unknown>>().mockResolvedValue({});
 
     await expect(loadQuackExtension({ query } as any)).resolves.toBeUndefined();
     expect(query).toHaveBeenNthCalledWith(
       1,
-      "LOAD 'https://nightly-extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm'",
+      "LOAD 'https://extensions.duckdb.org/v1.5.6/wasm_eh/quack.duckdb_extension.wasm'",
     );
     expect(query).toHaveBeenLastCalledWith('LOAD quack');
   });
 
-  it('falls back to extension repositories when the patched artifact fails', async () => {
+  it('falls back to extension repositories when the pinned artifact fails', async () => {
     const query = jest
       .fn<(sql: string) => Promise<unknown>>()
-      .mockRejectedValueOnce(new Error('patched artifact failed'))
+      .mockRejectedValueOnce(new Error('pinned artifact failed'))
       .mockResolvedValueOnce({})
       .mockResolvedValueOnce({});
 
@@ -67,10 +67,10 @@ describe('quack utils', () => {
     expect(query).toHaveBeenLastCalledWith('LOAD quack');
   });
 
-  it('tries community repositories when the patched artifact and core nightly fail', async () => {
+  it('tries community repositories when the pinned artifact and core nightly fail', async () => {
     const query = jest
       .fn<(sql: string) => Promise<unknown>>()
-      .mockRejectedValueOnce(new Error('patched artifact failed'))
+      .mockRejectedValueOnce(new Error('pinned artifact failed'))
       .mockRejectedValueOnce(new Error('core nightly failed'))
       .mockRejectedValueOnce(new Error('core nightly failed'))
       .mockResolvedValueOnce({})
@@ -100,7 +100,7 @@ describe('quack utils', () => {
     }
   });
 
-  it('retries with the patched Quack WASM artifact when ATTACH storage support is missing', async () => {
+  it('retries with the pinned Quack WASM artifact when ATTACH storage support is missing', async () => {
     const pool = {
       query: jest
         .fn<(sql: string) => Promise<unknown>>()
@@ -122,7 +122,7 @@ describe('quack utils', () => {
     ).resolves.toBeUndefined();
     expect(pool.query).toHaveBeenNthCalledWith(
       4,
-      "LOAD 'https://nightly-extensions.duckdb.org/v1.5.2/wasm_eh/quack.duckdb_extension.wasm'",
+      "LOAD 'https://extensions.duckdb.org/v1.5.6/wasm_eh/quack.duckdb_extension.wasm'",
     );
   });
 

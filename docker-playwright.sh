@@ -2,7 +2,7 @@
 set -euo pipefail
 
 IMAGE="mcr.microsoft.com/playwright:v1.62.1-noble"
-DUCKDB_VERSION="v1.5.2"
+DUCKDB_VERSION="v1.5.6"
 MODE="${1:-test}"
 PLAYWRIGHT_WORKERS=1
 TTY_FLAGS="-i"

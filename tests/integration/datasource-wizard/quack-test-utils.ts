@@ -17,18 +17,21 @@ import { gunzipSync } from 'zlib';
 
 export const QUACK_E2E_TOKEN = 'pondpilot_test_token';
 
-const DUCKDB_CLI_VERSION = 'v1.5.2';
+const DUCKDB_CLI_VERSION = 'v1.5.6';
 const DUCKDB_CLI_URL = `https://install.duckdb.org/${DUCKDB_CLI_VERSION}/duckdb_cli-linux-amd64.gz`;
-const DUCKDB_CLI_GZIP_SHA256 = '7b0130422ee15c4c07f85ab75c0e3daf19b912b762258d1724c30f27964fb021';
-const DUCKDB_BINARY_SHA256 = 'e7d04a9ca6ef1b4cadb0fff5dad19b1995915e5881b91f861fc60b9d7564503b';
-const QUACK_EXTENSION_URL =
-  'https://nightly-extensions.duckdb.org/v1.5.2/linux_amd64/quack.duckdb_extension.gz';
+const DUCKDB_CLI_GZIP_SHA256 = 'cce2687a38681db644c248198b99ecd86170ff47e324c5f33e50c0042f142839';
+const DUCKDB_BINARY_SHA256 = '61238cfbe9dfeaad4bcfcd8a48f6f7123dae2e9603aaadb1f77a4217aeb8980c';
+const QUACK_EXTENSION_URL = `https://extensions.duckdb.org/${DUCKDB_CLI_VERSION}/linux_amd64/quack.duckdb_extension.gz`;
 const QUACK_EXTENSION_GZIP_SHA256 =
-  '820011bff140fd1e00c3e3977170a9f8599ac7dceb10d8ac312d4b7683307709';
-const QUACK_EXTENSION_SHA256 = '1633c910a2d7d2779878e5c77e1ddd07091ea5c1dc6a38192e70e70395774f4a';
+  'ad8bb34b2f513bcac0d01b96af0406fd2025f8ee3d3b878e45e30d0e6eab7b04';
+const QUACK_EXTENSION_SHA256 = 'efd924d2a87b0cbcdda8a7418aa1daf33e0267388c87817d2e622b0a918c0800';
 
-export const DUCKDB_BINARY = process.env.DUCKDB_BINARY || path.resolve('.local-bin/duckdb');
-export const QUACK_EXTENSION = path.resolve('.local-bin/quack.duckdb_extension');
+// Versioned cache directory so a CLI/extension pin bump downloads fresh artifacts instead of
+// failing the checksum of a previously cached version. File names must stay as-is: DuckDB
+// derives the extension entrypoint (quack_duckdb_cpp_init) from the file name.
+const LOCAL_BIN_DIR = path.resolve('.local-bin', DUCKDB_CLI_VERSION);
+export const DUCKDB_BINARY = process.env.DUCKDB_BINARY || path.join(LOCAL_BIN_DIR, 'duckdb');
+export const QUACK_EXTENSION = path.join(LOCAL_BIN_DIR, 'quack.duckdb_extension');
 export const QUACK_LOAD_SQL = `LOAD '${QUACK_EXTENSION.replaceAll("'", "''")}';`;
 
 export async function getFreePort(): Promise<number> {
@@ -107,6 +110,7 @@ export function ensureDuckDBBinary(): void {
 
 function ensureQuackExtension(): void {
   if (!existsSync(QUACK_EXTENSION)) {
+    mkdirSync(path.dirname(QUACK_EXTENSION), { recursive: true });
     const gzipPath = `${QUACK_EXTENSION}.gz`;
     execFileSync('curl', ['-fsSL', '-o', gzipPath, QUACK_EXTENSION_URL], { stdio: 'inherit' });
     assertFileChecksum(gzipPath, QUACK_EXTENSION_GZIP_SHA256);

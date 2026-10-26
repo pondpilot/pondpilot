@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
-export const DUCKDB_WASM_VERSION = '1.33.1-dev53.0';
-export const DUCKDB_EXTENSION_VERSION = '1.5.2';
+export const DUCKDB_WASM_VERSION = '1.33.1-dev65.0';
+export const DUCKDB_EXTENSION_VERSION = '1.5.6';
 
 const duckDbWasmBase = `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${DUCKDB_WASM_VERSION}/dist`;
 const duckDbExtensionBase = `https://extensions.duckdb.org/v${DUCKDB_EXTENSION_VERSION}`;
@@ -13,46 +13,45 @@ const duckDbExtensionBase = `https://extensions.duckdb.org/v${DUCKDB_EXTENSION_V
 export const moduleCacheResources = Object.freeze([
   {
     url: `${duckDbWasmBase}/duckdb-browser-eh.worker.js`,
-    sha256: '644e3f454c48992b7f5831c31f637944d08bdfa0407f850107fef51b80974001',
+    sha256: '89dc43da9faab0f5ecb4e05a4d0bc334c95db2743c146048ba9dd3621c0496eb',
   },
   {
     url: `${duckDbWasmBase}/duckdb-eh.wasm`,
-    sha256: 'c359111b0688d604e1e4e9c4d1ec3376adfe318d43546d0562f2deea73a5316f',
+    sha256: '7ba4e2ea49b0f8851e90b9ce404cc810d1dd998edabfc1d3677351ba2db0419a',
   },
   ...[
     {
       name: 'httpfs',
-      eh: 'c50b7965a2622b7715dcd652290f77701fa45d42827ddd316649096d984b64b2',
+      eh: '10e7845b59ea0725e7eaf4ed740dc73ac1b1ec6145385cd64d528961c9837ab9',
     },
     {
       name: 'iceberg',
-      eh: '5dfc5857b87e28fa88c5c762cab015a1e5ba0446e474ca8e6a065a576ce8305d',
+      eh: '7cc6ff29811556e3a0c64e9f6ae2ce96fac4665489a3d164fa1d0d543be50c96',
     },
     {
       name: 'parquet',
-      eh: 'e68f467c4f5d7502ebed06eec190d1a2d5dee0f218f328547e2c2a41ae58435e',
+      eh: '33094a01b3a1dc27c4158f4c1fa13c45c240eea6ba07197a19a1925f002ca473',
     },
     {
       name: 'avro',
-      eh: 'da055b981d64b69609a7a29431e2a7763aa3ecf618744ec87e4f0233b7b0f283',
+      eh: 'e037648f2c116d9139cb72fa6c86439d4e8a182a4927390ae1b70a6e4e78b144',
     },
     {
       name: 'json',
-      eh: '637a59cde9e686976de825a150f6ab9bc3ec5ac60fd0809ed01623aae110d0eb',
+      eh: '2f100ca7d08598ad084405ab1bab7691fd1f30d0d50cc492534042c45205bada',
     },
     {
       name: 'excel',
-      eh: '888bf118999ec4b733e581e530c1c0b0df30412af3aea9d717bd42ba3d669477',
+      eh: 'b220bd36e0f1e39a75d73a0008d3d678cc9fd61a18fbc4d471f01e0d2e3e73c4',
     },
   ].map(({ name, eh }) => ({
     url: `${duckDbExtensionBase}/wasm_eh/${name}.duckdb_extension.wasm`,
     sha256: eh,
   })),
-  // Patched Quack build loaded by src/utils/quack.ts (see duckdb/duckdb-quack#143). Only the
-  // opt-in RUN_QUACK_E2E scenarios request it.
+  // Quack build pinned by src/utils/quack.ts. Only the opt-in RUN_QUACK_E2E scenarios request it.
   {
-    url: `https://nightly-extensions.duckdb.org/v${DUCKDB_EXTENSION_VERSION}/wasm_eh/quack.duckdb_extension.wasm`,
-    sha256: '88e3d0766e67c31fb31853bc652ef6cf90dc170e790e203dea8d0518b2b4f64b',
+    url: `${duckDbExtensionBase}/wasm_eh/quack.duckdb_extension.wasm`,
+    sha256: '652ebf49a2a255bcbf5a3e46065aee0c40b2acc09cc2e55b6bc18b75345b2ee8',
   },
 ]);
 
