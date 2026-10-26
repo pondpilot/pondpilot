@@ -37,7 +37,7 @@ test.describe('local DuckDB Quack protocol', () => {
     server = undefined;
   });
 
-  test('serves and queries data through Quack with DuckDB CLI v1.5.2', () => {
+  test('serves and queries data through Quack with DuckDB CLI v1.5.6', () => {
     const sql = `
 ${QUACK_LOAD_SQL}
 ATTACH 'quack:localhost:${port}' AS quack_remote (TOKEN '${QUACK_E2E_TOKEN}', DISABLE_SSL true);

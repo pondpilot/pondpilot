@@ -1781,13 +1781,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@duckdb/duckdb-wasm@npm:1.33.1-dev53.0":
-  version: 1.33.1-dev53.0
-  resolution: "@duckdb/duckdb-wasm@npm:1.33.1-dev53.0"
+"@duckdb/duckdb-wasm@npm:1.33.1-dev65.0":
+  version: 1.33.1-dev65.0
+  resolution: "@duckdb/duckdb-wasm@npm:1.33.1-dev65.0"
   dependencies:
     apache-arrow: "npm:^17.0.0"
     qs: "npm:^6.14.1"
-  checksum: 10c0/8db57249f3994293d5d44c045cf9888cc954d94d45cb04f8716dbf2367658c42c290b13e63c36178af4ca0d9d4507338d505b43f0a7555f254dea6cb04b5af84
+  checksum: 10c0/9059f2c195f7b99d0e63950baa8b7d7acabbdde142052dedbee275afbad18a4146be3f6d0987d7dfe088fc46ccaf815c4c9d69e6d8c091df87ecbbba15fbf07e
   languageName: node
   linkType: hard
 
@@ -10866,7 +10866,7 @@ __metadata:
     "@dnd-kit/modifiers": "npm:9.0.0"
     "@dnd-kit/sortable": "npm:10.0.0"
     "@dnd-kit/utilities": "npm:3.2.2"
-    "@duckdb/duckdb-wasm": "npm:1.33.1-dev53.0"
+    "@duckdb/duckdb-wasm": "npm:1.33.1-dev65.0"
     "@eslint/js": "npm:9.39.5"
     "@jest/globals": "npm:30.4.1"
     "@mantine/core": "npm:8.2.3"

@@ -8,7 +8,7 @@ import {
 } from '@features/duckdb-context/duckdb-bundles';
 import { describe, it, expect, jest, afterEach } from '@jest/globals';
 
-const CDN_BASE = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev53.0/dist/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev65.0/dist/';
 
 const defaultBundles = (): DuckDBBundles => ({
   mvp: {
