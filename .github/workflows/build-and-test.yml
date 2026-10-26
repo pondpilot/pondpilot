@@ -125,9 +125,13 @@ jobs:
         run: yarn playwright install --with-deps chromium
 
       - name: Install DuckDB
+        # Keep in lockstep with the DuckDB-WASM engine version: integration fixtures are created with
+        # this CLI and must stay readable by the browser engine.
+        env:
+          DUCKDB_VERSION: 1.5.6
         run: |
           curl https://install.duckdb.org | sh
-          sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
+          sudo ln -s "/home/runner/.duckdb/cli/${DUCKDB_VERSION}/duckdb" /usr/local/bin/duckdb
           duckdb --version
 
       - name: Cache deterministic test modules
@@ -215,9 +219,13 @@ jobs:
         run: yarn playwright install --with-deps chromium
 
       - name: Install DuckDB
+        # Keep in lockstep with the DuckDB-WASM engine version: integration fixtures are created with
+        # this CLI and must stay readable by the browser engine.
+        env:
+          DUCKDB_VERSION: 1.5.6
         run: |
           curl https://install.duckdb.org | sh
-          sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
+          sudo ln -s "/home/runner/.duckdb/cli/${DUCKDB_VERSION}/duckdb" /usr/local/bin/duckdb
           duckdb --version
 
       - name: Cache deterministic test modules
